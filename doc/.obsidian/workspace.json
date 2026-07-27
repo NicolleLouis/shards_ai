@@ -1,0 +1,210 @@
+{
+  "main": {
+    "id": "7007af00c03d02dc",
+    "type": "split",
+    "children": [
+      {
+        "id": "946f390cc0753a12",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "659b86805782863b",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Roadmap.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Roadmap"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "91c88b6067c0ae41",
+    "type": "split",
+    "children": [
+      {
+        "id": "5a7acf90e5bd773a",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b3420157f85767c7",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "9e36bde70149f095",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "97b49a19089b78d6",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "f8ca9714bcaee73e",
+    "type": "split",
+    "children": [
+      {
+        "id": "8e0abb863818ec1b",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b865f80c7be0b056",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks"
+            }
+          },
+          {
+            "id": "8f8f7656b1529f9c",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links"
+            }
+          },
+          {
+            "id": "6adfebd60224c23c",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "e65bd3d868be3aba",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "8da5c6c4badcb362",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "659b86805782863b",
+  "lastOpenFiles": [
+    "Architecture/016-evaluation-interphase-gain-mastery.md",
+    "Current state/Game engine.md",
+    "Current state/Random player.md",
+    "Current state/Heuristic player.md",
+    "Current state/Analysis.md",
+    "Architecture/012-optimisation-robuste-coefficients-heuristique.md",
+    "Architecture/010-optimisation-coefficients-heuristique.md",
+    "Architecture/008-mercenaires.md",
+    "Architecture/005-cartes-factions-et-mecaniques.md",
+    "Architecture/003-deck-central-riviere-achats.md",
+    "Architecture/001-architecture-moteur-duel-v0.md",
+    "Architecture/002-joueur-random.md",
+    "regles-shards-of-infinity-base.md",
+    "Roadmap.md",
+    "Architecture/011-recompenses-et-avantages-d-etat-heuristique.md",
+    "Architecture/006-analyse-statistique-des-parties.md",
+    "Architecture/004-maitrise-et-effets-conditionnels.md",
+    "Architecture/007-champions-board-et-assignation-des-degats.md",
+    "Architecture/009-joueur-heuristique-pondere.md",
+    "Architecture/007-champions-board-et-assignation-des-degats.md~",
+    "Architecture/architecture-moteur-duel-v0.md",
+    "Architecture/joueur-random.md",
+    "Current state",
+    "Architecture"
+  ]
+}

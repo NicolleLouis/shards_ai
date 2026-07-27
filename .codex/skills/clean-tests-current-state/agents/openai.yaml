@@ -1,0 +1,4 @@
+interface:
+  display_name: "Clean Tests & Current State"
+  short_description: "Audit tests and Current state docs"
+  default_prompt: "Audit the unit tests against implemented behavior, clean obsolete or missing coverage, and synchronize doc/Current state with the code."

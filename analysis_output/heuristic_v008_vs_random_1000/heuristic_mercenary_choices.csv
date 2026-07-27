@@ -1,0 +1,35 @@
+result_group,card,recruit_immediate,buy_long_term,total,recruit_share_percent
+heuristic_win,Apôtre des ombres,306,150,456,67.105
+heuristic_win,Assassins du vide,239,334,573,41.71
+heuristic_win,Brise-Éther,157,194,351,44.729
+heuristic_win,Chevalier Le'Shai,281,283,564,49.823
+heuristic_win,Clerc aux Spores,539,128,667,80.81
+heuristic_win,Ermite Fongique,73,369,442,16.516
+heuristic_win,Fléau des Ombres,213,89,302,70.53
+heuristic_win,Garde Mémoire,73,85,158,46.203
+heuristic_win,Héritier du Néant,95,8,103,92.233
+heuristic_win,Le Grand Architecte,3,6,9,33.333
+heuristic_win,Omnius l'érudit,34,27,61,55.738
+heuristic_win,Pirate Hérétique,111,362,473,23.467
+heuristic_win,Prophète de l'éclat,71,64,135,52.593
+heuristic_win,Racine de la Forêt,105,21,126,83.333
+heuristic_win,Saule Vengeur,66,64,130,50.769
+heuristic_win,Valkyrie des Landes,77,29,106,72.642
+heuristic_win,"Zara Ra, Écorcheur d’âme",93,43,136,68.382
+heuristic_loss,Apôtre des ombres,13,1,14,92.857
+heuristic_loss,Assassins du vide,8,7,15,53.333
+heuristic_loss,Brise-Éther,2,4,6,33.333
+heuristic_loss,Chevalier Le'Shai,5,6,11,45.455
+heuristic_loss,Clerc aux Spores,16,8,24,66.667
+heuristic_loss,Ermite Fongique,4,8,12,33.333
+heuristic_loss,Fléau des Ombres,6,2,8,75.0
+heuristic_loss,Garde Mémoire,1,4,5,20.0
+heuristic_loss,Héritier du Néant,4,0,4,100.0
+heuristic_loss,Le Grand Architecte,1,0,1,100.0
+heuristic_loss,Omnius l'érudit,1,1,2,50.0
+heuristic_loss,Pirate Hérétique,6,3,9,66.667
+heuristic_loss,Prophète de l'éclat,5,4,9,55.556
+heuristic_loss,Racine de la Forêt,1,0,1,100.0
+heuristic_loss,Saule Vengeur,3,2,5,60.0
+heuristic_loss,Valkyrie des Landes,1,0,1,100.0
+heuristic_loss,"Zara Ra, Écorcheur d’âme",0,1,1,0.0

@@ -1,0 +1,49 @@
+rank,card_id,name,winner_average_number,loser_average_number,delta_average_number,winner_presence_rate,loser_presence_rate,delta_presence_rate,faction,cost,central_copy_count
+1,crystal,Cristal,5.713,6.671,-0.958,0.976,1.0,-0.024,neutral,0,
+2,drone_kiln,Drone Kiln,0.0,0.935,-0.935,0.0,0.661,-0.661,homodeus,1,3
+3,initie_de_l_ordre,Initié de l'Ordre,0.02,0.885,-0.865,0.02,0.631,-0.611,order,1,3
+4,drone_reacteur,Drone Réacteur,0.0,0.723,-0.723,0.0,0.547,-0.547,homodeus,3,3
+5,gardien_de_la_foret,Gardien de la Forêt,0.814,0.126,0.688,0.627,0.122,0.505,maquis,4,3
+6,moine_du_portail,Moine du portail,0.0,0.467,-0.467,0.0,0.404,-0.404,order,3,2
+7,voyante_de_volonte,Voyante de Volonté,0.0,0.397,-0.397,0.0,0.358,-0.358,order,4,2
+8,elemental_du_sillon,Élémental du Sillon,0.49,0.097,0.393,0.434,0.094,0.34,maquis,5,2
+9,drones_miniers,Drones Miniers,0.294,0.624,-0.33,0.266,0.488,-0.222,homodeus,2,3
+10,prophete_de_leclat,Prophète de l'éclat,0.097,0.393,-0.296,0.093,0.351,-0.258,order,3,3
+11,ermite_fongique,Ermite Fongique,0.395,0.102,0.293,0.359,0.098,0.261,maquis,3,2
+12,moine_cryptopoing,Moine Cryptopoing,0.01,0.267,-0.257,0.01,0.242,-0.232,order,5,2
+13,fleau_des_ombres,Fléau des Ombres,0.116,0.342,-0.226,0.113,0.305,-0.192,spectra,3,3
+14,zelote_des_epines,Zélote des Épines,0.14,0.351,-0.211,0.136,0.314,-0.178,maquis,3,2
+15,ojas,"Ojas, druide de la genèse",0.0,0.202,-0.202,0.0,0.202,-0.202,maquis,4,1
+16,chevalier_le_shai,Chevalier Le'Shai,0.37,0.192,0.178,0.337,0.185,0.152,maquis,3,3
+17,sentinelle_des_tenebres,Sentinelle des ténèbres,0.372,0.202,0.17,0.341,0.187,0.154,spectra,3,2
+18,pirate_heretique,Pirate Hérétique,0.402,0.235,0.167,0.358,0.22,0.138,order,3,3
+19,void_assassin,Assassins du vide,0.41,0.249,0.161,0.357,0.234,0.123,spectra,2,3
+20,aspirant_maquis,Aspirant Maquis,0.557,0.404,0.153,0.47,0.346,0.124,maquis,1,3
+21,garde_memoire,Garde Mémoire,0.104,0.256,-0.152,0.097,0.246,-0.149,order,2,2
+22,heritier_du_neant,Héritier du Néant,0.053,0.198,-0.145,0.053,0.187,-0.134,spectra,5,2
+23,brise_ether,Brise-Éther,0.266,0.143,0.123,0.259,0.138,0.121,spectra,4,2
+24,eclaireur_spectral,Éclaireur spectral,0.457,0.548,-0.091,0.393,0.452,-0.059,spectra,1,3
+25,apotre_des_ombres,Apôtre des ombres,0.2,0.285,-0.085,0.19,0.263,-0.073,spectra,2,3
+26,ia_systema,I.A. Systema,0.105,0.029,0.076,0.105,0.029,0.076,order,3,1
+27,evokatus,Evokatus,0.141,0.091,0.05,0.136,0.091,0.045,homodeus,4,2
+28,infinity_shard,Éclat de l'infini,1.0,0.952,0.048,1.0,0.952,0.048,neutral,0,
+29,zetta_l_encodeuse,"Zetta, l'encodeuse",0.081,0.033,0.048,0.081,0.033,0.048,order,5,1
+30,giga_adepte_de_la_source,"Giga, Adepte de la Source",0.088,0.054,0.034,0.088,0.054,0.034,order,2,1
+31,shard_reactor,Réacteur d'éclat,0.994,0.96,0.034,0.994,0.96,0.034,neutral,0,
+32,racine_de_la_foret,Racine de la Forêt,0.047,0.017,0.03,0.047,0.017,0.03,maquis,7,1
+33,additri_gaia_mancienne,"Additri, Gaïamancienne",0.06,0.033,0.027,0.06,0.033,0.027,maquis,5,1
+34,omnius_l_erudit,Omnius l'érudit,0.042,0.068,-0.026,0.042,0.068,-0.026,order,6,1
+35,valkyrie_des_landes,Valkyrie des Landes,0.062,0.088,-0.026,0.062,0.088,-0.026,homodeus,4,1
+36,li_hin_la_brisee,"Li Hin, la Brisée",0.018,0.037,-0.019,0.018,0.037,-0.019,spectra,3,1
+37,le_grand_architecte,Le Grand Architecte,0.008,0.025,-0.017,0.008,0.025,-0.017,order,7,1
+38,broyeu_optio,Broyeur Optio,0.081,0.095,-0.014,0.079,0.091,-0.012,homodeus,5,2
+39,primus_pilus,Primus Pilus,0.056,0.043,0.013,0.056,0.043,0.013,homodeus,2,1
+40,clerc_aux_spores,Clerc aux Spores,0.162,0.174,-0.012,0.145,0.158,-0.013,maquis,2,3
+41,drones_numeri,Drones Numeri,0.119,0.107,0.012,0.116,0.101,0.015,homodeus,3,2
+42,blaster,Blaster,0.948,0.959,-0.011,0.948,0.959,-0.011,neutral,0,
+43,zen_chi_set,"Zen Chi Set, Fléau des dieux",0.009,0.02,-0.011,0.009,0.02,-0.011,spectra,7,1
+44,drakonarius,Drakonarius,0.025,0.035,-0.01,0.025,0.035,-0.01,homodeus,6,1
+45,general_decurion,Général Décurion,0.005,0.013,-0.008,0.005,0.013,-0.008,homodeus,7,1
+46,legionnaire_korvus,Légionnaire Korvus,0.418,0.415,0.003,0.364,0.356,0.008,homodeus,3,3
+47,zara_ra,"Zara Ra, Écorcheur d’âme",0.074,0.077,-0.003,0.074,0.077,-0.003,spectra,5,1
+48,saule_vengeur,Saule Vengeur,0.089,0.087,0.002,0.089,0.087,0.002,maquis,4,1

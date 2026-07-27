@@ -1,0 +1,19 @@
+schema_version: 1
+profile_id: v001
+parent_profile_id: null
+method: imitation
+dataset: artifacts/imitation_dataset/v008_vs_random_v007_1m.jsonl
+output: configs/neural_profiles/v001.pt
+seed: 51
+split_seed: 0
+epochs: 5
+learning_rate: 0.001
+torch_threads: 1
+max_records: null
+max_validation_records: 2000000
+model: {}
+metadata:
+  objective: imitation_of_heuristic_profiles
+  source_profiles:
+  - v008
+  source_checkpoint: artifacts/neural_imitation/baseline.pt

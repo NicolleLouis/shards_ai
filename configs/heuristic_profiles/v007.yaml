@@ -1,0 +1,97 @@
+schema_version: 1
+profile_id: v007
+parent_profile_id: v006
+weights:
+  cost_paid: 0.0
+  gems_produced: 1.0
+  power_produced: 0.25
+  mastery_gained: 0.75
+  health_gained: 2.75
+  card_draw: 0.0
+  shield_value: 0.5
+  deck_thinning: 1.0
+  card_acquisition_value: 1.0
+  champion_value: 2.75
+  target_denial: 1.5
+  damage_value: 1.0
+  constraint_penalty: -1.0
+  phase_progress: 0.1
+  action_penalty: -1.0
+  lethal: 1000.0
+  terminal_win: 1000.0
+  health_advantage_delta: 0.0
+  mastery_advantage_delta: 0.0
+  opponent_threat_delta: 0.0
+  self_threat_delta: 0.0
+  purchase_opportunity_cost: 0.0
+  mastery_threshold_value: 0.0
+  buy_threshold: 0.625
+card_acquisition_weights:
+  gems_produced: 0.5
+  power_produced: 0.25
+  mastery_gained: 0.75
+  health_gained: 1.375
+  card_draw: 1.75
+  deck_thinning: 1.0
+  target_denial: 1.0
+  banish_threshold: 3.0
+  durable_replay_factor: 1.0
+constraint_weights:
+  mastery: 1.0
+  health: 0.75
+  inspiration: 0.5
+  echo: 0.75
+  union: 1.0
+  domination: 1.5
+metadata:
+  optimizer: hybrid_racing
+  mixed_phase_started: true
+  reference_profile_id: v006
+  root_seed: 87
+  batches: 5
+  active_fields:
+  - buy_threshold
+  active_acquisition_fields: []
+  constraint_weights:
+    mastery: 0.4375
+    health: 0.625
+    inspiration: 0.5
+    echo: 0.9375
+    union: 0.6875
+    domination: 1.5
+  track_zero_alpha_shaping: false
+  shaping_observer_detached: false
+  trusted_live_observations: true
+  validation:
+    games_per_opponent: 5000
+    confidence_level: 0.95
+    minimum_gain: 0.01
+    validation_rule: positive_confidence_lower_bound_vs_previous
+    adversaries:
+      random:
+        candidate_games: 5000
+        candidate_utility: 0.9292
+        reference_utility: 0.924
+        mean_difference: 0.0052
+        confidence_lower: -0.0014514418993900992
+        confidence_upper: 0.011851441899390098
+        required_lower: -0.01
+        passed: true
+      previous:
+        candidate_games: 5000
+        candidate_utility: 0.5414
+        reference_utility: 0.4976
+        mean_difference: 0.0438
+        confidence_lower: 0.03100384604855594
+        confidence_upper: 0.05659615395144406
+        required_lower: 0.0
+        passed: true
+    passed: true
+  state_reward_weights:
+    health_advantage_weight: 0.3333333333333333
+    mastery_advantage_weight: 0.3333333333333333
+    opponent_threat_weight: 0.3333333333333333
+    champion_presence_weight: 1.0
+    champion_threat_scale: 4.0
+    gamma: 1.0
+    initial_alpha: 0.1

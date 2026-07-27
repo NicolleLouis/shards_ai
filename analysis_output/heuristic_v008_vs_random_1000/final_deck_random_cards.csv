@@ -1,0 +1,49 @@
+rank,card_id,name,average_number,presence_rate,faction,cost,central_copy_count
+1,crystal,Cristal,6.671,1.0,neutral,0,
+2,shard_reactor,Réacteur d'éclat,0.96,0.96,neutral,0,
+3,blaster,Blaster,0.959,0.959,neutral,0,
+4,infinity_shard,Éclat de l'infini,0.952,0.952,neutral,0,
+5,drone_kiln,Drone Kiln,0.935,0.661,homodeus,1,3
+6,initie_de_l_ordre,Initié de l'Ordre,0.885,0.631,order,1,3
+7,drone_reacteur,Drone Réacteur,0.723,0.547,homodeus,3,3
+8,drones_miniers,Drones Miniers,0.624,0.488,homodeus,2,3
+9,eclaireur_spectral,Éclaireur spectral,0.548,0.452,spectra,1,3
+10,moine_du_portail,Moine du portail,0.467,0.404,order,3,2
+11,legionnaire_korvus,Légionnaire Korvus,0.415,0.356,homodeus,3,3
+12,aspirant_maquis,Aspirant Maquis,0.404,0.346,maquis,1,3
+13,voyante_de_volonte,Voyante de Volonté,0.397,0.358,order,4,2
+14,prophete_de_leclat,Prophète de l'éclat,0.393,0.351,order,3,3
+15,zelote_des_epines,Zélote des Épines,0.351,0.314,maquis,3,2
+16,fleau_des_ombres,Fléau des Ombres,0.342,0.305,spectra,3,3
+17,apotre_des_ombres,Apôtre des ombres,0.285,0.263,spectra,2,3
+18,moine_cryptopoing,Moine Cryptopoing,0.267,0.242,order,5,2
+19,garde_memoire,Garde Mémoire,0.256,0.246,order,2,2
+20,void_assassin,Assassins du vide,0.249,0.234,spectra,2,3
+21,pirate_heretique,Pirate Hérétique,0.235,0.22,order,3,3
+22,ojas,"Ojas, druide de la genèse",0.202,0.202,maquis,4,1
+23,sentinelle_des_tenebres,Sentinelle des ténèbres,0.202,0.187,spectra,3,2
+24,heritier_du_neant,Héritier du Néant,0.198,0.187,spectra,5,2
+25,chevalier_le_shai,Chevalier Le'Shai,0.192,0.185,maquis,3,3
+26,clerc_aux_spores,Clerc aux Spores,0.174,0.158,maquis,2,3
+27,brise_ether,Brise-Éther,0.143,0.138,spectra,4,2
+28,gardien_de_la_foret,Gardien de la Forêt,0.126,0.122,maquis,4,3
+29,drones_numeri,Drones Numeri,0.107,0.101,homodeus,3,2
+30,ermite_fongique,Ermite Fongique,0.102,0.098,maquis,3,2
+31,elemental_du_sillon,Élémental du Sillon,0.097,0.094,maquis,5,2
+32,broyeu_optio,Broyeur Optio,0.095,0.091,homodeus,5,2
+33,evokatus,Evokatus,0.091,0.091,homodeus,4,2
+34,valkyrie_des_landes,Valkyrie des Landes,0.088,0.088,homodeus,4,1
+35,saule_vengeur,Saule Vengeur,0.087,0.087,maquis,4,1
+36,zara_ra,"Zara Ra, Écorcheur d’âme",0.077,0.077,spectra,5,1
+37,omnius_l_erudit,Omnius l'érudit,0.068,0.068,order,6,1
+38,giga_adepte_de_la_source,"Giga, Adepte de la Source",0.054,0.054,order,2,1
+39,primus_pilus,Primus Pilus,0.043,0.043,homodeus,2,1
+40,li_hin_la_brisee,"Li Hin, la Brisée",0.037,0.037,spectra,3,1
+41,drakonarius,Drakonarius,0.035,0.035,homodeus,6,1
+42,additri_gaia_mancienne,"Additri, Gaïamancienne",0.033,0.033,maquis,5,1
+43,zetta_l_encodeuse,"Zetta, l'encodeuse",0.033,0.033,order,5,1
+44,ia_systema,I.A. Systema,0.029,0.029,order,3,1
+45,le_grand_architecte,Le Grand Architecte,0.025,0.025,order,7,1
+46,zen_chi_set,"Zen Chi Set, Fléau des dieux",0.02,0.02,spectra,7,1
+47,racine_de_la_foret,Racine de la Forêt,0.017,0.017,maquis,7,1
+48,general_decurion,Général Décurion,0.013,0.013,homodeus,7,1

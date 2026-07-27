@@ -1,0 +1,51 @@
+category,card,heuristic_count,opponent_count,delta_per_game
+banish,Cristal,833,423,0.82
+banish,Blaster,45,189,-0.288
+banish,Fléau des Ombres,11,0,0.022
+banish,Prophète de l'éclat,8,0,0.016
+banish,Apôtre des ombres,7,0,0.014
+banish,Réacteur d'éclat,7,0,0.014
+banish,Drone Réacteur,0,6,-0.012
+banish,Drone Kiln,0,5,-0.01
+banish,Initié de l'Ordre,3,8,-0.01
+banish,Éclaireur spectral,0,5,-0.01
+buy,Éclaireur spectral,452,62,0.78
+buy,Drone Kiln,0,322,-0.644
+buy,Initié de l'Ordre,27,337,-0.62
+buy,Assassins du vide,268,0,0.536
+buy,Drones Miniers,118,382,-0.528
+buy,Chevalier Le'Shai,250,0,0.5
+buy,Drone Réacteur,0,242,-0.484
+buy,Pirate Hérétique,160,337,-0.354
+buy,Brise-Éther,159,0,0.318
+buy,Apôtre des ombres,108,0,0.216
+decision,Drones Numeri,3,29,-0.052
+decision,Drone Réacteur,0,22,-0.044
+decision,Général Décurion,2,23,-0.042
+decision,Drones Miniers,1,21,-0.04
+decision,"Giga, Adepte de la Source",13,31,-0.036
+decision,Légionnaire Korvus,4,22,-0.036
+decision,Chevalier Le'Shai,16,0,0.032
+decision,Clerc aux Spores,16,2,0.028
+decision,Drone Kiln,0,14,-0.028
+decision,Ermite Fongique,21,8,0.026
+play,Cristal,18830,20589,-3.518
+play,Drone Kiln,0,1217,-2.434
+play,Éclaireur spectral,1394,251,2.286
+play,Initié de l'Ordre,56,1160,-2.208
+play,Assassins du vide,1067,0,2.134
+play,Drones Miniers,390,1327,-1.874
+play,Chevalier Le'Shai,898,0,1.796
+play,Drone Réacteur,0,680,-1.36
+play,Brise-Éther,556,0,1.112
+play,Pirate Hérétique,566,1122,-1.112
+recruit_mercenary,Prophète de l'éclat,14,443,-0.858
+recruit_mercenary,Fléau des Ombres,85,408,-0.646
+recruit_mercenary,Apôtre des ombres,170,307,-0.274
+recruit_mercenary,Le Grand Architecte,4,117,-0.226
+recruit_mercenary,Racine de la Forêt,18,121,-0.206
+recruit_mercenary,Assassins du vide,97,193,-0.192
+recruit_mercenary,Brise-Éther,62,130,-0.136
+recruit_mercenary,"Zara Ra, Écorcheur d’âme",21,84,-0.126
+recruit_mercenary,Héritier du Néant,114,163,-0.098
+recruit_mercenary,Clerc aux Spores,186,232,-0.092

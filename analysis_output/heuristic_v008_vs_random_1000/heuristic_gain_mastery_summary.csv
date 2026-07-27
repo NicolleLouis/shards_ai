@@ -1,0 +1,4 @@
+result_group,games,actions,games_with_action,game_rate_percent,actions_per_game
+heuristic_win,979,8709,979,100.0,8.896
+heuristic_loss,21,246,21,100.0,11.714
+draw,0,0,0,0.0,0.0

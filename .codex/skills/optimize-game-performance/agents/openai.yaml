@@ -1,0 +1,4 @@
+interface:
+  display_name: "Optimize Game Performance"
+  short_description: "Benchmark, profile, and safely speed up games"
+  default_prompt: "Use $optimize-game-performance to benchmark and optimize the requested game workload safely."
