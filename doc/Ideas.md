@@ -28,6 +28,26 @@
   augmenter la durée d'entraînement et utiliser une sauvegarde de meilleure évaluation qui protège
   explicitement Random et v008.
 
+## Expérience exp-00006 — rejetée
+
+- [Terminé] Corriger le protocole court en reprenant explicitement les poids v002, sans reward shaping,
+  avec Adam réinitialisé et une sélection monotone ; le run a atteint un update complet de 122 parties
+  avant arrêt à la frontière de sauvegarde.
+- [Résultat] La candidate gagne `+0,5` point contre Random, mais perd `-1,5` point contre v007,
+  `-1,0` point contre la garde v008 et `-2,0` points contre v002 ; le score pondéré est `+0,1` point
+  et la promotion est rejetée.
+- [Supprimé] Ne pas promouvoir v006 ni considérer l’amélioration du benchmark 50 parties comme une
+  preuve de qualité ; le run ne justifie pas non plus une continuation identique sans analyse.
+
+## Suites possibles
+
+- [À étudier] Comparer les décisions par phase et catégorie de v002 et v006, en priorisant PLAY,
+  deckbuilding et banish, pour identifier les régressions v007/v008.
+- [À étudier] Reprendre PPO seulement après cette analyse, avec une durée suffisante et une sélection
+  qui protège simultanément v002 et la garde heuristique v008.
+- [À étudier] Tester une correction ciblée de la représentation ou de la pondération des actions PLAY,
+  sans modifier le moteur ni le masque d’information.
+
 Les rapports sous `doc/Experiments/` servent à comprendre les essais précédents et à éviter les
 répétitions inutiles ; ils n'empêchent pas l'agent d'inventer une nouvelle expérience ou de corriger
 une piste existante.
