@@ -352,3 +352,25 @@ une piste existante.
 - [À supprimer] Les mises à jour historiques uniformes, les filtres de désaccords sans contrainte de
   conservation et les pondérations globales de phase/action restent écartés par les régressions
   documentées.
+
+## Expérience exp-00035 — rejetée
+
+- [Terminé] Tester une époque d'imitation historique uniforme très conservatrice depuis v002, avec
+  Adam réinitialisé, un taux d'apprentissage de `1e-5` et au plus `10 000` décisions, afin d'isoler
+  l'effet de l'amplitude de mise à jour sans nouvelle pondération d'action ni filtrage des données.
+- [Résultat] Le dataset v008 contient `100 000` décisions. Sur le screening contre v002, la candidate
+  régresse de `-10,0` points contre Random, de `-40,0` points contre v007 et reste à `0,0` contre v008
+  (10 parties par adversaire). Le benchmark comparable contre v002 passe de `9,475 s` à `10,355 s`
+  (`+9,29 %`) et le taux de victoire de `52 %` à `46 %`.
+- [Supprimé] Ne pas promouvoir v035 ni reprendre cette mise à jour uniforme à faible amplitude ;
+  elle ne corrige pas les régressions observées et augmente la durée des parties.
+
+## Suites possibles
+
+- [À étudier] Mesurer offline les déplacements de logits par phase et type d'action avant tout nouvel
+  entraînement, avec un vrai split train/validation et un panel complet de 200 parties.
+- [À privilégier] Tester une régularisation de conservation seulement sur les décisions non ciblées,
+  ou une architecture/représentation candidate depuis v002, mais uniquement avec une attribution
+  distincte des pondérations et filtres déjà rejetés.
+- [À supprimer] Les mises à jour historiques uniformes, même à faible taux d'apprentissage, les
+  filtres de désaccords sans contrainte de conservation et les pondérations globales restent écartés.
