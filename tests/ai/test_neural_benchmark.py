@@ -6,7 +6,7 @@ from benchmarks.benchmark_neural_mix import _render_report, _summary, opponent_f
 def test_mix_schedule_is_exact_for_one_thousand_games() -> None:
     counts = {opponent: sum(opponent_for_game(index) == opponent for index in range(1000)) for opponent in ("random", "v007", "v008")}
 
-    assert counts == {"random": 200, "v007": 500, "v008": 300}
+    assert counts == {"random": 200, "v007": 300, "v008": 500}
 
 
 def test_campaign_summary_and_html_contain_final_game_insights() -> None:
