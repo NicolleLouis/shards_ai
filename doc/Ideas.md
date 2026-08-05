@@ -311,3 +311,23 @@ une piste existante.
   dont le score teacher dépasse clairement le score v002, avec validation complète identique.
 - [À supprimer] Le filtrage uniforme des désaccords équilibrés par phase et toute promotion fondée
   sur le gain contre v008 seul.
+
+## Expérience exp-00033 — rejetée
+
+- [Terminé] Tester un filtre de désaccords plus sélectif que exp-00032 : conserver les états où v002
+  choisit une autre action que v008 et où la marge heuristique de v008 sur l'action choisie par v002
+  est au moins `1,0`, avec un plafond de `800` états par phase, puis entraîner une époque depuis v002.
+- [Résultat] Le dataset contient `1 183` décisions (`attack=113`, `buy=270`, `play=800`). Le
+  benchmark comparable passe de `9,5451 s` à `10,0903 s` sur 50 parties contre v002, avec un taux
+  de victoire de `52 %` à `36 %`. Le screening donne Random `-12,5`, v007 `0,0`, v008 `+12,5` et
+  v002 `-12,5` points ; la candidate est rejetée.
+- [Supprimé] Ne pas promouvoir cette candidate ni reprendre ce seuil et ce plafond à l'identique.
+
+## Suites possibles
+
+- [À étudier] Analyser les états sélectionnés par carte et type d'action : le filtre conserve trop
+  d'états `play` et déplace la politique malgré une marge teacher élevée.
+- [À privilégier] Tester une sélection équilibrée par type d'action avec une marge élevée et une
+  contrainte de conservation des décisions v002 sur les états non sélectionnés, après analyse offline.
+- [À supprimer] Les filtres de désaccords fondés uniquement sur la marge heuristique et les panels
+  courts comme preuve de promotion.
