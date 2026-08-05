@@ -272,3 +272,22 @@ une piste existante.
   uniquement sur un dataset équilibré par phase, si l'analyse offline montre un déplacement localisé.
 - [À supprimer] Les pondérations PLAY/BANISH, recrutement, DAgger uniforme et reprises PPO courtes
   restent écartées par les régressions déjà documentées.
+
+## Expérience exp-00031 — rejetée
+
+- [Terminé] Tester une imitation historique v008 depuis v002 avec une pondération de phase `buy` à
+  `1,15`, afin de cibler le deckbuilding sans répéter les pondérations PLAY/BANISH ou recrutement.
+- [Résultat] Le panel de 200 parties donne Random `-2,0` points, v007 `-1,5` point et v008
+  `-1,5` point contre la référence active v002. Le benchmark neural comparable passe de `9,182 s`
+  à `9,516 s` (+3,64 %), donc la candidate n'est pas retenue.
+- [Supprimé] Ne pas conserver cette pondération de phase ni promouvoir la candidate.
+
+## Suites possibles
+
+- [À étudier] Comparer offline les logits et décisions par phase `buy`, `play` et `banish` avant une
+  nouvelle pondération ; la pondération globale de `buy` ne suffit pas et dégrade les trois gardes.
+- [À privilégier] Tester seulement après cette analyse une correction locale sur les états de
+  deckbuilding réellement divergents, avec un dataset équilibré par phase et une contrainte de
+  non-régression contre v002.
+- [À supprimer] Les pondérations de phase globales sans analyse offline, les pondérations d'action
+  isolées, l'ancrage global des logits et les reprises PPO courtes restent écartés.
