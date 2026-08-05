@@ -214,3 +214,22 @@ une piste existante.
   v002 et v015 pour déterminer si le gain contre v007/v008 est concentré dans les décisions pondérées.
 - [Supprimé] Ne pas augmenter davantage la pondération ciblée ni ajouter simultanément des données
   DAgger tant que cette attribution n'est pas isolée.
+
+## Expérience exp-00028 — rejetée
+
+- [Terminé] Reproduire sur une seconde seed la pondération ciblée `1,25` de `PLAY` et `BANISH` de
+  l'exp-00027, depuis les poids v002, avec Adam réinitialisé et une époque sur 5 000 décisions.
+- [Résultat] Le panel indépendant reproduit le compromis : Random `-3,5` points, v007 `+2,0`, v008
+  `+2,5` et la référence v002 `-4,0`. Le benchmark comparable passe de `9,5435 s` à `9,6003 s`;
+  la candidate est donc légèrement plus lente et ne corrige pas la régression neural.
+- [Supprimé] Ne pas promouvoir cette recette ni considérer la répétition comme une validation stable
+  de l'exp-00027; ne pas conserver de profil v016.
+
+## Suites possibles
+
+- [À étudier] Analyser les décisions v002/candidates par phase et catégorie pour déterminer pourquoi
+  la pondération PLAY/BANISH améliore v007/v008 mais dégrade Random et v002.
+- [À étudier] Tester une pondération plus sélective ou une contrainte de conservation des logits sur
+  les catégories non ciblées, uniquement après cette analyse offline.
+- [À supprimer] Les reprises PPO courtes, le DAgger uniforme et les mélanges historiques/on-policy
+  sans filtrage restent écartés par les régressions documentées.
