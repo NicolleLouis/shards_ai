@@ -154,3 +154,25 @@ une piste existante.
   séparée des catégories PLAY, deckbuilding et banish, en partant toujours de v002.
 - [À étudier] Ne pas accepter une candidate DAgger qui améliore v001 ou v008 court mais régresse la
   référence v002 ou la garde v008 sur le panel complet.
+
+## Expérience exp-00025 — rejetée
+
+- [Terminé] Tester une correction DAgger conservatrice : 2 562 décisions visitées par v002 contre
+  v008, un seul passage d'imitation depuis v002, Adam réinitialisé et taux d'apprentissage `1e-5`
+  au lieu de `1e-4` dans exp-00024.
+- [Résultat] La candidate régresse contre Random de `-1,5` point, v007 de `-4,5` points et v008 de
+  `-0,5` point sur 200 parties ; elle régresse aussi de `-4,0` points contre v002. Le score pondéré
+  est `-0,65` point. Le benchmark passe de `9,276 s` à `9,841 s` sur 50 parties et le taux de gain
+  neural passe de `52 %` à `46 %`.
+- [Supprimé] Ne pas promouvoir v013 ni reprendre cette recette DAgger, même avec un taux
+  d'apprentissage plus faible.
+
+## Suites possibles
+
+- [À étudier] Analyser les 986 désaccords v002/v008 d'exp-00024 et les désaccords d'exp-00025 par
+  phase et catégorie avant de créer un nouveau dataset ; filtrer les décisions sans divergence et
+  les divergences non stratégiques plutôt que d'imiter v008 uniformément.
+- [À étudier] Tester un mélange explicite de données historiques et on-policy avec une petite
+  pondération des labels v008, en gardant v002 et v008 comme gardes dures.
+- [À étudier] Évaluer séparément PLAY, deckbuilding et banish avant tout nouvel entraînement ; ne
+  pas utiliser l'amélioration contre v001 comme critère de promotion.
