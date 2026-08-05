@@ -10,7 +10,7 @@ seeds de validation et les mêmes adversaires. Un checkpoint promu reste gelé ;
 
 ## Priorité 1 — évaluer le candidat PPO v003
 
-- [ ] Lancer un entraînement court du profil candidat
+- [x] Lancer un entraînement court du profil candidat
   `configs/neural_training_profiles/candidates/v003.yaml`, après un smoke test d'une partie.
 - [ ] Si la progression est reproductible, poursuivre l'entraînement jusqu'au budget du profil,
   puis effectuer une validation finale d'au moins 200 parties avant toute promotion.
@@ -93,3 +93,15 @@ seeds de validation et les mêmes adversaires. Un checkpoint promu reste gelé ;
 - Comparer chaque expérience à `v002` sur les mêmes seeds ; conserver `v001`, `v002` et les autres
   profils promus comme références gelées.
 - Garder séparées les métriques de rollout, les évaluations gloutonnes et les validations finales.
+
+## Expérience exp-00003 — résultat et suite
+
+- **Idée sélectionnée :** évaluer le candidat PPO `v003`.
+- **Statut :** entraînement court terminé après smoke test ; validation comparative courte acceptée,
+  sans promotion du checkpoint.
+- **Idées retirées :** aucune ; les pistes non sélectionnées restent dans ce catalogue.
+- **Prochaine étape :** refaire une validation finale d'au moins 200 parties avec les mêmes adversaires
+  et seeds avant toute promotion de `v003`. Vérifier aussi l'exploitation réelle du deckbuilding
+  (banish et taille du deck), comme prévu par la piste initiale.
+- **Nouvelle idée future :** comparer, dans une expérience isolée, la robustesse de `v003` sur un
+  second seed de validation avant d'autoriser une promotion.
