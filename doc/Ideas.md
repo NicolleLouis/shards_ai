@@ -413,3 +413,23 @@ une piste existante.
   avec un holdout séparé, avant tout nouvel entraînement.
 - [À privilégier] Tester une représentation ou une contrainte locale qui protège le débit et v002,
   plutôt qu'une nouvelle pondération ou un simple changement de taille.
+
+## Expérience exp-00038 — rejetée
+
+- [Terminé] Tester un DAgger sélectif depuis v002 : collecter les états visités contre v007/v008,
+  ne conserver que la première divergence de v002 qui rend la phase `PLAY` stratégiquement différente
+  de v008, puis entraîner une époque à `1e-5` depuis v002 avec Adam réinitialisé.
+- [Résultat] Sur `3 170` décisions collectées, seulement `18` premières divergences stratégiques ont
+  été retenues, toutes `play_card`. Le panel de screening donne Random `-6,25` points, v007 `0,0`,
+  v008 `+12,5` et v002 `0,0`; le benchmark passe de `9,2801 s` à `9,4403 s` (+1,73 %).
+- [Supprimé] Ne pas promouvoir exp-00038 ni reprendre le filtre « première divergence » seul : il
+  est trop rare et ne protège pas Random malgré un gain sur v008.
+
+## Suites possibles
+
+- [À étudier] Conserver l'idée de divergence stratégique, mais construire un vrai split train/holdout
+  et inclure plusieurs types d'action au lieu de laisser `play_card` monopoliser les exemples.
+- [À privilégier] Tester une correction DAgger pondérée qui mélange une petite base historique v008
+  avec les divergences stratégiques, en imposant une garde Random/v002 avant toute promotion.
+- [À supprimer] Les lots composés de quelques divergences `play_card` seulement et toute conclusion
+  fondée sur le gain v008 sans gain contre une référence neural.
