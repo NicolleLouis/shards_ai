@@ -10,10 +10,23 @@
 
 ## Suites possibles
 
-- [À étudier] Tester une reprise plus conservatrice depuis v002, avec une durée d'entraînement suffisante
-  et un contrôle explicite de la régression contre la référence neural.
-- [À étudier] Analyser les décisions et les catégories d'actions qui expliquent le gain contre v008
-  mais la perte contre v002 avant de relancer un PPO.
+## Expérience exp-00005 — rejetée
+
+- [Terminé] Reprendre PPO sans reward shaping depuis les poids v002, avec Adam réinitialisé et un
+  run exploratoire court (128 parties), puis validation indépendante contre v002, Random, v007 et
+  v008.
+- [Résultat] La candidate régresse contre Random de `-4,5` points, v007 de `-1,0` point et v008 de
+  `-1,0` point ; elle progresse contre v001 de `+8,5` points. La performance passe de `9,378 s` à
+  `11,780 s` sur 50 parties contre v002.
+- [Supprimé] Ne pas promouvoir la candidate ni reprendre ce protocole court comme preuve de gain.
+
+## Suites possibles
+
+- [À étudier] Comparer les décisions par phase et catégorie entre v002 et la candidate, en particulier
+  deckbuilding et banish, avant tout nouvel entraînement.
+- [À étudier] Si une nouvelle reprise PPO est tentée, conserver les poids v002 comme référence,
+  augmenter la durée d'entraînement et utiliser une sauvegarde de meilleure évaluation qui protège
+  explicitement Random et v008.
 
 Les rapports sous `doc/Experiments/` servent à comprendre les essais précédents et à éviter les
 répétitions inutiles ; ils n'empêchent pas l'agent d'inventer une nouvelle expérience ou de corriger
