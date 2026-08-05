@@ -291,3 +291,23 @@ une piste existante.
   non-régression contre v002.
 - [À supprimer] Les pondérations de phase globales sans analyse offline, les pondérations d'action
   isolées, l'ancrage global des logits et les reprises PPO courtes restent écartés.
+
+## Expérience exp-00032 — rejetée
+
+- [Terminé] Filtrer les décisions historiques v008 où v002 choisit une action différente, équilibrer
+  les phases `attack`, `buy` et `play`, puis faire une époque d'imitation depuis v002 à `1e-5` avec
+  Adam réinitialisé.
+- [Résultat] Le filtre a trouvé `18 241` désaccords sur `100 000` décisions et retenu `1 980` états.
+  Sur 200 parties par adversaire, Random `-6,0` points, v007 `-2,5`, v008 `+0,5` et v002 `+2,0` ;
+  la candidate est rejetée malgré le gain v008/v002. Le benchmark comparable passe de `9,493 s` à
+  `9,557 s` (+0,67 %).
+- [Supprimé] Ne pas promouvoir `exp032` ni conserver ce checkpoint comme profil actif.
+
+## Suites possibles
+
+- [À étudier] Analyser les désaccords retenus par type d'action et par phase pour isoler ceux qui
+  améliorent v002 sans sacrifier Random ; le filtrage seul est insuffisant.
+- [À privilégier] Tester un sous-ensemble encore plus sélectif, limité aux désaccords stratégiques
+  dont le score teacher dépasse clairement le score v002, avec validation complète identique.
+- [À supprimer] Le filtrage uniforme des désaccords équilibrés par phase et toute promotion fondée
+  sur le gain contre v008 seul.
