@@ -396,3 +396,20 @@ une piste existante.
   ajouter une sélection par holdout sans reprendre les filtres uniformes exp-032/033.
 - [À supprimer] Les datasets déséquilibrés dominés par `play`, les mises à jour uniformes et les
   reprises PPO courtes restent écartés par l'historique.
+
+## Expérience exp-00037 — rejetée
+
+- [Terminé] Réduire de moitié le fine-tuning sélectif équilibré d'exp-00036 : `600` décisions,
+  `150` par catégorie stratégique, depuis v002, une époque, Adam réinitialisé et `1e-5`.
+- [Résultat] Le panel de 200 parties donne Random `+0,0`, v007 `-2,5` et v008 `+3,0` points ;
+  le benchmark passe de `9,278599 s` à `9,757413 s` sur 50 parties (`+5,16 %`). La gate qualité
+  interne est positive, mais la gate de performance rejette la candidate.
+- [Supprimé] Ne pas promouvoir exp-00037 ni considérer la réduction de taille seule comme une
+  correction suffisante d'exp-00036.
+
+## Suites possibles
+
+- [À étudier] Mesurer offline les déplacements de logits et les décisions modifiées par catégorie,
+  avec un holdout séparé, avant tout nouvel entraînement.
+- [À privilégier] Tester une représentation ou une contrainte locale qui protège le débit et v002,
+  plutôt qu'une nouvelle pondération ou un simple changement de taille.
