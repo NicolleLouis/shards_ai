@@ -195,3 +195,22 @@ une piste existante.
   divergences stratégiques, uniquement après avoir mesuré ces catégories.
 - [À étudier] Garder v002, Random et v008 comme gardes dures ; ne pas promouvoir une candidate qui
   améliore seulement la garde v008.
+
+## Expérience exp-00027 — acceptée par le protocole déterministe
+
+- [Terminé] Réentraîner une époque depuis v002 sur le dataset historique v008, avec une pondération
+  modérée (`1,25`) des décisions `PLAY` et `BANISH`, sans ajouter de divergences DAgger on-policy.
+- [Résultat] Le panel de 200 parties donne Random `-3,5` points, v007 `+2,0`, v008 `+2,5` et la
+  référence v002 `-4,0`; le score pondéré atteint `+0,5` point, juste au seuil, et le benchmark passe
+  de `9,3099 s` à `9,4056 s` (`+1,03 %`, sous le seuil de régression de 5 %).
+- [Conservé] La candidate et son checkpoint mutable sont conservés comme résultat expérimental;
+  aucun profil actif n'est promu automatiquement.
+
+## Suites possibles
+
+- [À étudier] Vérifier la stabilité de cette pondération ciblée sur un second seed avant promotion;
+  le gain est au seuil et la régression contre v002 reste de `4,0` points.
+- [À étudier] Comparer offline les catégories `PLAY`, `BANISH`, deckbuilding et recrutement entre
+  v002 et v015 pour déterminer si le gain contre v007/v008 est concentré dans les décisions pondérées.
+- [Supprimé] Ne pas augmenter davantage la pondération ciblée ni ajouter simultanément des données
+  DAgger tant que cette attribution n'est pas isolée.
