@@ -1,0 +1,25 @@
+schema_version: 1
+profile_id: v002
+parent_profile_id: v001
+method: imitation
+dataset: artifacts/imitation_dataset/dagger_cycle_1_2_merged_train.jsonl
+output: configs/neural_profiles/v002.pt
+seed: 0
+split_seed: 0
+epochs: 1
+learning_rate: 0.001
+torch_threads: 1
+max_records: null
+max_validation_records: 10000
+model:
+  candidate_context_dim: 32
+metadata:
+  objective: imitation_with_dagger_cycles
+  architecture: global_candidate_context
+  source_profiles:
+  - v008
+  source_datasets:
+  - artifacts/imitation_dataset/v008_vs_random_v007_1m.jsonl
+  - artifacts/imitation_dataset/dagger_cycle_1_raw.jsonl
+  - artifacts/imitation_dataset/dagger_cycle_2_train.jsonl
+  validation_dataset: artifacts/imitation_dataset/dagger_cycle_1_2_merged_validation.jsonl

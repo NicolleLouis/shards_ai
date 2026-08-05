@@ -356,10 +356,10 @@ def main() -> None:
         "--output-dir",
         type=Path,
         default=None,
-        help="Default: analysis_output/game_detail/<seed>",
+        help="Default: artifacts/analysis/game_detail/<seed>",
     )
     args = parser.parse_args()
-    output_dir = args.output_dir or PROJECT_ROOT / "analysis_output" / "game_detail" / str(args.seed)
+    output_dir = args.output_dir or PROJECT_ROOT / "artifacts" / "analysis" / "game_detail" / str(args.seed)
     output_dir.mkdir(parents=True, exist_ok=True)
     profile = load_profile(args.profile)
     root_rng = GameRandom(args.seed)

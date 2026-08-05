@@ -69,17 +69,75 @@ def test_active_neural_profile_resolves_versioned_checkpoint(tmp_path):
     assert profile.checkpoint_path == checkpoint
 
 
-def test_validation_rule_requires_progress_without_regression():
+def test_validation_rule_allows_small_secondary_regressions_for_v008_gain():
     from scripts.validate_neural_profile import acceptance_decision
 
-    assert acceptance_decision({"random": {"delta_win_rate": 0.01}, "v007": {"delta_win_rate": 0.0}})
+    assert acceptance_decision({
+        "random": {"delta_win_rate": -0.02},
+        "v007": {"delta_win_rate": -0.01},
+        "v008": {"delta_win_rate": 0.03},
+    })
+
+
+def test_validation_rule_requires_v008_and_weighted_progress():
+    from scripts.validate_neural_profile import acceptance_decision
+
     assert not acceptance_decision({"random": {"delta_win_rate": 0.0}})
-    assert not acceptance_decision({"random": {"delta_win_rate": 0.01}, "v007": {"delta_win_rate": -0.01}})
+    assert not acceptance_decision({
+        "random": {"delta_win_rate": 0.01},
+        "v007": {"delta_win_rate": 0.0},
+        "v008": {"delta_win_rate": 0.0},
+    })
+
+
+def test_validation_rule_rejects_large_secondary_regression():
+    from scripts.validate_neural_profile import acceptance_decision
+
+    assert not acceptance_decision({
+        "random": {"delta_win_rate": -0.06},
+        "v007": {"delta_win_rate": 0.03},
+        "v008": {"delta_win_rate": 0.03},
+    })
+
+
+def test_validation_rule_can_use_category_gain_to_offset_small_panel_loss():
+    from scripts.validate_neural_profile import acceptance_metrics
+
+    metrics = acceptance_metrics(
+        {
+            "random": {"delta_win_rate": -0.02},
+            "v007": {"delta_win_rate": -0.02},
+            "v008": {"delta_win_rate": 0.01},
+        },
+        {"buy": {"delta": 0.04, "weight": 1.0}, "play": {"delta": 0.03, "weight": 1.0}},
+    )
+
+    assert metrics["accepted"]
+    assert metrics["category_weighted_delta"] == pytest.approx(0.035)
+
+
+def test_validation_output_shows_precise_candidate_and_reference_rates():
+    from scripts.validate_neural_profile import format_validation_line
+
+    line = format_validation_line(
+        "v008",
+        {
+            "candidate": {"wins": 27, "games": 100, "win_rate": 0.27},
+            "reference": {"wins": 26, "games": 100, "win_rate": 0.26},
+            "delta_win_rate": 0.01,
+            "improved": True,
+            "not_regressed": True,
+        },
+        "v002",
+        "v001",
+    )
+
+    assert line == "v008 : v002 27.00% (27/100) | v001 26.00% (26/100) | delta +1.00% | PROGRES"
 
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("method", "ppo"), ("epochs", 0), ("torch_threads", 0), ("learning_rate", 0)],
+    [("epochs", 0), ("torch_threads", 0), ("learning_rate", 0)],
 )
 def test_invalid_training_profile_is_rejected(tmp_path, field, value):
     values = {"profile_id": "bad", "dataset": "data.jsonl", "output": "model.pt", field: value}
@@ -87,3 +145,31 @@ def test_invalid_training_profile_is_rejected(tmp_path, field, value):
     path.write_text(yaml.safe_dump(values), encoding="utf-8")
     with pytest.raises(ValueError):
         load_training_profile(path)
+
+
+def test_ppo_training_profile_accepts_game_budget_and_opponents(tmp_path):
+    path = tmp_path / "v002.yaml"
+    path.write_text(
+        "profile_id: v002\n"
+        "parent_profile_id: v001\n"
+        "method: ppo\n"
+        "output: artifacts/neural_training/checkpoint.pt\n"
+        "initial_checkpoint: configs/neural_profiles/v001.pt\n"
+        "total_games: 12\n"
+        "games_per_update: 4\n"
+        "optimization_epochs: 2\n"
+        "minibatch_size: 8\n"
+        "opponents:\n"
+        "  random: 0.333333\n"
+        "  v007: 0.333333\n"
+        "  v008: 0.333334\n",
+        encoding="utf-8",
+    )
+
+    profile = load_training_profile(path)
+
+    assert profile.method == "ppo"
+    assert profile.dataset is None
+    assert profile.total_games == 12
+    assert profile.evaluation_games == 64
+    assert set(profile.opponents) == {"random", "v007", "v008"}

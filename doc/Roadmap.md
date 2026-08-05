@@ -45,23 +45,10 @@ règles simples de priorité et d'évaluation des actions.
 Étendre l'heuristique avec des critères pondérés, puis rechercher ou entraîner des pondérations
 viables à partir de parties simulées et d'une fonction d'évaluation reproductible.
 
-### Idées à traiter après la calibration de l'acquisition
+## 8. Première roadmap neural — imitation de l'heuristique — ✅ DONE
 
-- optimiser les coefficients de valeur des boucliers (`shield_value`) dans l'acquisition et dans
-  les décisions de combat ;
-- optimiser séparément la valeur des effets `on_play`, notamment lorsqu'ils produisent des Gems,
-  du Power, de la maîtrise, de la santé ou de la pioche ;
-- calibrer les bonus fixes des champions et la valeur de leurs capacités ;
-- vérifier les éventuels doubles comptages entre la valeur d'acquisition d'une carte et les effets
-  immédiats d'un recrutement de mercenaire ;
-- intégrer ces paramètres dans une campagne combinée après la phase d'optimisation des coefficients
-  internes de `card_acquisition_value`.
-
-## 8. Première roadmap neural — imitation de l'heuristique — EN COURS
-
-Cette phase constitue une roadmap complète séparée de la future roadmap de reinforcement learning.
-Elle doit produire un joueur neural capable de prendre une décision à chaque action atomique et de
-reproduire le classement des actions produit par plusieurs profils heuristiques.
+Cette phase a produit un joueur neural capable de prendre une décision à chaque action atomique et
+de reproduire le classement des actions produit par les profils heuristiques validés.
 
 ### 8.a. Vérifier la couverture des décisions atomiques — ✅ DONE
 
@@ -117,8 +104,7 @@ final de la partie.
 
 Le dataset mélangera :
 
-- plusieurs profils heuristiques validés, à partir de `v007` puis `v008`/`v009` lorsqu'ils sont
-  confirmés ;
+- les profils heuristiques validés `v007` et `v008` ;
 - des parties heuristique contre RandomPlayer ;
 - des parties entre profils heuristiques différents.
 
@@ -131,14 +117,14 @@ Créer un modèle capable de scorer une liste variable d'actions légales. Il ne
 ensemble statique d'actions. L'inférence choisira une action parmi celles ayant le meilleur score ;
 les égalités seront départagées aléatoirement avec une source contrôlée par seed.
 
-### 8.g. Intégrer le joueur neural et mesurer ses performances
+### 8.g. Intégrer le joueur neural et mesurer ses performances — ✅ DONE
 
 Ajouter un joueur neural compatible avec l'interface existante des joueurs, puis mesurer :
 
 - imitation de l'action et du classement heuristique ;
 - vitesse de décision ;
 - victoire contre RandomPlayer ;
-- victoire contre le profil heuristique de référence, d'abord `v008` puis `v009` validé ;
+- victoire contre le profil heuristique de référence `v008` ;
 - comparaison avec les benchmarks reproductibles existants.
 
 Une validation courte devra précéder les entraînements longs. Aucun profil ou modèle candidat ne
@@ -148,11 +134,11 @@ devra devenir la référence active sans validation explicite.
 
 - Le réseau est appelé à chaque décision atomique, jamais une seule fois au début du tour.
 - Le modèle score chaque action légale avec `score(observation, action)` et choisit le meilleur score.
-- L'apprentissage initial est de l'imitation de l'heuristique ; le reinforcement learning et le
-  self-play appartiennent à une roadmap ultérieure.
+- L'apprentissage initial est de l'imitation de l'heuristique ; le reinforcement learning est
+  maintenant suivi à l'étape 10 et le self-play reste ultérieur.
 - Le dataset contient toutes les actions légales et leurs scores heuristiques, pas uniquement
   l'action choisie.
-- Les données mélangent plusieurs profils heuristiques validés (`v007`, puis `v008`/`v009`) ainsi
+- Les données mélangent les profils heuristiques validés (`v007` et `v008`) ainsi
   que des parties contre RandomPlayer et entre profils heuristiques.
 - L'objectif initial privilégie le classement relatif des actions. Les scores bruts sont conservés
   pour permettre plusieurs fonctions de perte et normalisations.
@@ -174,19 +160,20 @@ devra devenir la référence active sans validation explicite.
 - L'observation destinée au réseau est une représentation masquée dédiée ; `GameState` complet ne
   doit pas être transmis directement au modèle.
 
-## 9. Transformer le moteur en environnement RL
+## 9. Transformer le moteur en environnement RL — ✅ DONE
 
-Cette étape appartiendra à une deuxième roadmap. Elle adaptera le moteur pour fournir les
-transitions, récompenses, états terminaux, resets, seeds et interfaces nécessaires au
-reinforcement learning, en réutilisant l'observation et l'interface d'action de la phase
-d'imitation.
+Le moteur fournit les transitions, récompenses terminales, états terminaux, resets, seeds et
+interfaces nécessaires au training PPO, en réutilisant l'observation et l'interface d'action de la
+phase d'imitation. La collecte RL peut être parallélisée, tandis que l'update PPO reste séquentiel.
 
-## 10. Premier véritable agent RL avec PPO
+## 10. Premier véritable agent RL avec PPO — 🔄 EN COURS
 
-Entraîner un agent PPO contre des adversaires fixes, notamment les joueurs random, heuristiques et
-le premier joueur neural issu de l'imitation.
+Le candidat v002 est entraîné avec PPO contre Random, v007 et v008, avec récompense terminale
+victoire/défaite, régularisation KL vers v001 et sélection gloutonne périodique sans régression par
+adversaire. Le checkpoint de travail est unique et les validations larges doivent précéder toute
+promotion. Les prochaines expériences sont suivies dans `doc/Ideas.md`.
 
-## 11. Ajouter le self-play
+## 11. Ajouter le self-play — ⏳ À VENIR
 
 Faire évoluer l'entraînement vers le self-play, avec une gestion des versions ou des snapshots
 d'agents adverses afin d'éviter les régressions et les cycles de stratégies trop étroits.
@@ -199,8 +186,8 @@ d'agents adverses afin d'éviter les régressions et les cycles de stratégies t
 
 Les étapes 2 à 7 peuvent être menées avec un certain recouvrement une fois les fondations du
 moteur et du système d'actions stabilisées. L'étape 8 dépend du joueur heuristique, d'une interface
-d'action complète et d'une observation partielle testée. Les étapes 9 à 11 feront l'objet d'une
-roadmap RL distincte.
+d'action complète et d'une observation partielle testée. Les étapes 10 et 11 dépendent de la
+validation du joueur neural et de checkpoints reproductibles.
 
 ## Documents détaillés à venir
 

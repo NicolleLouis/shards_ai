@@ -9,6 +9,13 @@ from .heuristic_evaluator import (
 from .heuristic_player import HeuristicPlayer
 from .random_player import RandomPlayer
 from .state_evaluator import StateRewardWeights
+from .card_value_shaping import (
+    deck_card_ids,
+    deck_value_potential,
+    deckbuilding_shaping_delta,
+    is_deckbuilding_action,
+    load_card_values,
+)
 from .action_representation import (
     ACTION_REPRESENTATION_SCHEMA_VERSION,
     ActionRepresentation,
@@ -33,8 +40,16 @@ from .card_representation import (
     clear_representation_cache,
     representation_for_definition,
 )
-from .neural_model import NeuralActionScorer, NeuralModelConfig
+from .neural_model import (
+    ContextualNeuralActionScorer,
+    NeuralActionScorer,
+    NeuralModelConfig,
+    SemanticIdentityNeuralActionScorer,
+    SUPPORTED_ARCHITECTURES,
+    build_neural_scorer,
+)
 from .neural_player import NeuralPlayer
+from .hybrid_player import HybridPlayer, HybridPolicy
 from .neural_training_profiles import (
     NeuralProfile,
     NeuralTrainingProfile,
@@ -54,11 +69,27 @@ from .neural_training import (
     evaluate_epoch,
     normalized_score_regression_loss,
     observation_from_dict,
+    is_targeted_mercenary_record,
     pairwise_ranking_loss,
     seed_training,
     split_for_game_id,
     train_epoch,
     train_jsonl,
+)
+from .rl_training import (
+    NeuralActorCritic,
+    PPOTrainingPlayer,
+    PPOUpdateMetrics,
+    RolloutResult,
+    RolloutTransition,
+    choose_opponent,
+    collect_rollout,
+    evaluate_greedy_model,
+    gae_returns,
+    is_monotonic_evaluation_improvement,
+    ppo_update,
+    terminal_reward,
+    weighted_evaluation_score,
 )
 from .neural_reporting import load_metrics, write_training_report
 
@@ -80,6 +111,11 @@ __all__ = [
     "HeuristicWeights",
     "RandomPlayer",
     "StateRewardWeights",
+    "deck_card_ids",
+    "deck_value_potential",
+    "deckbuilding_shaping_delta",
+    "is_deckbuilding_action",
+    "load_card_values",
     "MatchupSpec",
     "default_matchups",
     "generate_dataset",
@@ -89,10 +125,16 @@ __all__ = [
     "representation_for_action",
     "representation_for_neural_action",
     "NeuralActionScorer",
+    "ContextualNeuralActionScorer",
+    "SemanticIdentityNeuralActionScorer",
+    "SUPPORTED_ARCHITECTURES",
+    "build_neural_scorer",
     "NeuralModelConfig",
     "NeuralTrainingProfile",
     "NeuralProfile",
     "NeuralPlayer",
+    "HybridPlayer",
+    "HybridPolicy",
     "load_active_training_profile",
     "load_active_neural_profile",
     "load_training_profile",
@@ -107,11 +149,25 @@ __all__ = [
     "evaluate_epoch",
     "normalized_score_regression_loss",
     "observation_from_dict",
+    "is_targeted_mercenary_record",
     "pairwise_ranking_loss",
     "seed_training",
     "split_for_game_id",
     "train_epoch",
     "train_jsonl",
+    "NeuralActorCritic",
+    "PPOTrainingPlayer",
+    "PPOUpdateMetrics",
+    "RolloutResult",
+    "RolloutTransition",
+    "choose_opponent",
+    "collect_rollout",
+    "evaluate_greedy_model",
+    "gae_returns",
+    "is_monotonic_evaluation_improvement",
+    "ppo_update",
+    "terminal_reward",
+    "weighted_evaluation_score",
     "load_metrics",
     "write_training_report",
 ]

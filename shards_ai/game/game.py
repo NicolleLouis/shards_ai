@@ -113,19 +113,26 @@ class Game:
         return build_neural_observation(self.state)
 
     def shaping_observation_for(self, player_id: PlayerId) -> GameState:
-        """Return the minimal detached state required by transition shaping."""
+        """Return the detached state needed by transition reward shaping."""
         if player_id not in self.state.players:
             raise InvalidActionError(f"Unknown player: {player_id}")
         state = self.state
-        players = {
-            current_id: PlayerState(
-                player_id=player.player_id,
-                health=player.health,
-                mastery=player.mastery,
-                champions=list(player.champions),
-            )
-            for current_id, player in state.players.items()
-        }
+        players = {}
+        for current_id, player in state.players.items():
+            if current_id is player_id:
+                players[current_id] = PlayerState(
+                    player_id=player.player_id,
+                    hand=list(player.hand),
+                    draw_pile=list(player.draw_pile),
+                    discard_pile=list(player.discard_pile),
+                    play_zone=list(player.play_zone),
+                    champions=list(player.champions),
+                )
+            else:
+                players[current_id] = PlayerState(
+                    player_id=player.player_id,
+                    champions=list(player.champions),
+                )
         return GameState(
             players=players,
             active_player=state.active_player,

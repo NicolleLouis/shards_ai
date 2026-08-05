@@ -25,7 +25,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(__file__).with_name("analysis_output") / "random_vs_random",
+        default=PROJECT_ROOT / "artifacts" / "analysis" / "random_vs_random",
     )
     args = parser.parse_args()
     config = CampaignConfig(

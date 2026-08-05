@@ -10,13 +10,14 @@ from collections.abc import Sequence
 import torch
 
 from shards_ai.game.actions import Action
+from shards_ai.game.cards import CARD_CATALOG
 from shards_ai.game.enums import PlayerId
 from shards_ai.game.errors import InvalidActionError
 from shards_ai.game.observation import NeuralObservation
 from shards_ai.game.random import GameRandom
 
 from .action_representation import representation_for_neural_action
-from .neural_model import NeuralActionScorer, NeuralModelConfig
+from .neural_model import NeuralActionScorer, NeuralModelConfig, build_neural_scorer
 from .neural_training_profiles import load_active_neural_profile
 
 
@@ -35,12 +36,16 @@ class NeuralPlayer:
         device: str = "cpu",
         tie_tolerance: float = 1e-6,
         scorer: NeuralActionScorer | None = None,
+        mercenary_mode_bias: float = 0.0,
+        deck_lean_bias: float = 0.0,
     ) -> None:
         if tie_tolerance < 0:
             raise ValueError("tie_tolerance must be non-negative")
         self.player_id = player_id
         self._rng = rng
         self.tie_tolerance = tie_tolerance
+        self.mercenary_mode_bias = float(mercenary_mode_bias)
+        self.deck_lean_bias = float(deck_lean_bias)
         self.decisions = 0
         self.total_inference_seconds = 0.0
         self.device = torch.device(device)
@@ -56,7 +61,9 @@ class NeuralPlayer:
             checkpoint_path = load_active_neural_profile().checkpoint_path
         checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
         model_config = NeuralModelConfig(**checkpoint["model_config"])
-        model = NeuralActionScorer(model_config).to(device)
+        model = build_neural_scorer(
+            str(checkpoint.get("architecture", "independent_action")), model_config,
+        ).to(device)
         if tuple(checkpoint.get("card_ids", ())) != model.card_ids:
             raise ValueError("Checkpoint card vocabulary does not match the current card catalog")
         model.load_state_dict(checkpoint["model_state_dict"])
@@ -86,6 +93,22 @@ class NeuralPlayer:
         started = time.perf_counter()
         with torch.inference_mode():
             scores = self.model(observation, representations)
+        if self.mercenary_mode_bias:
+            scores = scores.clone()
+            for index, representation in enumerate(representations):
+                card_id = representation.card_definition_id
+                is_mercenary = card_id is not None and CARD_CATALOG[card_id].is_mercenary
+                if not is_mercenary:
+                    continue
+                if representation.action_type == "recruit_mercenary":
+                    scores[index] += self.mercenary_mode_bias
+                elif representation.action_type == "buy_card":
+                    scores[index] -= self.mercenary_mode_bias
+        if self.deck_lean_bias:
+            scores = scores.clone()
+            for index, representation in enumerate(representations):
+                if representation.action_type == "buy_card":
+                    scores[index] -= self.deck_lean_bias
         self.total_inference_seconds += time.perf_counter() - started
         self.decisions += 1
         if not torch.isfinite(scores).all():

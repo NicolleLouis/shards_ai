@@ -1,6 +1,0 @@
-group,count,mean,min,max
-heuristic,1000,18.065,4,26
-random,1000,20.017,10,40
-heuristic_heuristic_win,979,18.08,7,26
-heuristic_heuristic_loss,21,17.381,4,22
-heuristic_draw,0,,,

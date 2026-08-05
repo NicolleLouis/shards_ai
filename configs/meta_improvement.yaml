@@ -1,0 +1,10 @@
+schema_version: 1
+seed: 104
+opponents:
+  - random
+  - v007
+  - v008
+baseline_profile: v008
+acceptance_rule: weighted_v008_guard
+performance_regression_threshold: 0.05
+performance_maintenance_every: 10

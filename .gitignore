@@ -1,3 +1,5 @@
-/scripts/analysis_output/
 /artifacts/
-/artifacts/heuristic_optimization/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+analysis_output/

@@ -1,0 +1,31 @@
+schema_version: 2
+profile_id: v002
+parent_profile_id: v001
+method: ppo
+output: artifacts/neural_training/checkpoint.pt
+initial_checkpoint: configs/neural_profiles/v001.pt
+seed: 52
+learning_rate: 0.0001
+total_games: 100000
+games_per_update: 128
+optimization_epochs: 4
+minibatch_size: 2048
+gamma: 0.995
+gae_lambda: 0.95
+clip_epsilon: 0.2
+value_loss_coefficient: 0.5
+entropy_coefficient: 0.001
+reference_kl_coefficient: 0.02
+evaluation_interval_games: 512
+evaluation_games: 64
+evaluation_seed: 91000
+max_transitions_per_update: 20000
+max_actions: 10000
+max_turns: 200
+opponents:
+  random: 0.2
+  v007: 0.3
+  v008: 0.5
+model: {}
+metadata:
+  objective: terminal_win_loss_against_random_v007_v008

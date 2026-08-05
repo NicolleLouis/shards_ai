@@ -22,18 +22,28 @@ def play_game(
     opponent_checkpoint: Path | None,
     max_actions: int,
     max_turns: int | None,
-    torch_threads: int,
+    neural_scorer=None,
+    opponent_scorer=None,
 ) -> dict[str, object]:
-    torch.set_num_threads(torch_threads)
     root_rng = GameRandom(seed)
     game = Game.new(seed=seed, rng=root_rng.derive("engine"))
     neural_id = PlayerId.PLAYER_1 if seed % 2 == 0 else PlayerId.PLAYER_2
     opponent_id = neural_id.opponent
-    neural = NeuralPlayer(neural_id, checkpoint, root_rng.derive("neural"))
+    neural = NeuralPlayer(
+        neural_id,
+        checkpoint if neural_scorer is None else None,
+        root_rng.derive("neural"),
+        scorer=neural_scorer,
+    )
     if opponent == "random":
         other = RandomPlayer(opponent_id, root_rng.derive("opponent"))
     elif opponent == "neural":
-        other = NeuralPlayer(opponent_id, opponent_checkpoint, root_rng.derive("opponent"))
+        other = NeuralPlayer(
+            opponent_id,
+            opponent_checkpoint if opponent_scorer is None else None,
+            root_rng.derive("opponent"),
+            scorer=opponent_scorer,
+        )
     else:
         profile = load_profile(profile_path) if profile_path else None
         other = HeuristicPlayer(
@@ -87,9 +97,17 @@ def main() -> None:
     if args.opponent == "neural" and (args.opponent_checkpoint is None or not args.opponent_checkpoint.exists()):
         parser.error("--opponent-checkpoint is required for a neural opponent")
 
+    torch.set_num_threads(args.torch_threads)
+    neural_scorer = NeuralPlayer.load_scorer(args.checkpoint)
+    opponent_scorer = (
+        NeuralPlayer.load_scorer(args.opponent_checkpoint)
+        if args.opponent == "neural"
+        else None
+    )
+
     results = [
         play_game(args.seed + index, args.checkpoint, args.opponent, args.profile, args.opponent_checkpoint,
-                  args.max_actions, args.max_turns, args.torch_threads)
+                  args.max_actions, args.max_turns, neural_scorer, opponent_scorer)
         for index in range(args.games)
     ]
     summary = {

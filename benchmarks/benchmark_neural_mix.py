@@ -16,7 +16,7 @@ from shards_ai.ai import HeuristicPlayer, NeuralPlayer, RandomPlayer
 from shards_ai.ai.heuristic_profiles import HeuristicProfile, load_profile
 from shards_ai.analysis.campaign import _line_svg, central_copy_counts
 from shards_ai.game import CARD_CATALOG, Game, GameRandom, GameRunner, GameStatus, PlayerId
-from shards_ai.game.actions import BuyCard, GainMastery, RecruitMercenary
+from shards_ai.game.actions import BuyCard, GainMastery, PassPlayPhase, PlayCard, RecruitMercenary
 
 
 OPPONENTS = ("random", "v007", "v008")
@@ -24,7 +24,7 @@ OPPONENTS = ("random", "v007", "v008")
 
 def opponent_for_game(game_index: int) -> str:
     position = game_index % 10
-    return "random" if position < 2 else "v007" if position < 7 else "v008"
+    return "random" if position < 2 else "v007" if position < 5 else "v008"
 
 
 def _deck_counts(player) -> dict[str, int]:
@@ -41,13 +41,22 @@ def play_game(
     max_actions: int,
     max_turns: int | None,
     torch_threads: int,
+    mercenary_mode_bias: float = 0.0,
+    deck_lean_bias: float = 0.0,
 ) -> dict[str, object]:
     torch.set_num_threads(torch_threads)
     root_rng = GameRandom(seed)
     game = Game.new(seed=seed, rng=root_rng.derive("engine"))
     neural_id = PlayerId.PLAYER_1 if seed % 2 == 0 else PlayerId.PLAYER_2
     opponent_id = neural_id.opponent
-    neural = NeuralPlayer(neural_id, None, root_rng.derive("neural"), scorer=scorer)
+    neural = NeuralPlayer(
+        neural_id,
+        None,
+        root_rng.derive("neural"),
+        scorer=scorer,
+        mercenary_mode_bias=mercenary_mode_bias,
+        deck_lean_bias=deck_lean_bias,
+    )
     if opponent == "random":
         other = RandomPlayer(opponent_id, root_rng.derive("opponent"))
     else:
@@ -66,10 +75,14 @@ def play_game(
     )
     mercenary_events: list[dict[str, object]] = []
     mastery_events: list[dict[str, object]] = []
+    neural_passes_with_playable_cards = 0
 
     def observe_decision(observation, legal_actions, action, player_id) -> None:
+        nonlocal neural_passes_with_playable_cards
         if player_id is not neural_id:
             return
+        if isinstance(action, PassPlayPhase) and any(isinstance(candidate, PlayCard) for candidate in legal_actions):
+            neural_passes_with_playable_cards += 1
         mastery_opportunity = any(isinstance(candidate, GainMastery) for candidate in legal_actions)
         if mastery_opportunity:
             mastery = observation.active_player.mastery
@@ -88,6 +101,8 @@ def play_game(
                 })
     started = time.perf_counter()
     state = runner.run(decision_observer=observe_decision)
+    neural_deck = _deck_counts(state.players[neural_id])
+    opponent_deck = _deck_counts(state.players[opponent_id])
     return {
         "seed": seed,
         "opponent": opponent,
@@ -105,8 +120,13 @@ def play_game(
         "opponent_health": state.players[opponent_id].health,
         "neural_mastery": state.players[neural_id].mastery,
         "opponent_mastery": state.players[opponent_id].mastery,
-        "neural_deck": _deck_counts(state.players[neural_id]),
-        "opponent_deck": _deck_counts(state.players[opponent_id]),
+        "neural_deck": neural_deck,
+        "opponent_deck": opponent_deck,
+        "neural_deck_size": sum(neural_deck.values()),
+        "opponent_deck_size": sum(opponent_deck.values()),
+        "deck_size_delta": sum(neural_deck.values()) - sum(opponent_deck.values()),
+        "neural_passes_with_playable_cards": neural_passes_with_playable_cards,
+        "neural_passed_with_playable_cards": neural_passes_with_playable_cards > 0,
         "mercenary_events": mercenary_events,
         "mastery_events": mastery_events,
     }
@@ -118,8 +138,8 @@ def _summary(records: list[dict]) -> dict[str, object]:
     def average(key: str) -> float:
         return statistics.mean(record[key] for record in records) if records else 0.0
 
-    def numeric(key: str) -> dict[str, float | int | None]:
-        values = [record[key] for record in records]
+    def numeric(key: str, default: float | int = 0) -> dict[str, float | int | None]:
+        values = [record.get(key, default) for record in records]
         return {
             "mean": round(statistics.mean(values), 3) if values else None,
             "min": min(values) if values else None,
@@ -202,6 +222,17 @@ def _summary(records: list[dict]) -> dict[str, object]:
         "opponent_mastery": numeric("opponent_mastery"),
         "neural_deck": decks("neural_deck"),
         "opponent_deck": decks("opponent_deck"),
+        "neural_deck_size": numeric("neural_deck_size", 0),
+        "opponent_deck_size": numeric("opponent_deck_size", 0),
+        "deck_size_delta": numeric("deck_size_delta", 0),
+        "neural_passes_with_playable_cards": numeric("neural_passes_with_playable_cards", 0),
+        "neural_passed_with_playable_cards_games": sum(
+            bool(record.get("neural_passed_with_playable_cards", False)) for record in records
+        ),
+        "neural_passed_with_playable_cards_rate": round(
+            sum(bool(record.get("neural_passed_with_playable_cards", False)) for record in records) / games,
+            4,
+        ) if games else 0.0,
         "mercenary_stats": mercenary_stats,
         "mastery_by_turn": mastery_rows(mastery_by_turn),
         "mastery_by_level": mastery_rows(mastery_by_level),
@@ -253,6 +284,9 @@ def _render_report(payload: dict) -> str:
             f"<tr><td>{opponent}</td><td>{item['games']}</td><td>{item['neural_win_rate']:.1%}</td>"
             f"<td>{item['opponent_win_rate']:.1%}</td><td>{item['draw_rate']:.1%}</td>"
             f"<td>{item['turns']['mean']:.1f}</td><td>{item['turns_per_player']['mean']:.1f}</td>"
+            f"<td>{item['neural_deck_size']['mean']:.1f}</td><td>{item['opponent_deck_size']['mean']:.1f}</td>"
+            f"<td>{item['deck_size_delta']['mean']:+.1f}</td>"
+            f"<td>{item['neural_passed_with_playable_cards_rate']:.1%}</td>"
             f"<td>{item['neural_health']['mean']:.1f}</td>"
             f"<td>{item['neural_mastery']['mean']:.1f}</td><td>{item['average_neural_inference_ms']:.2f} ms</td></tr>"
         )
@@ -264,6 +298,12 @@ def _render_report(payload: dict) -> str:
             f"victoire Neural {item['neural_win_rate']:.1%} · durée moyenne {item['elapsed_seconds']['mean']:.2f}s · "
             f"{item['turns']['mean']:.1f} tours · {item['turns_per_player']['mean']:.1f} tours / joueur · "
             f"{item['actions']['mean']:.1f} actions</p>"
+            f"<h3>Développement du deck</h3><p>Deck Neural : {item['neural_deck_size']['mean']:.1f} cartes · "
+            f"adversaire : {item['opponent_deck_size']['mean']:.1f} · delta Neural − adversaire : "
+            f"{item['deck_size_delta']['mean']:+.1f} cartes. Dans "
+            f"{item['neural_passed_with_playable_cards_rate']:.1%} des parties, le NeuralPlayer a passé "
+            f"avec au moins une carte jouable encore en main "
+            f"({item['neural_passed_with_playable_cards_games']} / {item['games']}).</p>"
             f"<h3>État final moyen</h3><p>Neural : {item['neural_health']['mean']:.1f} PV, "
             f"{item['neural_mastery']['mean']:.1f} maîtrise · Adversaire : {item['opponent_health']['mean']:.1f} PV, "
             f"{item['opponent_mastery']['mean']:.1f} maîtrise</p>"
@@ -280,7 +320,7 @@ body{{font-family:system-ui,sans-serif;background:#f5f7fb;color:#172033;margin:0
 </style></head><body><main><h1>Benchmark NeuralPlayer — mix d'adversaires</h1>
 <p class="muted">{payload['config']['games']} parties · répartition Random 20 %, v007 50 %, v008 30 % · seed {payload['config']['seed']}</p>
 <section class="card"><h2>Taux de victoire</h2><div class="grid">{''.join(f'<div><strong>{opponent}</strong><div class="metric">{summary[opponent]["neural_win_rate"]:.1%}</div><div class="bar"><div class="fill" style="width:{summary[opponent]["neural_win_rate"]*100:.1f}%"></div></div></div>' for opponent in OPPONENTS)}</div>
-<table><thead><tr><th>Adversaire</th><th>Parties</th><th>Neural win</th><th>Adversaire win</th><th>Nuls</th><th>Tours moyens</th><th>Tours / joueur</th><th>PV Neural</th><th>Maîtrise Neural</th><th>Inférence</th></tr></thead><tbody>{''.join(rows)}</tbody></table></section>
+<table><thead><tr><th>Adversaire</th><th>Parties</th><th>Neural win</th><th>Adversaire win</th><th>Nuls</th><th>Tours moyens</th><th>Tours / joueur</th><th>Deck Neural</th><th>Deck adversaire</th><th>Delta deck</th><th>Pass avec carte jouable</th><th>PV Neural</th><th>Maîtrise Neural</th><th>Inférence</th></tr></thead><tbody>{''.join(rows)}</tbody></table></section>
 {''.join(sections)}</main></body></html>"""
 
 
@@ -311,7 +351,7 @@ def _mastery_table(rows: list[dict], label: str) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--checkpoint", type=Path, default=Path("artifacts/neural_imitation/baseline.pt"))
+    parser.add_argument("--checkpoint", type=Path, default=Path("configs/neural_profiles/v001.pt"))
     parser.add_argument("--profile-v007", type=Path, default=Path("configs/heuristic_profiles/v007.yaml"))
     parser.add_argument("--profile-v008", type=Path, default=Path("configs/heuristic_profiles/v008.yaml"))
     parser.add_argument("--games", type=int, default=1000)
@@ -321,6 +361,18 @@ def main() -> None:
     parser.add_argument("--torch-threads", type=int, default=1)
     parser.add_argument("--output", type=Path, default=Path("artifacts/neural_benchmark/neural_mix.json"))
     parser.add_argument("--html-output", type=Path, default=Path("artifacts/neural_benchmark/neural_mix.html"))
+    parser.add_argument(
+        "--mercenary-mode-bias",
+        type=float,
+        default=0.0,
+        help="Add this score to immediate mercenary recruitment and subtract it from long-term purchase.",
+    )
+    parser.add_argument(
+        "--deck-lean-bias",
+        type=float,
+        default=0.0,
+        help="Subtract this score from every BuyCard action.",
+    )
     args = parser.parse_args()
     if args.games <= 0 or not args.checkpoint.exists():
         parser.error("games must be positive and checkpoint must exist")
@@ -335,11 +387,22 @@ def main() -> None:
     results = []
     for index in range(args.games):
         opponent = opponent_for_game(index)
-        results.append(play_game(args.seed + index, args.checkpoint, scorer, opponent, profiles, args.max_actions, args.max_turns, args.torch_threads))
+        results.append(play_game(
+            args.seed + index,
+            args.checkpoint,
+            scorer,
+            opponent,
+            profiles,
+            args.max_actions,
+            args.max_turns,
+            args.torch_threads,
+            args.mercenary_mode_bias,
+            args.deck_lean_bias,
+        ))
         if (index + 1) % 100 == 0:
             print(f"completed={index + 1}/{args.games}")
     payload = {
-        "config": {"checkpoint": str(args.checkpoint), "games": args.games, "seed": args.seed, "torch_threads": args.torch_threads, "distribution": {opponent: sum(opponent_for_game(i) == opponent for i in range(args.games)) for opponent in OPPONENTS}},
+        "config": {"checkpoint": str(args.checkpoint), "games": args.games, "seed": args.seed, "torch_threads": args.torch_threads, "mercenary_mode_bias": args.mercenary_mode_bias, "deck_lean_bias": args.deck_lean_bias, "distribution": {opponent: sum(opponent_for_game(i) == opponent for i in range(args.games)) for opponent in OPPONENTS}},
         "summary_by_opponent": {opponent: _summary([record for record in results if record["opponent"] == opponent]) for opponent in OPPONENTS},
         "games": results,
     }

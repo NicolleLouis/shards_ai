@@ -92,11 +92,14 @@ Le cycle attendu est donc :
 
 ## Méthode de travail
 
-Pour les campagnes d’entraînement persistantes, le `Makefile` contient la version heuristique
-active. Les commandes opérationnelles doivent rester génériques (`make train-resume` et
-`make train-remaining`) ; après validation et publication d’un nouveau profil, mettre à jour
-uniquement `HEURISTIC_VERSION` dans le `Makefile`, puis vérifier que le checkpoint et le profil
-publié ciblent cette même version. Ne jamais basculer la version active sur un candidat non validé.
+Pour l’entraînement neural, il ne doit exister qu’un seul checkpoint mutable à la fois. Toutes les
+cibles neural du `Makefile` doivent utiliser `NEURAL_CHECKPOINT`, dont le chemin canonique est
+`artifacts/neural_training/checkpoint.pt` : entraînement, reprise, métriques, rapport, benchmark et
+validation. Ne pas créer de checkpoint nommé par version ou par session dans `artifacts/`. Après
+validation, le checkpoint stable est copié dans `configs/neural_profiles/vNNN.pt` et n’est plus
+entraîné ; le fichier sous `artifacts/neural_training/` reste le seul checkpoint de travail et peut
+être remplacé pour la version suivante. Les scripts doivent retrouver le checkpoint de travail via
+le `Makefile`, pas via une recherche de fichiers ou un nom candidat implicite.
 
 Avant de coder :
 

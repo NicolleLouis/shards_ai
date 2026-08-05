@@ -8,7 +8,15 @@ import time
 
 import torch
 
-from shards_ai.ai import NeuralActionScorer, evaluate_epoch, iter_jsonl_records, seed_training, train_epoch
+from shards_ai.ai import (
+    ContextualNeuralActionScorer,
+    NeuralActionScorer,
+    NeuralModelConfig,
+    evaluate_epoch,
+    iter_jsonl_records,
+    seed_training,
+    train_epoch,
+)
 from shards_ai.ai.neural_training import split_for_game_id
 
 
@@ -24,10 +32,29 @@ def records(path: str, split: str, limit: int):
             return
 
 
-def run(path: str, train_records: int, validation_records: int, torch_threads: int) -> tuple[float, float, int, int]:
+def run(
+    path: str,
+    train_records: int,
+    validation_records: int,
+    torch_threads: int,
+    checkpoint_path: str | None = None,
+    optimizer_foreach: bool = False,
+) -> tuple[float, float, int, int]:
     seed_training(123, torch_threads=torch_threads)
-    model = NeuralActionScorer()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    if checkpoint_path is None:
+        model = NeuralActionScorer()
+        learning_rate = 1e-3
+    else:
+        checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+        model_class = (
+            ContextualNeuralActionScorer
+            if checkpoint.get("architecture") == "global_candidate_context"
+            else NeuralActionScorer
+        )
+        model = model_class(NeuralModelConfig(**checkpoint["model_config"]))
+        model.load_state_dict(checkpoint["model_state_dict"])
+        learning_rate = 1e-4
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, foreach=optimizer_foreach)
     started = time.perf_counter()
     train_result = train_epoch(model, records(path, "train", train_records), optimizer)
     train_seconds = time.perf_counter() - started
@@ -44,8 +71,20 @@ def main() -> None:
     parser.add_argument("--validation-records", type=int, default=100)
     parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument("--torch-threads", type=int, default=1)
+    parser.add_argument("--checkpoint", help="Load the model architecture and weights from a checkpoint.")
+    parser.add_argument("--optimizer-foreach", action="store_true")
     args = parser.parse_args()
-    measurements = [run(args.dataset, args.train_records, args.validation_records, args.torch_threads) for _ in range(args.repetitions)]
+    measurements = [
+        run(
+            args.dataset,
+            args.train_records,
+            args.validation_records,
+            args.torch_threads,
+            checkpoint_path=args.checkpoint,
+            optimizer_foreach=args.optimizer_foreach,
+        )
+        for _ in range(args.repetitions)
+    ]
     for index, measurement in enumerate(measurements, 1):
         print(f"run={index} train_s={measurement[0]:.4f} validation_s={measurement[1]:.4f} "
               f"train_records={measurement[2]} validation_records={measurement[3]}")

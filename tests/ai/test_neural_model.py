@@ -5,7 +5,14 @@ from dataclasses import asdict
 
 import torch
 
-from shards_ai.ai import NeuralActionScorer, NeuralModelConfig, representation_for_action
+from shards_ai.ai import (
+    ContextualNeuralActionScorer,
+    NeuralActionScorer,
+    NeuralModelConfig,
+    SemanticIdentityNeuralActionScorer,
+    build_neural_scorer,
+    representation_for_action,
+)
 from shards_ai.ai.neural_training import (
     chosen_action_loss,
     combined_imitation_loss,
@@ -31,6 +38,33 @@ def test_action_conditioned_model_scores_all_legal_actions() -> None:
 
     assert scores.shape == (len(actions),)
     assert torch.isfinite(scores).all()
+
+
+def test_contextual_model_scores_candidates_and_is_order_equivariant() -> None:
+    game, observation, actions = _decision_fixture()
+    model = ContextualNeuralActionScorer(
+        NeuralModelConfig(card_embedding_dim=16, state_hidden_dim=32, action_hidden_dim=16, candidate_context_dim=8)
+    )
+
+    scores = model(observation, actions)
+    reversed_scores = model(observation, list(reversed(actions)))
+
+    assert scores.shape == (len(actions),)
+    assert torch.allclose(scores, torch.flip(reversed_scores, dims=(0,)))
+
+
+def test_v003_semantic_identity_model_scores_candidates_and_is_order_equivariant() -> None:
+    game, observation, actions = _decision_fixture()
+    config = NeuralModelConfig(card_id_embedding_dim=24, semantic_hidden_dim=64, card_embedding_dim=64)
+    model = build_neural_scorer("semantic_identity_v3", config)
+
+    scores = model(observation, actions)
+    reversed_scores = model(observation, list(reversed(actions)))
+
+    assert isinstance(model, SemanticIdentityNeuralActionScorer)
+    assert model._card_embedding(actions[0].card_definition_id).shape == (64,)
+    assert torch.isfinite(scores).all()
+    assert torch.allclose(scores, torch.flip(reversed_scores, dims=(0,)))
 
 
 def test_model_accepts_serialized_masked_observation() -> None:

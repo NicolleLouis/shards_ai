@@ -13,10 +13,10 @@ from pathlib import Path
 import torch
 
 from shards_ai.ai import (
-    NeuralActionScorer, NeuralModelConfig, evaluate_epoch, iter_jsonl_records,
+    NeuralModelConfig, SUPPORTED_ARCHITECTURES, build_neural_scorer, evaluate_epoch, iter_jsonl_records,
     load_training_profile, seed_training, train_epoch,
 )
-from shards_ai.ai.neural_training import split_for_game_id
+from shards_ai.ai.neural_training import is_targeted_mercenary_record, split_for_game_id
 from shards_ai.ai.neural_reporting import write_training_report
 
 
@@ -39,8 +39,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", type=Path)
     parser.add_argument("--dataset", type=Path)
+    parser.add_argument("--validation-dataset", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--resume-from", type=Path)
+    parser.add_argument(
+        "--reset-optimizer",
+        action="store_true",
+        help="When resuming weights, start with a fresh Adam state.",
+    )
     parser.add_argument("--epochs", type=int)
     parser.add_argument("--learning-rate", type=float)
     parser.add_argument("--split", choices=("train", "validation", "test", "all"))
@@ -52,6 +58,20 @@ def main() -> None:
     parser.add_argument("--no-chart", action="store_true")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--torch-threads", type=int)
+    parser.add_argument("--architecture", choices=SUPPORTED_ARCHITECTURES)
+    parser.add_argument(
+        "--strategic-action",
+        dest="strategic_actions",
+        action="append",
+        help="Action type whose training loss receives --strategic-weight; repeatable.",
+    )
+    parser.add_argument("--strategic-weight", type=float, default=1.0)
+    parser.add_argument(
+        "--targeted-mercenary-weight",
+        type=float,
+        default=1.0,
+        help="Additional loss weight for decisions offering BuyCard and RecruitMercenary for one mercenary.",
+    )
     args = parser.parse_args()
 
     profile = load_training_profile(args.profile) if args.profile else None
@@ -60,16 +80,25 @@ def main() -> None:
             parser.error("--dataset and --output are required when --profile is absent")
         settings = {
             "dataset": args.dataset, "output": args.output, "epochs": args.epochs or 1,
+            "validation_dataset": args.validation_dataset,
+            "strategic_actions": args.strategic_actions or (),
+            "strategic_weight": args.strategic_weight,
+            "targeted_mercenary_weight": args.targeted_mercenary_weight,
             "learning_rate": args.learning_rate or 1e-3, "split": args.split or "train",
             "split_seed": args.split_seed if args.split_seed is not None else 0,
             "max_records": args.max_records, "max_validation_records": args.max_validation_records or 10000,
             "seed": args.seed if args.seed is not None else 0,
             "torch_threads": args.torch_threads or 1, "model": NeuralModelConfig(),
+            "architecture": args.architecture or "independent_action",
         }
     else:
         settings = {
             "dataset": args.dataset or profile.resolve_path(profile.dataset),
             "output": args.output or profile.resolve_path(profile.output),
+            "validation_dataset": args.validation_dataset,
+            "strategic_actions": args.strategic_actions or (),
+            "strategic_weight": args.strategic_weight,
+            "targeted_mercenary_weight": args.targeted_mercenary_weight,
             "epochs": args.epochs if args.epochs is not None else profile.epochs,
             "learning_rate": args.learning_rate if args.learning_rate is not None else profile.learning_rate,
             "split": args.split or "train", "split_seed": args.split_seed if args.split_seed is not None else profile.split_seed,
@@ -78,11 +107,21 @@ def main() -> None:
             "seed": args.seed if args.seed is not None else profile.seed,
             "torch_threads": args.torch_threads if args.torch_threads is not None else profile.torch_threads,
             "model": profile.resolved_model_config(),
+            "architecture": args.architecture or profile.metadata.get("architecture", "independent_action"),
         }
     dataset = Path(settings["dataset"])
     output = Path(settings["output"])
     if not dataset.exists():
         raise FileNotFoundError(f"Dataset not found: {dataset}")
+    validation_dataset = settings["validation_dataset"]
+    if validation_dataset is not None:
+        validation_dataset = Path(validation_dataset)
+        if not validation_dataset.exists():
+            raise FileNotFoundError(f"Validation dataset not found: {validation_dataset}")
+    if args.strategic_weight <= 0:
+        parser.error("--strategic-weight must be positive")
+    if args.targeted_mercenary_weight <= 0:
+        parser.error("--targeted-mercenary-weight must be positive")
     if settings["epochs"] <= 0 or settings["learning_rate"] <= 0 or settings["torch_threads"] <= 0:
         parser.error("epochs, learning rate and torch threads must be positive")
 
@@ -93,20 +132,25 @@ def main() -> None:
             raise FileNotFoundError(f"Checkpoint not found: {args.resume_from}")
         checkpoint = torch.load(args.resume_from, map_location="cpu", weights_only=False)
         model_config = NeuralModelConfig(**checkpoint["model_config"])
+        architecture = checkpoint.get("architecture", "independent_action")
     else:
         model_config = settings["model"]
+        architecture = settings["architecture"]
     if profile and checkpoint is not None and checkpoint.get("profile_id") not in (None, profile.profile_id):
         raise ValueError(
             f"Checkpoint belongs to profile {checkpoint['profile_id']!r}, "
             f"cannot resume with {profile.profile_id!r}"
         )
-    model = NeuralActionScorer(model_config)
+    model = build_neural_scorer(architecture, model_config)
     if checkpoint is not None:
         if tuple(checkpoint.get("card_ids", ())) != model.card_ids:
             raise ValueError("Checkpoint card vocabulary does not match the current card catalog")
         model.load_state_dict(checkpoint["model_state_dict"])
-    optimizer = torch.optim.Adam(model.parameters(), lr=settings["learning_rate"])
-    if checkpoint is not None and "optimizer_state_dict" in checkpoint:
+    # The training loop performs one optimizer step per legal-action decision.
+    # Adam's CPU foreach implementation reduces Python/dispatch overhead without
+    # changing the batch size, record order, or loss definition.
+    optimizer = torch.optim.Adam(model.parameters(), lr=settings["learning_rate"], foreach=True)
+    if checkpoint is not None and "optimizer_state_dict" in checkpoint and not args.reset_optimizer:
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         for parameter_group in optimizer.param_groups:
             parameter_group["lr"] = settings["learning_rate"]
@@ -125,10 +169,28 @@ def main() -> None:
         return records_for(settings["split"])
 
     def validation_records():
-        return records_for("validation")
+        if validation_dataset is not None:
+            yield from iter_jsonl_records(validation_dataset)
+            return
+        yield from records_for("validation")
+
+    strategic_actions = frozenset(args.strategic_actions or ())
+
+    def record_weight(record: dict) -> float:
+        action_type = record.get("chosen_action", {}).get("action_type")
+        weight = args.strategic_weight if action_type in strategic_actions else 1.0
+        if is_targeted_mercenary_record(record):
+            weight *= args.targeted_mercenary_weight
+        return weight
 
     for epoch_offset in range(settings["epochs"]):
-        train_result = train_epoch(model, records(), optimizer, max_records=settings["max_records"])
+        train_result = train_epoch(
+            model,
+            records(),
+            optimizer,
+            max_records=settings["max_records"],
+            record_weight=record_weight if strategic_actions else None,
+        )
         validation_result = evaluate_epoch(
             model,
             validation_records(),
@@ -146,7 +208,7 @@ def main() -> None:
     run_metadata = {
         "profile_id": profile.profile_id if profile else None,
         "profile_fingerprint": profile.fingerprint if profile else None,
-        "dataset": str(dataset), "output": str(output),
+        "dataset": str(dataset), "output": str(output), "architecture": architecture,
         "settings": _jsonable(settings),
     }
     run_metadata["effective_fingerprint"] = _fingerprint(run_metadata["settings"])
@@ -168,6 +230,7 @@ def main() -> None:
             "split": settings["split"],
             "split_seed": settings["split_seed"],
             "profile_id": profile.profile_id if profile else None,
+            "architecture": architecture,
             "profile_fingerprint": profile.fingerprint if profile else None,
             "effective_fingerprint": run_metadata["effective_fingerprint"],
             "training_config": run_metadata,

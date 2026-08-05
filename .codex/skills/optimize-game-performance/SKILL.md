@@ -6,8 +6,11 @@ description: Optimize the Shards AI engine through reproducible benchmarks, prof
 # Optimize Game Performance
 
 Improve runtime performance while preserving the documented Shards rules and current feature
-scope. Every accepted optimization must have a comparable baseline, profiler evidence or a clear
+scope. Every accepted optimization should have a comparable baseline, profiler evidence or a clear
 hot-path rationale, passing functional tests, and a faster final benchmark under the same workload.
+The validation may be run by the user outside Codex. When the user reports that it was run, accept
+that external validation as the current evidence and avoid relaunching the same expensive campaign
+unless its result is missing or contradictory.
 Run optimization in iterative passes: after an accepted optimization, use the resulting code as
 the baseline for another pass. Stop at the first pass whose robust improvement is below 2% or whose
 benchmark is flat/slower; report the cumulative gain and the stopping pass.

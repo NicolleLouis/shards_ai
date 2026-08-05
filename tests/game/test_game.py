@@ -59,7 +59,11 @@ def test_shaping_observation_keeps_only_state_potential_data_detached() -> None:
     assert snapshot.players[player_id].health == game.state.players[player_id].health
     assert snapshot.players[player_id].mastery == game.state.players[player_id].mastery
     assert len(snapshot.players[player_id].champions) == len(game.state.players[player_id].champions)
-    assert snapshot.players[player_id].hand == []
+    assert len(snapshot.players[player_id].hand) == len(game.state.players[player_id].hand)
+    assert len(snapshot.players[player_id].draw_pile) == len(game.state.players[player_id].draw_pile)
+    assert snapshot.players[player_id].hand is not game.state.players[player_id].hand
+    assert snapshot.players[player_id.opponent].hand == []
+    assert snapshot.players[player_id.opponent].draw_pile == []
     assert snapshot.central_deck == []
     assert snapshot.river == []
 

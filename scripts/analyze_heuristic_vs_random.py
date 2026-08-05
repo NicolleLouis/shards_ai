@@ -200,7 +200,7 @@ def main() -> None:
         "--output",
         type=Path,
         default=(
-            Path(__file__).with_name("analysis_output")
+            PROJECT_ROOT / "artifacts" / "analysis"
             / "heuristic_vs_random"
             / "report.html"
         ),

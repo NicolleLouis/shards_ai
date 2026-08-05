@@ -1,0 +1,56 @@
+# Artefacts et scripts
+
+## Politique
+
+Le code exécutable est séparé des sorties générées :
+
+| Besoin | Emplacement | Règle |
+| --- | --- | --- |
+| Préparation, entraînement, validation ou reporting | `scripts/` | Commande rejouable, avec chemins variables en arguments. |
+| Mesure de performance ou campagne de référence | `benchmarks/` | Mesure uniquement ; sorties sous `artifacts/`. |
+| Logique d'analyse réutilisable | `shards_ai/analysis/` | Code importable et testé. |
+| Configuration ou profil publié | `configs/` | Source de vérité versionnée. |
+| Dataset, checkpoint, métriques, rapport ou résultat de run | `artifacts/` | Sortie locale, ignorée par Git, classée par type. |
+| Décision, comportement courant ou règle | `doc/` | Markdown uniquement ; aucun artefact d'expérience. |
+
+## Convention `artifacts/`
+
+- `imitation_dataset/` : datasets d'entraînement et manifests ;
+- `neural_training/` : le checkpoint mutable unique et ses métriques de training ;
+- `neural_benchmark/` : résultats de matchs et rapports neural ;
+- `neural_validation/` : sorties de validation et promotion ;
+- `analysis/` : rapports et exports d'analyse de parties, un sous-répertoire par campagne.
+
+Les anciens chemins `analysis_output/` et `scripts/analysis_output/` sont interdits. Une sortie
+temporaire sans valeur de reproduction va dans `/tmp`, pas dans le dépôt.
+
+## Cycle de vie
+
+On conserve un artefact s'il est référencé par une configuration ou une commande active, s'il sert
+de baseline publiée, ou si sa comparaison reste utile à une décision. Sinon, il peut être supprimé
+après vérification de ses références. Les datasets lourds obsolètes doivent être supprimés plutôt
+que renommés ou dupliqués.
+
+Chaque run important doit enregistrer dans son manifest la version des profils, la seed et le
+schéma de données. Les scripts et benchmarks ne créent jamais leur sortie dans leur propre
+répertoire.
+
+## Campagnes autonomes neural
+
+`scripts/meta_improve.py` exécute une campagne séquentielle dans des worktrees temporaires. Codex
+CLI est l'agent par défaut (`codex exec` avec prompt sur stdin), mais la commande est remplaçable.
+Le checkout doit être propre au démarrage. Chaque expérience produit un rapport Markdown sous
+`doc/Experiments/`, puis un commit de rejet, d'échec, d'interruption ou d'acceptation est intégré
+sur la branche de lancement ; aucun push n'est effectué.
+
+Les sorties détaillées sont copiées sous
+`artifacts/experiments/<campaign-id>/<experiment-id>/` : manifeste, logs, tests fixes, validation
+et promotion. Le seul checkpoint d'entraînement mutable reste
+`artifacts/neural_training/checkpoint.pt`. Les profils stables et les pointeurs actifs sont
+protégés contre l'agent et ne peuvent être créés ou modifiés que par la promotion indépendante
+après validation.
+
+Le catalogue `doc/Ideas.md` est lu au début d'une expérience et peut être mis à jour pendant la
+préparation puis après l'analyse : nouvelles idées, suppressions, statuts `done` et next steps.
+Les modifications sont conservées même pour un candidat rejeté et leur diff est inclus dans le
+rapport.

@@ -17,6 +17,8 @@ def test_campaign_summary_and_html_contain_final_game_insights() -> None:
         "neural_health": 35, "opponent_health": 0,
         "neural_mastery": 4, "opponent_mastery": 2,
         "neural_deck": {"crystal": 3}, "opponent_deck": {"crystal": 2},
+        "neural_deck_size": 4, "opponent_deck_size": 3, "deck_size_delta": 1,
+        "neural_passes_with_playable_cards": 2, "neural_passed_with_playable_cards": True,
         "mercenary_events": [], "mastery_events": [],
     }
     payload = {
@@ -28,10 +30,16 @@ def test_campaign_summary_and_html_contain_final_game_insights() -> None:
 
     assert payload["summary_by_opponent"]["random"]["neural_win_rate"] == 1.0
     assert payload["summary_by_opponent"]["random"]["turns_per_player"]["mean"] == 3.5
+    assert payload["summary_by_opponent"]["random"]["neural_deck_size"]["mean"] == 4
+    assert payload["summary_by_opponent"]["random"]["deck_size_delta"]["mean"] == 1
+    assert payload["summary_by_opponent"]["random"]["neural_passed_with_playable_cards_games"] == 1
     assert "PV Neural" in report
     assert "7.0 tours · 3.5 tours / joueur" in report
     assert "Tours / joueur" in report
     assert "Maîtrise Neural" in report
+    assert "Deck Neural" in report
+    assert "Pass avec carte jouable" in report
+    assert "Développement du deck" in report
     assert "Deck final moyen" in report
     assert "crystal" in report
 

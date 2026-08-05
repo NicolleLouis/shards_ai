@@ -40,6 +40,7 @@ class NeuralModelConfig:
     state_hidden_dim: int = 96
     action_hidden_dim: int = 48
     scorer_hidden_dim: int = 96
+    candidate_context_dim: int = 32
 
 
 def _card_feature_size() -> int:
@@ -53,6 +54,8 @@ class NeuralActionScorer(nn.Module):
     action vocabulary, so adding a legal action or a card does not require an
     output-layer rewrite.
     """
+
+    architecture = "independent_action"
 
     def __init__(
         self,
@@ -105,6 +108,17 @@ class NeuralActionScorer(nn.Module):
             card_id: representation_for_definition(definition)
             for card_id, definition in self.card_catalog.items()
         }
+        self.register_buffer(
+            "_semantic_feature_tensor",
+            torch.tensor(
+                [
+                    _semantic_features(self._semantic_cache[card_id])
+                    for card_id in self.card_ids
+                ] + [[0.0] * _card_feature_size()],
+                dtype=torch.float32,
+            ),
+            persistent=False,
+        )
 
     def forward(self, observation: NeuralObservation, actions: Sequence[ActionRepresentation]) -> Tensor:
         return self.scores_for_actions(observation, actions)
@@ -199,11 +213,7 @@ class NeuralActionScorer(nn.Module):
             [self.card_to_index.get(card_id or "", self.unk_card_index) for card_id in card_ids],
             dtype=torch.long, device=self.device,
         )
-        semantic_features = torch.tensor([
-            _semantic_features(self._semantic_cache[card_id]) if card_id in self._semantic_cache
-            else [0.0] * _card_feature_size()
-            for card_id in card_ids
-        ], dtype=torch.float32, device=self.device)
+        semantic_features = self._semantic_feature_tensor.index_select(0, indices)
         id_vectors = self.card_id_embedding(indices)
         semantic_vectors = self.card_semantic_encoder(semantic_features)
         return self.card_fusion(torch.cat((id_vectors, semantic_vectors), dim=1))
@@ -260,6 +270,88 @@ class NeuralActionScorer(nn.Module):
         if target in TARGET_TYPES:
             return target or ""
         return "champion" if target else ""
+
+
+class ContextualNeuralActionScorer(NeuralActionScorer):
+    """Score actions after pooling the alternatives available in the decision.
+
+    The pooling is permutation-invariant and intentionally lighter than a Transformer: every
+    action sees the same summary of the candidate set, but candidates do not attend to one another.
+    """
+
+    architecture = "global_candidate_context"
+
+    def __init__(
+        self,
+        config: NeuralModelConfig | None = None,
+        *,
+        card_catalog: Mapping[str, object] | None = None,
+    ) -> None:
+        super().__init__(config, card_catalog=card_catalog)
+        self.candidate_context_encoder = nn.Sequential(
+            nn.Linear(self.config.action_hidden_dim, self.config.candidate_context_dim),
+            nn.ReLU(),
+        )
+        self.scorer = nn.Sequential(
+            nn.Linear(
+                self.config.state_hidden_dim
+                + self.config.action_hidden_dim
+                + self.config.candidate_context_dim,
+                self.config.scorer_hidden_dim,
+            ),
+            nn.ReLU(),
+            nn.Linear(self.config.scorer_hidden_dim, 1),
+        )
+
+    def scores_for_actions(
+        self,
+        observation: NeuralObservation,
+        actions: Sequence[ActionRepresentation],
+    ) -> Tensor:
+        if not actions:
+            return torch.empty(0, device=self.device)
+        card_ids = list(self._observation_card_ids(observation))
+        card_ids.extend(action.card_definition_id for action in actions)
+        embedding_lookup = self._embedding_lookup(card_ids)
+        state = self.encode_observation(observation, embedding_lookup=embedding_lookup)
+        action = self.encode_actions(actions, embedding_lookup=embedding_lookup)
+        context = self.candidate_context_encoder(action.mean(dim=0, keepdim=True))
+        state_batch = state.expand(len(actions), -1)
+        context_batch = context.expand(len(actions), -1)
+        return self.scorer(torch.cat((state_batch, action, context_batch), dim=1)).squeeze(1)
+
+
+class SemanticIdentityNeuralActionScorer(NeuralActionScorer):
+    """V003 scorer with a wider, explicitly versioned card representation."""
+
+    architecture = "semantic_identity_v3"
+
+
+SUPPORTED_ARCHITECTURES = (
+    NeuralActionScorer.architecture,
+    ContextualNeuralActionScorer.architecture,
+    SemanticIdentityNeuralActionScorer.architecture,
+)
+
+
+def build_neural_scorer(
+    architecture: str,
+    config: NeuralModelConfig | None = None,
+    *,
+    card_catalog: Mapping[str, object] | None = None,
+) -> NeuralActionScorer:
+    """Build the scorer selected by explicit checkpoint/profile metadata."""
+
+    classes = {
+        NeuralActionScorer.architecture: NeuralActionScorer,
+        ContextualNeuralActionScorer.architecture: ContextualNeuralActionScorer,
+        SemanticIdentityNeuralActionScorer.architecture: SemanticIdentityNeuralActionScorer,
+    }
+    try:
+        model_class = classes[architecture]
+    except KeyError as error:
+        raise ValueError(f"Unsupported neural architecture: {architecture!r}") from error
+    return model_class(config, card_catalog=card_catalog)
 
 
 def _semantic_features(card: CardSemanticRepresentation) -> list[float]:

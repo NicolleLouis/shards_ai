@@ -7,7 +7,7 @@ import hashlib
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Callable, Iterable, Iterator
 
 import torch
 from torch import Tensor
@@ -55,6 +55,21 @@ def split_for_game_id(game_id: str, *, seed: int = 0) -> str:
     return "train" if bucket < 80 else "validation" if bucket < 90 else "test"
 
 
+def is_targeted_mercenary_record(record: dict) -> bool:
+    """Return whether one mercenary offers both immediate and long-term actions."""
+    buy_cards = {
+        value.get("card_definition_id")
+        for value in record.get("action_representations", ())
+        if value.get("action_type") == "buy_card" and value.get("card_definition_id") is not None
+    }
+    recruited_cards = {
+        value.get("card_definition_id")
+        for value in record.get("action_representations", ())
+        if value.get("action_type") == "recruit_mercenary" and value.get("card_definition_id") is not None
+    }
+    return bool(buy_cards & recruited_cards)
+
+
 def pairwise_ranking_loss(predicted: Tensor, teacher_scores: Tensor) -> Tensor:
     """Make higher-scored heuristic actions more likely than lower-scored ones."""
     if predicted.numel() < 2:
@@ -91,11 +106,13 @@ def combined_imitation_loss(
     chosen_weight: float = 0.25,
     score_weight: float = 0.0,
 ) -> Tensor:
-    return (
+    loss = (
         ranking_weight * pairwise_ranking_loss(predicted, teacher_scores)
         + chosen_weight * chosen_action_loss(predicted, chosen_index)
-        + score_weight * normalized_score_regression_loss(predicted, teacher_scores)
     )
+    if score_weight:
+        loss = loss + score_weight * normalized_score_regression_loss(predicted, teacher_scores)
+    return loss
 
 
 def train_epoch(
@@ -104,6 +121,7 @@ def train_epoch(
     optimizer: torch.optim.Optimizer,
     *,
     max_records: int | None = None,
+    record_weight: Callable[[dict], float] | None = None,
 ) -> TrainingMetrics:
     model.train()
     total = 0.0
@@ -116,6 +134,10 @@ def train_epoch(
         predicted = model(observation, actions)
         teacher = torch.tensor(record["heuristic_scores"], dtype=torch.float32, device=predicted.device)
         loss = combined_imitation_loss(predicted, teacher, record.get("chosen_action_index"))
+        weight = record_weight(record) if record_weight is not None else 1.0
+        if weight <= 0:
+            raise ValueError("record_weight must return a positive value")
+        loss = loss * weight
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
@@ -180,7 +202,7 @@ def train_jsonl(
     learning_rate: float = 1e-3,
     max_records_per_epoch: int | None = None,
 ) -> list[TrainingMetrics]:
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, foreach=True)
     return [train_epoch(model, iter_jsonl_records(dataset_path), optimizer, max_records=max_records_per_epoch) for _ in range(epochs)]
 
 

@@ -1,0 +1,52 @@
+schema_version: 1
+source_profile: configs/heuristic_profiles/v008.yaml
+method: v008_neutral_card_acquisition_value
+values:
+  additri_gaia_mancienne: 8.5
+  apotre_des_ombres: 2.5
+  aspirant_maquis: 7.875
+  blaster: 0.75
+  brise_ether: 6.0
+  broyeu_optio: 8.25
+  chevalier_le_shai: 4.5
+  clerc_aux_spores: 5.5
+  crystal: 0.0
+  drakonarius: 8.5
+  drone_kiln: 0.0
+  drone_reacteur: 0.0
+  drones_miniers: 1.75
+  drones_numeri: 7.0
+  eclaireur_spectral: 4.5
+  elemental_du_sillon: 11.75
+  ermite_fongique: 7.625
+  evokatus: 5.75
+  fleau_des_ombres: 1.75
+  garde_memoire: 2.5
+  gardien_de_la_foret: 11.5
+  general_decurion: 9.0
+  giga_adepte_de_la_source: 10.0
+  heritier_du_neant: 2.25
+  ia_systema: 10.25
+  infinity_shard: 7.5
+  initie_de_l_ordre: 0.0
+  le_grand_architecte: 3.75
+  legionnaire_korvus: 4.25
+  li_hin_la_brisee: 3.75
+  moine_cryptopoing: 5.75
+  moine_du_portail: 0.0
+  ojas: 0.0
+  omnius_l_erudit: 7.25
+  pirate_heretique: 3.5
+  primus_pilus: 11.5
+  prophete_de_leclat: 1.5
+  racine_de_la_foret: 21.25
+  saule_vengeur: 6.0
+  sentinelle_des_tenebres: 4.0
+  shard_reactor: 0.0
+  valkyrie_des_landes: 3.0
+  void_assassin: 3.75
+  voyante_de_volonte: 2.5
+  zara_ra: 5.75
+  zelote_des_epines: 3.25
+  zen_chi_set: 9.25
+  zetta_l_encodeuse: 9.5

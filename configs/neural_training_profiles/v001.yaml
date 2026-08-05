@@ -16,4 +16,4 @@ metadata:
   objective: imitation_of_heuristic_profiles
   source_profiles:
   - v008
-  source_checkpoint: artifacts/neural_imitation/baseline.pt
+  source_checkpoint: configs/neural_profiles/v001.pt

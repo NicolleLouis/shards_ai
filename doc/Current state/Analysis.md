@@ -9,7 +9,7 @@ poetry run python scripts/analyze_games.py
 poetry run python scripts/analyze_games.py --duration-seconds 30 --seed 42
 ```
 
-Les fichiers sont écrits par défaut dans `scripts/analysis_output/random_vs_random/` :
+Les fichiers sont écrits par défaut dans `artifacts/analysis/random_vs_random/` :
 
 - `result.json` : résultat canonique, snapshots des decks gagnants et agrégats ;
 - `cards.csv` : cartes triées par moyenne de copies dans les decks gagnants ;
@@ -46,7 +46,7 @@ PYTHONPATH=. poetry run python scripts/analyze_game_detail.py \
   --profile configs/heuristic_profiles/v008.yaml
 ```
 
-Les sorties sont écrites par défaut dans `analysis_output/game_detail/<seed>/`. Le mode
+Les sorties sont écrites par défaut dans `artifacts/analysis/game_detail/<seed>/`. Le mode
 d'observation est optionnel dans `GameRunner` : sans observateur, aucune trace, sérialisation ou
 copie supplémentaire n'est produite par cette fonctionnalité.
 
@@ -61,7 +61,7 @@ Les blocs de tours sont colorés en bleu pour le joueur 1 et en violet pour le j
 Le script `scripts/analyze_heuristic_vs_random.py` exécute par défaut des parties pendant 60
 secondes entre un `HeuristicPlayer` et un `RandomPlayer`. Les rôles alternent entre Player 1 et
 Player 2. Il affiche les taux de victoire en pourcentage et écrit un rapport HTML autonome dans
-`scripts/analysis_output/heuristic_vs_random/report.html`.
+`artifacts/analysis/heuristic_vs_random/report.html`.
 
 ```bash
 poetry run python scripts/analyze_heuristic_vs_random.py
@@ -108,7 +108,7 @@ PYTHONPATH=. poetry run python scripts/benchmark_heuristic_report.py \
   --seed 87000 \
   --profile configs/heuristic_profiles/v008.yaml \
   --opponent-profile configs/heuristic_profiles/v007.yaml \
-  --output-dir analysis_output/heuristic_v008_mix_1000
+  --output-dir artifacts/analysis/heuristic_v008_mix_1000
 ```
 
 ## Performance de la simulation
