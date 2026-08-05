@@ -251,3 +251,24 @@ une piste existante.
   avant toute nouvelle pondération d'action.
 - [À privilégier] Tester une contrainte de conservation des logits ou une correction de représentation
   avec un protocole explicitement comparé à v002, plutôt que d'augmenter encore une loss ciblée.
+
+## Expérience exp-00030 — rejetée
+
+- [Terminé] Tester une imitation historique v008 depuis les poids v002 avec une régularisation de
+  conservation des scores du v002 (`lambda=0,10`), afin de corriger les décisions enseignées sans
+  déplacer excessivement la politique neural active.
+- [Résultat] Le screening apparié de 16 parties par adversaire donne Random `0,0`, v007 `-6,25`
+  points et v008 `0,0`; la candidate est rejetée. Le benchmark comparable sous la même limite de
+  1 000 actions est `9,7685 s` pour v002 contre `9,7641 s` pour la candidate, sans gain de qualité.
+- [Supprimé] Ne pas promouvoir la candidate ni reprendre cette régularisation à l'identique. Le
+  panel officiel de 200 parties par adversaire a été interrompu car la candidate rendait le protocole
+  standard trop long; ce résultat ne prétend pas être une acceptation issue d'un protocole court.
+
+## Suites possibles
+
+- [À étudier] Mesurer les logits v002 et v008 par phase et catégorie avant tout nouvel entraînement,
+  notamment pour vérifier si l'ancrage doit être appliqué seulement aux actions non stratégiques.
+- [À étudier] Tester une régularisation de divergence bornée avec un coefficient beaucoup plus faible,
+  uniquement sur un dataset équilibré par phase, si l'analyse offline montre un déplacement localisé.
+- [À supprimer] Les pondérations PLAY/BANISH, recrutement, DAgger uniforme et reprises PPO courtes
+  restent écartées par les régressions déjà documentées.
