@@ -48,6 +48,26 @@
 - [À étudier] Tester une correction ciblée de la représentation ou de la pondération des actions PLAY,
   sans modifier le moteur ni le masque d’information.
 
+## Expérience exp-00007 — non concluante
+
+- [Terminé] Tester une reprise PPO depuis v002 avec Adam réinitialisé, un taux d’apprentissage réduit
+  (`5e-5`), un horizon de crédit plus court (`gamma=.99`, `gae_lambda=.90`), 4096 parties prévues et
+  sélection monotone.
+- [Résultat] La collecte PPO n’a produit aucun update ni checkpoint avant l’interruption pour durée
+  excessive. Un contrôle v002 copié vers le checkpoint mutable a été validé sur 200 parties par
+  adversaire : delta `0,0` contre Random, v007 et v008, sans changement de politique.
+- [Supprimé] Ne pas considérer le contrôle comme une candidate entraînée ni comme une preuve de gain ;
+  ne pas promouvoir v009.
+
+## Suites possibles
+
+- [À étudier] Profiler la collecte PPO et réduire son coût par update avant de relancer un entraînement
+  long, sans changer le protocole de qualité ni le nombre de parties de validation.
+- [À étudier] Comparer offline les décisions v002 par phase et catégorie, en particulier PLAY,
+  deckbuilding et banish, puis choisir une correction ciblée de représentation ou de pondération.
+- [À étudier] Si PPO est relancé, reprendre exclusivement v002 avec une durée suffisante et une
+  sauvegarde monotone protégeant simultanément v002, Random, v007 et v008.
+
 Les rapports sous `doc/Experiments/` servent à comprendre les essais précédents et à éviter les
 répétitions inutiles ; ils n'empêchent pas l'agent d'inventer une nouvelle expérience ou de corriger
 une piste existante.
