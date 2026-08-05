@@ -233,3 +233,21 @@ une piste existante.
   les catégories non ciblées, uniquement après cette analyse offline.
 - [À supprimer] Les reprises PPO courtes, le DAgger uniforme et les mélanges historiques/on-policy
   sans filtrage restent écartés par les régressions documentées.
+
+## Expérience exp-00029 — rejetée
+
+- [Terminé] Tester depuis les poids v002 une époque d'imitation historique avec une pondération
+  ciblée `1,10` des décisions `recruit_mercenary`, sans modifier le moteur, les heuristiques ou le
+  masque d'information.
+- [Résultat] Sur le panel apparié de 16 parties par adversaire, Random `-6,25` points, v007 `0,0`
+  et v008 `+25,0`; la candidate régresse fortement contre la référence v002 malgré le gain v008.
+  Le benchmark comparable passe de `9,304 s` à `25,326 s` sur 50 parties.
+- [Supprimé] Ne pas promouvoir la candidate ni reprendre cette pondération; le checkpoint reste un
+  artefact expérimental hors profil actif.
+
+## Suites possibles
+
+- [À étudier] Analyser offline les décisions de recrutement et la cause de l'allongement des parties
+  avant toute nouvelle pondération d'action.
+- [À privilégier] Tester une contrainte de conservation des logits ou une correction de représentation
+  avec un protocole explicitement comparé à v002, plutôt que d'augmenter encore une loss ciblée.
