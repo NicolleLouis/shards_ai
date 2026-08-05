@@ -112,3 +112,23 @@ une piste existante.
   entraînement.
 - [À étudier] Si PPO est relancé après ce diagnostic, utiliser une durée mesurable suffisante et une
   sélection monotone protégeant simultanément v002, Random, v007 et v008.
+
+## Expérience exp-00023 — rejetée
+
+- [Terminé] Tester une continuation PPO conservatrice depuis v002, sans reward shaping, avec un
+  taux d'apprentissage réduit (`5e-5`), un horizon `gamma=.99` / `gae_lambda=.90`, deux epochs par
+  update et trois updates bornés.
+- [Résultat] La candidate a produit 256 parties et 41 248 transitions, mais la sélection monotone
+  a restauré v002. Le panel indépendant de 200 parties par adversaire donne `0,0` de delta contre
+  Random, v007, v008 et v002; le benchmark médian passe de `9,7551 s` à `9,8206 s`.
+- [Supprimé] Ne pas promouvoir v011, ne pas créer de profil neural versionné et ne pas reprendre ce
+  protocole PPO borné sans réduire d'abord le coût de collecte.
+
+## Suites possibles
+
+- [À étudier] Profiler séparément la collecte PPO, l'encodage des observations et les mises à jour
+  avant toute nouvelle expérience PPO; les quatre dernières reprises n'ont établi aucun gain.
+- [À étudier] Réaliser enfin l'analyse offline v002 par phase et catégorie, en priorité PLAY,
+  deckbuilding et banish, puis choisir une correction unique de représentation ou de pondération.
+- [À étudier] Réserver les prochaines expériences de qualité à une candidate produite par une recette
+  non testée et suffisamment longue pour éviter de confondre checkpoint restauré et apprentissage.
