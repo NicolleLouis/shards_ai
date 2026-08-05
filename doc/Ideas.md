@@ -374,3 +374,25 @@ une piste existante.
   distincte des pondérations et filtres déjà rejetés.
 - [À supprimer] Les mises à jour historiques uniformes, même à faible taux d'apprentissage, les
   filtres de désaccords sans contrainte de conservation et les pondérations globales restent écartés.
+
+## Expérience exp-00036 — acceptée par le panel officiel
+
+- [Terminé] Tester une imitation sélective depuis v002 sur un dataset déterministe équilibré par
+  catégorie : `300` décisions `buy_card`, `300` `recruit_mercenary`, `300` `banish_card` et `300`
+  `play_card`, toutes avec un label v008 de rang 1 et une marge heuristique d'au moins `1,0`.
+  Les divergences faibles et les décisions `attack` sans marge suffisante ont été exclues.
+- [Résultat] Le panel officiel de `200` parties par adversaire donne Random `-1,5` point, v007
+  `-3,5`, v008 `+2,0` et v002 `-2,5`. Le score pondéré est `+1,05` point et le validateur accepte
+  la candidate ; le benchmark comparable passe toutefois de `9,24685 s` à `9,68588 s`
+  (`-4,53 %` de débit), proche de la limite de performance.
+- [Conservé] Le checkpoint expérimental et le profil `exp036` sont conservés pour la gate finale ;
+  aucun profil stable v003 n'est créé et v002 reste la référence active.
+
+## Suites possibles
+
+- [À étudier] Vérifier la stabilité du dataset équilibré sur un second seed avant toute promotion,
+  en surveillant particulièrement la régression v002/v007 et le coût de partie.
+- [À privilégier] Si la gate finale rejette la candidate, réduire la taille du fine-tuning ou
+  ajouter une sélection par holdout sans reprendre les filtres uniformes exp-032/033.
+- [À supprimer] Les datasets déséquilibrés dominés par `play`, les mises à jour uniformes et les
+  reprises PPO courtes restent écartés par l'historique.
