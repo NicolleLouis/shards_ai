@@ -9,6 +9,7 @@ edit the temporary worktree and must write its result to META_RESULT_PATH with a
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import signal
@@ -28,8 +29,10 @@ from shards_ai.ai import load_active_training_profile, load_training_profile
 from shards_ai.experimentation import (
     ExperimentManifest,
     ExperimentStatus,
+    EXPERIMENT_FAMILIES,
     render_experiment_report,
     evaluate_performance_gate,
+    family_guidance,
     validate_campaign_settings,
     validate_changed_paths,
 )
@@ -97,6 +100,60 @@ def _next_id(repo: Path) -> str:
 
 def _commit_paths(paths: list[str]) -> list[str]:
     return [path for path in paths if not path.startswith(IGNORED_COMMIT_PREFIXES)]
+
+
+def _experiment_history(repo: Path) -> list[dict[str, Any]]:
+    history = []
+    manifest_experiments = set()
+    for path in sorted((repo / "artifacts" / "experiments").glob("*/exp-*/manifest.json")):
+        try:
+            item = json.loads(path.read_text(encoding="utf-8"))
+            history.append(item)
+            manifest_experiments.add(item.get("experiment_id"))
+        except (OSError, json.JSONDecodeError):
+            continue
+    # Reports remain the durable history even when ignored artifacts are absent.
+    for path in sorted((repo / "doc" / "Experiments").glob("exp-*.md")):
+        experiment_id = path.stem
+        if experiment_id in manifest_experiments:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        match = re.search(r'"experiment_family":\s*"([^"]+)"', text)
+        family = match.group(1) if match else ("ppo" if re.search(r"\bPPO\b", text, re.IGNORECASE) else "other")
+        history.append({"experiment_id": experiment_id, "experiment_family": family})
+    return history
+
+
+def _file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _archive_dataset(worktree: Path, experiment_dir: Path, result: dict[str, Any]) -> None:
+    dataset = result.get("dataset") or result.get("metrics", {}).get("dataset")
+    if not dataset:
+        return
+    source = Path(str(dataset))
+    if not source.is_absolute():
+        source = worktree / source
+    if not source.exists():
+        return
+    archive_root = experiment_dir / "datasets"
+    archive_root.mkdir(parents=True, exist_ok=True)
+    destination = archive_root / source.name
+    if source.is_dir():
+        shutil.copytree(source, destination, dirs_exist_ok=True)
+        result["dataset_archive"] = str(destination.relative_to(experiment_dir))
+        return
+    shutil.copy2(source, destination)
+    result["dataset_archive"] = str(destination.relative_to(experiment_dir))
+    result.setdefault("dataset_sha256", _file_digest(source))
 
 
 def _write_report(worktree: Path, manifest: ExperimentManifest, result: dict[str, Any]) -> Path:
@@ -389,6 +446,7 @@ class Campaign:
         try:
             _run(self.repo, "worktree", "add", "-b", temp_branch, str(worktree), self.parent_commit)
             prompt = experiment_dir / "prompt.md"
+            diversity = family_guidance(_experiment_history(self.repo))
             prompt.write_text(
                 f"Run one {self.experiment_kind} experiment. First read doc/Ideas.md and all "
                 "relevant reports under doc/Experiments. Use that history to understand the "
@@ -398,7 +456,12 @@ class Campaign:
                 "could improve the neural player. The catalogue and past reports inform the choice "
                 "but do not constrain innovation. If the ideas catalogue is empty, formulate a "
                 "new falsifiable hypothesis or resume the strongest promising lead from the reports. "
-                "Record the selected idea plus any new future ideas. "
+                "Record the selected idea plus any new future ideas. Classify the experiment with "
+                f"one family from {', '.join(EXPERIMENT_FAMILIES)} and explain its novelty. "
+                f"The current family history is {json.dumps(diversity, sort_keys=True)}. "
+                f"This is guidance only: {diversity['recommendation']}. "
+                "If a dataset is created, include dataset, dataset_sha256, dataset_records and "
+                "teacher_profile in the result; include the training_recipe for reproducibility. "
                 "Do not modify the game engine, "
                 "heuristic players, or the information mask. Write the final JSON result to "
                 "$META_RESULT_PATH (not to META_EXPERIMENT_DIR). It must contain hypothesis, "
@@ -406,7 +469,7 @@ class Campaign:
                 "For a quality experiment, validation.results must contain delta_win_rate for "
                 "random, v007 and v008, measured against the active latest neural reference. "
                 "The v008 entry is the protected heuristic guard, not the neural reference. "
-                "Training must start from the latest active neural checkpoint, currently v002; "
+                f"Training must start from the latest active neural checkpoint, currently {self.parent_profile}; "
                 "resetting Adam optimizer state is allowed, but initializing weights from v001 "
                 "or an older neural version is not allowed. "
                 "performance.baseline and performance.candidate must "
@@ -420,9 +483,20 @@ class Campaign:
             try:
                 result = self._agent(worktree, experiment_dir, prompt)
                 manifest.hypothesis = str(result.get("hypothesis", manifest.hypothesis))
+                family = str(result.get("experiment_family", "other"))
+                manifest.experiment_family = family if family in EXPERIMENT_FAMILIES else "other"
+                manifest.novelty = result.get("novelty")
+                metrics = result.get("metrics", {})
+                manifest.dataset = result.get("dataset") or metrics.get("dataset")
+                manifest.dataset_sha256 = result.get("dataset_sha256") or metrics.get("dataset_sha256")
+                manifest.dataset_records = result.get("dataset_records") or metrics.get("dataset_records")
+                manifest.teacher_profile = result.get("teacher_profile") or metrics.get("teacher_profile")
+                manifest.training_recipe = result.get("training_recipe") or metrics.get("training_recipe", {})
                 manifest.screening = result.get("screening", {})
                 manifest.validation = result.get("validation", {})
                 manifest.performance = result.get("performance", {})
+                _archive_dataset(worktree, experiment_dir, result)
+                manifest.dataset_sha256 = result.get("dataset_sha256") or manifest.dataset_sha256
                 tests = self._run_fixed_tests(worktree, experiment_dir)
                 manifest.commands = [self.agent_command, tests.get("command", "")]
                 result["fixed_tests"] = tests
@@ -509,8 +583,11 @@ class Campaign:
             artifact_dir.mkdir(parents=True, exist_ok=True)
             manifest.write_json(artifact_dir / "manifest.json")
             for artifact in experiment_dir.iterdir():
-                if artifact.is_file():
-                    shutil.copy2(artifact, artifact_dir / artifact.name)
+                destination = artifact_dir / artifact.name
+                if artifact.is_dir():
+                    shutil.copytree(artifact, destination, dirs_exist_ok=True)
+                elif artifact.is_file():
+                    shutil.copy2(artifact, destination)
             print(f"{experiment_id}: {manifest.status.value} ({self.parent_commit[:12]})")
             return commit_sha
         finally:

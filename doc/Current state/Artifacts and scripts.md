@@ -57,3 +57,11 @@ Le catalogue `doc/Ideas.md` est lu au début d'une expérience et peut être mis
 préparation puis après l'analyse : nouvelles idées, suppressions, statuts `done` et next steps.
 Les modifications sont conservées même pour un candidat rejeté et leur diff est inclus dans le
 rapport.
+
+Chaque agent classe aussi son expérience (`ppo`, `imitation`, `dagger`, `data`, `objective`,
+`inference`, `monte_carlo`, `architecture`, `representation`, `search`, `performance` ou `other`)
+et décrit sa nouveauté.
+L'orchestrateur transmet l'historique des familles pour encourager une famille sous-explorée après
+plusieurs essais PPO, sans interdire une nouvelle variante PPO justifiée. Lorsqu'un dataset est
+déclaré, son hash, son nombre d'enregistrements, son teacher et sa recette sont conservés ; le
+dataset est copié dans les artefacts de l'expérience hors Git.

@@ -9,6 +9,7 @@ from shards_ai.experimentation import (
     validate_changed_paths,
 )
 from shards_ai.experimentation.policy import evaluate_performance_gate, validate_campaign_settings
+from shards_ai.experimentation.diversity import EXPERIMENT_FAMILIES, family_guidance
 
 
 def test_manifest_round_trips_to_json(tmp_path):
@@ -119,3 +120,22 @@ def test_performance_gate_accepts_a_small_throughput_regression():
     })
 
     assert gate["accepted"]
+
+
+def test_diversity_guidance_prefers_non_ppo_after_two_ppo_runs():
+    assert {"data", "objective", "inference"}.issubset(EXPERIMENT_FAMILIES)
+    guidance = family_guidance([
+        {"experiment_family": "ppo"},
+        {"experiment_family": "ppo"},
+        {"experiment_family": "imitation"},
+    ])
+
+    assert guidance["last_family"] == "imitation"
+    assert guidance["consecutive_last_family"] == 1
+    assert guidance["recommendation"] == "choose freely"
+
+    guidance = family_guidance([
+        {"experiment_family": "ppo"},
+        {"experiment_family": "ppo"},
+    ])
+    assert "non-PPO" in guidance["recommendation"]

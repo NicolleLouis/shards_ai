@@ -22,9 +22,14 @@ class ExperimentManifest:
     parent_commit: str
     parent_profile: str
     hypothesis: str
+    experiment_family: str = "other"
+    novelty: str | None = None
     status: ExperimentStatus = ExperimentStatus.INTERRUPTED
     allowed_changes: list[str] = field(default_factory=list)
     dataset: str | None = None
+    dataset_sha256: str | None = None
+    dataset_records: int | None = None
+    teacher_profile: str | None = None
     seed: int | None = None
     budget_seconds: int = 3600
     training_budget_seconds: int = 2400
