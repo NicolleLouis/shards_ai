@@ -71,3 +71,21 @@
 Les rapports sous `doc/Experiments/` servent à comprendre les essais précédents et à éviter les
 répétitions inutiles ; ils n'empêchent pas l'agent d'inventer une nouvelle expérience ou de corriger
 une piste existante.
+
+## Expérience exp-00008 — rejetée
+
+- [Terminé] Tester une reprise PPO depuis v002 avec un taux d'apprentissage très réduit (`2e-5`),
+  des lots de 32 parties et une évaluation fréquente, afin de corriger l'absence d'update de exp-00007.
+- [Résultat] Un seul update a été sauvegardé (`32` parties, `5220` transitions), puis la collecte
+  n'a pas terminé les `256` parties prévues. La sélection monotone a restauré v002 ; la validation
+  exploratoire donne un delta de `0,0` contre Random, v007, v008 et v002.
+- [Supprimé] Ne pas promouvoir v009 ni considérer ce protocole interrompu comme une preuve de gain.
+
+## Suites possibles
+
+- [À étudier] Profiler la collecte PPO pour expliquer le blocage après le premier petit lot, puis
+  réduire son coût sans modifier le moteur, les heuristiques ou le masque d'information.
+- [À étudier] Comparer offline les décisions v002 par phase et catégorie, en priorité PLAY,
+  deckbuilding et banish, avant toute nouvelle reprise PPO.
+- [À étudier] Si PPO reprend, conserver v002 comme initialisation et référence, avec une durée
+  suffisante et une sélection monotone protégeant simultanément Random, v007 et v008.
