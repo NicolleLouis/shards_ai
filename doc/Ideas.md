@@ -89,3 +89,26 @@ une piste existante.
   deckbuilding et banish, avant toute nouvelle reprise PPO.
 - [À étudier] Si PPO reprend, conserver v002 comme initialisation et référence, avec une durée
   suffisante et une sélection monotone protégeant simultanément Random, v007 et v008.
+
+## Expérience exp-00009 — rejetée
+
+- [Terminé] Tester une continuation PPO bornée à deux petits updates depuis v002, avec Adam
+  réinitialisé, taux d'apprentissage `1e-5`, horizon `gamma=.99` / `gae_lambda=.90` et évaluation
+  après chaque update.
+- [Résultat] Un seul update a été sauvegardé (`32` parties, `4866` transitions) ; l'évaluation
+  monotone a restauré v002 et la collecte du second update n'a pas terminé dans le budget. La
+  validation donne `0,0` de delta contre Random, v007, v008 et v002. Le benchmark comparable est
+  `13,709 s` contre `14,326 s`, mais les `8573` décisions et `17247` actions sont identiques.
+- [Supprimé] Ne pas promouvoir v010, ne pas interpréter le gain de temps du checkpoint restauré
+  comme un gain de qualité, et ne pas relancer cette variation PPO bornée à l'identique.
+
+## Suites possibles
+
+- [À étudier] Profiler séparément la collecte PPO et la construction des observations pour expliquer
+  pourquoi un update de 32 parties dépasse ensuite le budget ; toute optimisation doit rester hors
+  du moteur, des heuristiques et du masque d'information.
+- [À étudier] Réaliser l'analyse offline v002 par phase et catégorie, en priorité PLAY, deckbuilding
+  et banish, puis choisir une seule correction de représentation ou de pondération avant un nouvel
+  entraînement.
+- [À étudier] Si PPO est relancé après ce diagnostic, utiliser une durée mesurable suffisante et une
+  sélection monotone protégeant simultanément v002, Random, v007 et v008.
