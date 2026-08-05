@@ -331,3 +331,24 @@ une piste existante.
   contrainte de conservation des décisions v002 sur les états non sélectionnés, après analyse offline.
 - [À supprimer] Les filtres de désaccords fondés uniquement sur la marge heuristique et les panels
   courts comme preuve de promotion.
+
+## Expérience exp-00034 — rejetée
+
+- [Terminé] Tester une imitation historique v008 depuis v002 avec un ancrage local faible des scores
+  centrés de v002 (`lambda=0,02`), afin de limiter les déplacements de politique observés dans les
+  filtres de désaccords exp-00032/33 sans répéter l'ancrage global exp-00030.
+- [Résultat] Le dataset contient `5 133` décisions v008 contre Random/v007. Sur 50 parties par
+  adversaire contre la référence active v002, le delta est Random `0,0`, v007 `+8,0`, v008 `-4,0`
+  et v002 `+6,0` points. Le score pondéré est `+0,2` point, sous le seuil, et le panel 200 parties
+  n'a pas produit de rapport exploitable dans le budget ; aucune promotion n'est revendiquée.
+- [Supprimé] Ne pas promouvoir cette candidate ni reprendre l'ancrage `lambda=0,02` à l'identique.
+
+## Suites possibles
+
+- [À étudier] Comparer offline les déplacements de logits par phase et type d'action pour déterminer
+  pourquoi l'ancrage protège Random mais dégrade encore v008 et augmente le temps de partie.
+- [À privilégier] Tester une régularisation de conservation uniquement sur les décisions non ciblées,
+  avec un dataset train/validation séparé et un panel complet avant toute nouvelle variation.
+- [À supprimer] Les mises à jour historiques uniformes, les filtres de désaccords sans contrainte de
+  conservation et les pondérations globales de phase/action restent écartés par les régressions
+  documentées.
