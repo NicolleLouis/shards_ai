@@ -132,3 +132,25 @@ une piste existante.
   deckbuilding et banish, puis choisir une correction unique de représentation ou de pondération.
 - [À étudier] Réserver les prochaines expériences de qualité à une candidate produite par une recette
   non testée et suffisamment longue pour éviter de confondre checkpoint restauré et apprentissage.
+
+## Expérience exp-00024 — rejetée
+
+- [Terminé] Tester une correction DAgger on-policy : collecter les états visités par v002 contre la
+  garde heuristique v008, puis effectuer une époque d’imitation depuis les poids v002 avec Adam
+  réinitialisé.
+- [Résultat] Le lot contient `4 987` décisions, dont `986` divergences v002/v008. La candidate
+  régresse contre Random (`-0,5` point), v007 (`-3,0`), v008 (`-3,0`) et v002 (`-3,5`) sur 200
+  parties par adversaire ; elle progresse seulement contre v001 (`+9,0`). Le score pondéré est
+  `-1,6` point et le benchmark passe de `9,609 s` à `10,077 s` sur 50 parties.
+- [Supprimé] Ne pas promouvoir v012 ni reprendre cette recette DAgger à l’identique ; aucune
+  modification du moteur, des heuristiques ou du masque d’information n’a été conservée.
+
+## Suites possibles
+
+- [À étudier] Analyser les divergences DAgger par catégorie et par phase avant tout nouvel
+  entraînement ; le lot v008 a probablement surpondéré des décisions qui ne généralisent pas à la
+  référence neural.
+- [À étudier] Tester un mélange pondéré de données historiques et on-policy, avec validation
+  séparée des catégories PLAY, deckbuilding et banish, en partant toujours de v002.
+- [À étudier] Ne pas accepter une candidate DAgger qui améliore v001 ou v008 court mais régresse la
+  référence v002 ou la garde v008 sur le panel complet.
