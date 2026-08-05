@@ -176,3 +176,22 @@ une piste existante.
   pondération des labels v008, en gardant v002 et v008 comme gardes dures.
 - [À étudier] Évaluer séparément PLAY, deckbuilding et banish avant tout nouvel entraînement ; ne
   pas utiliser l'amélioration contre v001 comme critère de promotion.
+
+## Expérience exp-00026 — rejetée
+
+- [Terminé] Tester un mélange déterministe de `6 000` décisions historiques et `2 562` décisions
+  on-policy v002/v008, avec une époque d'imitation à `1e-5` depuis v002 et Adam réinitialisé.
+- [Résultat] Sur 200 parties par adversaire contre la référence active v002, les deltas sont
+  Random `-3,0` points, v007 `-2,5` points et v008 `+0,5` point ; le delta direct contre v002 est
+  `-2,5` points. Le benchmark comparable passe de `9,276 s` à `9,894 s` sur 50 parties.
+- [Supprimé] Ne pas promouvoir v014 ni conserver le checkpoint mutable comme référence active.
+
+## Suites possibles
+
+- [À étudier] Refaire l'analyse offline par phase et catégorie sur ce mélange, en isolant PLAY,
+  deckbuilding et banish pour déterminer si la régression vient de la proportion historique ou des
+  labels v008.
+- [À étudier] Tester un mélange plus conservateur avec moins de décisions on-policy et filtrage des
+  divergences stratégiques, uniquement après avoir mesuré ces catégories.
+- [À étudier] Garder v002, Random et v008 comme gardes dures ; ne pas promouvoir une candidate qui
+  améliore seulement la garde v008.
