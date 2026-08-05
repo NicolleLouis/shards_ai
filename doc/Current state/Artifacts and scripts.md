@@ -39,7 +39,10 @@ répertoire.
 
 `scripts/meta_improve.py` exécute une campagne séquentielle dans des worktrees temporaires. Codex
 CLI est l'agent par défaut (`codex exec` avec prompt sur stdin), mais la commande est remplaçable.
-Le checkout doit être propre au démarrage. Chaque expérience produit un rapport Markdown sous
+Le défaut utilise `--sandbox workspace-write` pour limiter l'agent au
+worktree de l'expérience sans accès complet à la machine. Sur Linux, `bubblewrap` et les user
+namespaces doivent être correctement configurés ; `danger-full-access` reste une surcharge
+explicite réservée à un environnement isolé. Le checkout doit être propre au démarrage. Chaque expérience produit un rapport Markdown sous
 `doc/Experiments/`, puis un commit de rejet, d'échec, d'interruption ou d'acceptation est intégré
 sur la branche de lancement ; aucun push n'est effectué.
 
