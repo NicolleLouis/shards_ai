@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from scripts.meta_improve import Campaign
 
 
@@ -143,6 +145,32 @@ def test_campaign_uses_active_neural_profile_as_parent(tmp_path):
     )
 
     assert campaign.parent_profile == "v002"
+
+
+def test_orchestrator_recomputes_quality_gate_when_agent_says_rejected(tmp_path):
+    repo = _repo(tmp_path)
+    campaign = _campaign(repo, _agent(tmp_path, {"status": "rejected"}))
+    status, decision, error = campaign._decide_result(
+        {
+            "status": "rejected",
+            "validation": {"results": {
+                "random": {"delta_win_rate": -0.03},
+                "v007": {"delta_win_rate": 0.0},
+                "v008": {"delta_win_rate": 0.065},
+                "neural:v002": {"delta_win_rate": -0.05},
+                "neural:v001": {"delta_win_rate": 0.09},
+            }},
+            "performance": {
+                "baseline": {"elapsed_seconds": 14.7},
+                "candidate": {"elapsed_seconds": 11.5},
+            },
+        },
+        {"exit_code": 0, "timed_out": False},
+    )
+
+    assert status.value == "accepted"
+    assert decision["combined_delta"] == pytest.approx(0.0335)
+    assert error is None
 
 
 def test_interrupted_agent_is_committed_as_inconclusive(tmp_path):

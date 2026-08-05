@@ -24,7 +24,7 @@ from typing import Any
 
 import yaml
 
-from shards_ai.ai import load_active_training_profile
+from shards_ai.ai import load_active_training_profile, load_training_profile
 from shards_ai.experimentation import (
     ExperimentManifest,
     ExperimentStatus,
@@ -274,13 +274,6 @@ class Campaign:
             return ExperimentStatus.INCONCLUSIVE, {}, "fixed test budget expired"
         if tests.get("exit_code", 0) != 0:
             return ExperimentStatus.FAILED, {}, "fixed tests failed"
-        if result.get("status") != ExperimentStatus.ACCEPTED.value:
-            raw_status = str(result.get("status", ExperimentStatus.FAILED.value))
-            return (
-                ExperimentStatus(raw_status) if raw_status in TERMINAL_STATUSES else ExperimentStatus.FAILED,
-                {},
-                result.get("error"),
-            )
         if self.experiment_kind == "performance":
             gate = evaluate_performance_gate(result.get("performance", {}), max_regression=0.02)
             improvement = -float(gate.get("max_regression", 0.0))
@@ -290,7 +283,10 @@ class Campaign:
         validation = result.get("validation", {})
         opponent_results = validation.get("results", {})
         if not opponent_results:
-            return ExperimentStatus.FAILED, {}, "accepted result has no validation results"
+            raw_status = str(result.get("status", ExperimentStatus.FAILED.value))
+            if raw_status in TERMINAL_STATUSES and raw_status != ExperimentStatus.ACCEPTED.value:
+                return ExperimentStatus(raw_status), {}, result.get("error")
+            return ExperimentStatus.FAILED, {}, "result has no validation results"
         decision = acceptance_metrics(opponent_results, validation.get("categories"))
         performance = result.get("performance", {})
         performance_gate = evaluate_performance_gate(
@@ -312,6 +308,35 @@ class Campaign:
         checkpoint = result.get("candidate_checkpoint")
         if not profile or not checkpoint:
             raise CampaignError("accepted quality experiment must provide candidate_profile and candidate_checkpoint")
+        profile_path = Path(profile)
+        if not profile_path.is_absolute():
+            profile_path = worktree / profile_path
+        candidate_profile = load_training_profile(profile_path)
+        if candidate_profile.method == "ppo":
+            active_profile = load_active_training_profile(
+                worktree / "configs" / "neural_training_profiles" / "active.yaml"
+            )
+            expected_checkpoint = (worktree / "configs" / "neural_profiles" / f"{active_profile.profile_id}.pt").resolve()
+            declared_initial = candidate_profile.initial_checkpoint
+            if not declared_initial:
+                raise CampaignError("PPO candidate must declare the active neural initial checkpoint")
+            initial_path = Path(declared_initial)
+            if not initial_path.is_absolute():
+                initial_path = worktree / initial_path
+            if initial_path.resolve() != expected_checkpoint:
+                raise CampaignError(
+                    "PPO candidate must start from the active neural checkpoint "
+                    f"{active_profile.profile_id}.pt"
+                )
+            declared_by_agent = result.get("metrics", {}).get("training_initial_checkpoint")
+            if declared_by_agent:
+                agent_initial = Path(str(declared_by_agent))
+                if not agent_initial.is_absolute():
+                    agent_initial = worktree / agent_initial
+                if agent_initial.resolve() != expected_checkpoint:
+                    raise CampaignError(
+                        "agent training metrics report an initial checkpoint different from the active neural checkpoint"
+                    )
         output = experiment_dir / "promotion.json"
         command = [
             "poetry", "run", "python", "scripts/validate_neural_profile.py",
@@ -381,6 +406,9 @@ class Campaign:
                 "For a quality experiment, validation.results must contain delta_win_rate for "
                 "random, v007 and v008, measured against the active latest neural reference. "
                 "The v008 entry is the protected heuristic guard, not the neural reference. "
+                "Training must start from the latest active neural checkpoint, currently v002; "
+                "resetting Adam optimizer state is allowed, but initializing weights from v001 "
+                "or an older neural version is not allowed. "
                 "performance.baseline and performance.candidate must "
                 "contain comparable elapsed_seconds or throughput values. A quality result with "
                 "status accepted must also provide candidate_profile and candidate_checkpoint. "

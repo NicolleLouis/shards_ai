@@ -1,9 +1,9 @@
 schema_version: 2
 profile_id: v003
-parent_profile_id: v001
+parent_profile_id: v002
 method: ppo
 output: artifacts/neural_training/checkpoint.pt
-initial_checkpoint: configs/neural_profiles/v001.pt
+initial_checkpoint: configs/neural_profiles/v002.pt
 seed: 52
 learning_rate: 0.0001
 total_games: 10000
