@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Run isolated, commit-per-experiment neural improvement campaigns.
 
-The agent command receives META_EXPERIMENT_DIR and META_PROMPT in its environment. It may edit the
-temporary worktree and must write result.json in META_EXPERIMENT_DIR with at least a ``hypothesis``
-and, when it finishes, a ``status`` value.
+The agent command receives META_EXPERIMENT_WORKTREE and META_RESULT_PATH in its environment. It may
+edit the temporary worktree and must write its result to META_RESULT_PATH with at least a
+``hypothesis`` and, when it finishes, a ``status`` value.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from typing import Any
 
 import yaml
 
+from shards_ai.ai import load_active_training_profile
 from shards_ai.experimentation import (
     ExperimentManifest,
     ExperimentStatus,
@@ -114,7 +115,7 @@ class Campaign:
         training_budget_seconds: int,
         screening_budget_seconds: int,
         overhead_budget_seconds: int,
-        parent_profile: str,
+        parent_profile: str | None,
         experiment_kind: str = "quality",
         max_performance_regression: float = 0.05,
         test_command: str | None = "poetry run pytest -q",
@@ -127,7 +128,6 @@ class Campaign:
         self.overhead_budget_seconds = overhead_budget_seconds
         if sum((training_budget_seconds, screening_budget_seconds, overhead_budget_seconds)) > budget_seconds:
             raise CampaignError("phase budgets cannot exceed the experiment budget")
-        self.parent_profile = parent_profile
         self.experiment_kind = experiment_kind
         self.max_performance_regression = max_performance_regression
         self.test_command = test_command
@@ -135,12 +135,23 @@ class Campaign:
         settings = yaml.safe_load(settings_path.read_text(encoding="utf-8")) if settings_path.exists() else {
             "seed": 104,
             "opponents": ["random", "v007", "v008"],
-            "baseline_profile": parent_profile,
+            "baseline_profile": "v008",
             "acceptance_rule": "weighted_v008_guard",
         }
         validate_campaign_settings(settings)
-        if settings["baseline_profile"] != parent_profile:
-            raise CampaignError("parent profile does not match protected meta-improvement baseline")
+        active_path = self.repo / "configs" / "neural_training_profiles" / "active.yaml"
+        if parent_profile is None:
+            parent_profile = load_active_training_profile(active_path).profile_id
+        elif active_path.exists():
+            active_profile = load_active_training_profile(
+                active_path
+            )
+            if parent_profile != active_profile.profile_id:
+                raise CampaignError(
+                    f"parent profile {parent_profile} is not the active neural profile "
+                    f"{active_profile.profile_id}"
+                )
+        self.parent_profile = parent_profile
         self.seed = int(settings["seed"])
         self.performance_maintenance_every = int(settings.get("performance_maintenance_every", 0))
         self.branch = _current_branch(self.repo)
@@ -165,6 +176,7 @@ class Campaign:
             "META_EXPERIMENT_DIR": str(experiment_dir),
             "META_PROMPT": str(prompt),
             "META_EXPERIMENT_WORKTREE": str(worktree),
+            "META_RESULT_PATH": str(worktree / "result.json"),
             "META_PARENT_COMMIT": self.parent_commit,
             "META_EXPERIMENT_BUDGET_SECONDS": str(self.budget_seconds),
             "META_TRAINING_BUDGET_SECONDS": str(self.training_budget_seconds),
@@ -208,13 +220,20 @@ class Campaign:
             raise
         (experiment_dir / "agent.stdout.log").write_text(stdout, encoding="utf-8")
         (experiment_dir / "agent.stderr.log").write_text(stderr, encoding="utf-8")
-        result_path = experiment_dir / "result.json"
+        # The agent works in the worktree; keep a copy in the artifact directory
+        # after reading it.  The fallback preserves compatibility with agents
+        # using the original (ambiguous) contract.
+        result_path = worktree / "result.json"
+        if not result_path.exists():
+            result_path = experiment_dir / "result.json"
         result: dict[str, Any] = {}
         if result_path.exists():
-            result = json.loads(result_path.read_text(encoding="utf-8"))
+            result_text = result_path.read_text(encoding="utf-8")
+            result = json.loads(result_text)
+            (experiment_dir / "result.json").write_text(result_text, encoding="utf-8")
         result.setdefault("agent_exit_code", return_code)
         result.setdefault("agent_duration_seconds", round(time.monotonic() - started, 3))
-        result.setdefault("timed_out", timed_out)
+        result["timed_out"] = timed_out or bool(result.get("timed_out"))
         return result
 
     def _run_fixed_tests(self, worktree: Path, experiment_dir: Path) -> dict[str, Any]:
@@ -346,13 +365,28 @@ class Campaign:
             _run(self.repo, "worktree", "add", "-b", temp_branch, str(worktree), self.parent_commit)
             prompt = experiment_dir / "prompt.md"
             prompt.write_text(
-                f"Run one {self.experiment_kind} experiment. First read doc/Ideas.md and record "
-                "the selected idea plus any new future ideas. Do not modify the game engine, "
-                "heuristic players, or the information mask. Write result.json with hypothesis, "
+                f"Run one {self.experiment_kind} experiment. First read doc/Ideas.md and all "
+                "relevant reports under doc/Experiments. Use that history to understand the "
+                "latest attempts and avoid repeating an experiment that already failed without "
+                "a concrete correction. Then choose freely among resuming a promising incomplete "
+                "experiment, correcting an earlier failure, or inventing a new experiment that "
+                "could improve the neural player. The catalogue and past reports inform the choice "
+                "but do not constrain innovation. If the ideas catalogue is empty, formulate a "
+                "new falsifiable hypothesis or resume the strongest promising lead from the reports. "
+                "Record the selected idea plus any new future ideas. "
+                "Do not modify the game engine, "
+                "heuristic players, or the information mask. Write the final JSON result to "
+                "$META_RESULT_PATH (not to META_EXPERIMENT_DIR). It must contain hypothesis, "
                 "status, performance.baseline, performance.candidate, metrics and analysis. "
-                "For a quality experiment, also provide candidate_profile and candidate_checkpoint. "
-                "After evaluation, update doc/Ideas.md with done statuses, removals and next steps, "
-                "then write result.json.\n",
+                "For a quality experiment, validation.results must contain delta_win_rate for "
+                "random, v007 and v008, measured against the active latest neural reference. "
+                "The v008 entry is the protected heuristic guard, not the neural reference. "
+                "performance.baseline and performance.candidate must "
+                "contain comparable elapsed_seconds or throughput values. A quality result with "
+                "status accepted must also provide candidate_profile and candidate_checkpoint. "
+                "The orchestrator performs the final deterministic gate, so do not report accepted "
+                "from an alternate short protocol. After evaluation, update doc/Ideas.md with done "
+                "statuses, removals and next steps, then write the final JSON result.\n",
                 encoding="utf-8",
             )
             try:
@@ -465,7 +499,11 @@ def main() -> int:
     parser.add_argument("--training-budget-seconds", type=int, default=2400)
     parser.add_argument("--screening-budget-seconds", type=int, default=750)
     parser.add_argument("--overhead-budget-seconds", type=int, default=450)
-    parser.add_argument("--parent-profile", default="v008")
+    parser.add_argument(
+        "--parent-profile",
+        default=None,
+        help="Active neural parent profile override; defaults to configs/neural_training_profiles/active.yaml.",
+    )
     parser.add_argument("--experiment-kind", choices=("quality", "performance"), default="quality")
     parser.add_argument("--max-performance-regression", type=float, default=0.05)
     parser.add_argument("--test-command", default="poetry run pytest -q")

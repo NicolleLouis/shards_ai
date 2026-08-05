@@ -210,7 +210,7 @@ experiment_id: exp-00001
 campaign_id: campaign-2026-08-05-001
 experiment_kind: quality
 parent_commit: <sha>
-parent_profile: v008
+parent_profile: v002 # dernière version neural active au moment de la campagne
 status: accepted | rejected | failed | inconclusive | interrupted
 hypothesis: "..."
 allowed_changes: []

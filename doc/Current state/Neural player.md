@@ -114,11 +114,13 @@ aux transitions d'achat, de recrutement, de maîtrise, de bannissement et de fin
 récompense terminale `+1/-1` reste présente. Le réseau ne reçoit pas ces zones supplémentaires :
 elles servent uniquement au calcul de la reward dans le collecteur PPO.
 
-`scripts/validate_neural_profile.py` compare un candidat à ce profil actif sur les mêmes seeds,
+`scripts/validate_neural_profile.py` compare un candidat au dernier profil neural actif sur les mêmes seeds,
 contre `RandomPlayer`, `v007`, `v008` et au plus les deux derniers profils neural dont les
 checkpoints existent. Il imprime les résultats par adversaire avec deux décimales et les comptes
 victoires/parties. Le défaut Makefile est de 100 parties par adversaire ; un panel d'au moins 200
 parties est recommandé pour une promotion finale. Le script propose de ne promouvoir le candidat
+que par rapport au profil neural actif courant (v002 actuellement) ; `v008` reste l'adversaire
+heuristique protégé et ne constitue pas la référence neural remplacée à chaque promotion.
 que si son taux de victoire contre V008 ne baisse pas, que les baisses contre Random ou v007 restent
 dans une tolérance de 5 points, que le gain pondéré du panel atteint au moins 0,5 point et qu'un
 gain individuel atteint 1 point. Cette validation
