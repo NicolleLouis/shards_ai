@@ -456,6 +456,31 @@ une piste existante.
 
 ## Pistes générales à explorer
 
+## Expérience exp-00040 — rejetée
+
+- [Terminé] Tester un fine-tuning sélectif depuis v002 sur `12 105` décisions de `82` parties,
+  avec split déterministe par `game_id` (`10 318` train, `829` holdout), et pondération `1,25` des
+  actions `buy_card`, `recruit_mercenary` et `banish_card`. La candidate a été initialisée par les
+  poids v002 avec Adam réinitialisé; le moteur, les heuristiques et le masque sont restés inchangés.
+- [Résultat] Le holdout atteint `89,14 %` top-1 et `92,63 %` pairwise, mais le screening apparié de
+  `20` parties donne Random `+10,0` points, v007 `-15,0`, v008 `0,0` et v002 `+5,0` (référence
+  neural v002). Le benchmark comparable de `50` parties contre v002 passe de `9,7297 s` à
+  `11,0499 s` (`-13,57 %` de débit), avec `17 214` contre `17 240` actions.
+- [Supprimé] Ne pas promouvoir la candidate ni reprendre la pondération sélective sans corriger la
+  faiblesse v007 et le ralentissement. Les panels demandés de `100` et `200` parties n'ont pas
+  produit de sortie exploitable dans la fenêtre de l'orchestrateur; aucun statut accepté n'en est
+  déduit.
+
+## Suites issues d'exp-00040
+
+- [À privilégier] Construire le prochain dataset avec un holdout par partie effectivement séparé et
+  un filtrage par marge teacher vérifié sur chaque alternative légale, puis ablater la pondération
+  des actions rares au lieu de la conserver implicitement.
+- [À étudier] Comparer les erreurs holdout de `v007` et Random par action avant tout entraînement,
+  en particulier les décisions `play_card` qui peuvent expliquer le compromis observé.
+- [À supprimer] Toute promotion fondée sur la seule accuracy offline, le screening de 20 parties,
+  ou un gain contre v008 sans non-régression simultanée contre v007 et la référence v002.
+
 Ces pistes sont volontairement larges. Elles ne constituent pas un plan imposé : l'agent peut les
 décomposer, les combiner avec prudence, les reformuler après une analyse offline ou les supprimer
 si les rapports montrent qu'elles n'ont plus de sens. Chaque expérience doit toutefois isoler une
