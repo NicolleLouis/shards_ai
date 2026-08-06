@@ -27,6 +27,7 @@ complets, les métriques et les commandes sont conservés dans `doc/Experiments/
 | exp-00037 | Rejetée | Réduire seulement la taille du fine-tuning ne corrige pas le compromis qualité/performance. |
 | exp-00038 | Rejetée | Les premières divergences stratégiques sont trop rares et favorisent `play_card`. |
 | exp-00039 | Analyse terminée | Le diagnostic met en évidence `recruit_mercenary`, BUY et les erreurs PLAY confiantes ; aucun checkpoint n’a été modifié. |
+| exp-00044 | Analyse terminée | Sur 6 246 états principaux visités par v002, `recruit_mercenary` reste à 22,38 %, les erreurs PLAY confiantes persistent et les logits v001/v002 ne sont pas comparables entre versions. Aucun checkpoint n’a été modifié. |
 | exp-00040 | Rejetée | La bonne accuracy holdout et le gain contre Random ne compensent pas la régression v007 ni le ralentissement de 13,57 %. |
 | exp-00041 | Rejetée | Une marge teacher élevée seule ne garantit pas une meilleure politique en partie. |
 
@@ -112,3 +113,14 @@ Après le diagnostic uniquement :
 Toute nouvelle idée doit être ajoutée dans une section courte avec une hypothèse falsifiable, les
 métriques attendues et les gardes à respecter. Une fois testée, elle doit être résumée dans le tableau
 ci-dessus et détaillée dans son rapport d’expérience.
+
+## Expérience exp-00044 — analyse terminée
+
+- [Terminé] Diagnostiquer v002 sur 6 246 états principaux visités, stratifiés par v001/v007/v008,
+  phase, action, carte, loss, confiance et désaccord avec v001.
+- [Résultat] `recruit_mercenary` reste à `22,38 %` d'accuracy ; PLAY représente `72,1 %` des états ;
+  174 erreurs v002 ont une confiance intra-état au moins égale à `0,8`.
+- [Corrigé] Le holdout par partie et la calibration restent à construire. Un libellé `random` mal
+  configuré a été exclu car il utilisait le profil heuristique v001, pas `RandomPlayer`.
+- [Suite] Confirmer `buy_card`/`recruit_mercenary` et les erreurs PLAY confiantes sur un holdout
+  indépendant avant tout entraînement.
