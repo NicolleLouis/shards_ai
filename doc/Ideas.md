@@ -258,6 +258,27 @@ refuser toute conclusion fondée sur une amélioration contre v008 ou v002 neura
 
 ## Nouvelles idées après exp-00079
 
+## Expérience exp-00089 — structured_semantic_v4 20k — rejetée
+
+- [Terminé] Reprise de la piste exp-00088 avec un budget déclaré de 20 000 décisions, dataset
+  normalisé hashé, holdout `game_id`, initialisation V4 from-scratch et profil/checkpoint cohérents.
+- [Résultat] L'environnement n'a produit qu'un checkpoint de diagnostic à 1 000 décisions. Le
+  panel court donne Random `0`, v007 `-10`, v008 `+25`, v002 neural `-10` et v003 `0` point ; la
+  candidate est rejetée et le screening n'est pas une gate finale.
+- [Résultat] Runtime médian v002/V4 : `3,1365 s` / `4,6108 s` sur 20 parties, avec `6 653` /
+  `7 561` actions et `1,2050 s` / `1,6553 s` d'inférence.
+- [Supprimé] Ne pas interpréter les `72,8 %` top-1 holdout ni le gain v008 comme une preuve de
+  force ; ne pas promouvoir le checkpoint diagnostic.
+
+## Nouvelles idées après exp-00089
+
+- [À privilégier] Corriger d'abord la reprise atomique du training afin que chaque micro-lot V4
+  écrive un checkpoint vérifiable, puis comparer 10k et dataset complet sur le même holdout.
+- [À étudier] Ajouter une mesure préalable de dérive d'argmax V2/V4 par phase et cardinalité
+  légale avant toute sélection de checkpoint.
+- [À supprimer] Les campagnes V4 déclarant un budget complet mais ne conservant qu'un fallback
+  1k ; les validations limitées à 20 parties ne peuvent jamais accepter une candidate.
+
 - [À privilégier] Déporter l'entraînement V4 complet sur un hôte permettant une reprise atomique par
   époque, puis refaire la validation longue avant toute nouvelle variation d'architecture.
 - [À étudier] Comparer plusieurs budgets de décisions prédéclarés (1k, 10k, dataset complet) avec
