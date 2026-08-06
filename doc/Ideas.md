@@ -96,6 +96,7 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 | exp-00055 | Rejetée | Interaction phase×action : gains v007/v008/v002, mais Random régresse et moyenne -0,2 point. |
 | exp-00056 | Rejetée | Le résidu phase×action avec base v002 gelée protège v002, mais régresse Random et v007 ; runtime légèrement supérieur. |
 | exp-00058 | Rejetée | Mélange DAgGER v002/v008 sur les états divergents : v002 et Random protégés au screening, mais aucune hausse moyenne et runtime/inférence en hausse. |
+| exp-00059 | Rejetée | Pondération ciblée `play_card` depuis v002 : +4 points contre v002, mais v007 -5, v008 -1 et runtime médian +45,4 %. |
 
 ## Pistes écartées
 
@@ -261,6 +262,31 @@ Ordre des expériences :
   v007 est confirmé, en protégeant Random et v002 par conservation de l'action v002 hors slice.
 - [À supprimer] Toute conclusion fondée sur v008 seul, sur le screening de 20 parties seul, ou sur
   le runtime ; l'échec d'exp-00058 impose une validation complète avant toute nouvelle candidate.
+
+## Expérience exp-00059 — rejetée
+
+- [Terminé] Tester une correction objective ciblée : conserver l'architecture et les poids v002,
+  réinitialiser Adam, entraîner 2 000 décisions depuis v002 à `1e-5`, et multiplier par `1,25` la
+  loss des actions `play_card`. Cette hypothèse est distincte des biais appris phase×action et du
+  mélange DAgGER : elle réduit la portée de la mise à jour au signal PLAY déjà identifié par
+  exp-00049/00054.
+- [Résultat] Sur 100 parties par référence, Random est à `0,00`, v007 à `-0,05`, v008 à `-0,01`,
+  v002 à `+0,04` ; la moyenne des cinq références est `+0,006`, mais la garde v008 et v007
+  régressent, donc la candidate est rejetée.
+- [Résultat] Le benchmark v002-v002 médian passe de `9,6928 s` à `14,0928 s` sur 50 parties,
+  avec `17 517` contre `16 866` actions et `3,8002 s` contre `5,5399 s` d'inférence médiane.
+- [Supprimé] Ne pas promouvoir la pondération `play_card` ni reprendre une simple pondération de
+  loss ciblée sans attribution des décisions modifiées et contrainte explicite de non-régression.
+
+## Suites issues d'exp-00059
+
+- [À privilégier] Revenir à un diagnostic de dérive par carte dans `play_card`, puis tester au plus
+  une correction sélective sur les cartes responsables, avec conservation de l'action v002 hors
+  slice et budget d'argmax fixé avant l'entraînement.
+- [À étudier] Comparer une mise à jour par petits paliers avec arrêt précoce sur holdout, sans
+  sélectionner sur le duel v002 seul ; mesurer également le coût d'inférence à chaque palier.
+- [À supprimer] Toute pondération globale ou par type d'action qui ne protège pas simultanément
+  Random, v007, v008 et v002 sur le panel complet.
 
 Critères de succès : gain reproductible sur une ou plusieurs slices ciblées, absence de régression
 robuste contre Random, v002, v007 et v008, et dérive d'argmax v002 dans le budget fixé. Critères de
