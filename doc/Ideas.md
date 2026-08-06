@@ -214,6 +214,30 @@ Ordre des expériences :
 - [À conserver] Le gel de la base reste un contrôle utile pour les futurs résidus, mais n'est pas une
   amélioration de force dans ce protocole.
 
+## Expérience exp-00057 — rejetée
+
+- [Terminé] Collecter 41 694 décisions v002 contre v007, v008 et v002, puis conserver les 25 394
+  décisions PLAY appartenant à une phase dont la trajectoire v002 diverge stratégiquement de v008.
+- [Terminé] Entraîner une époque depuis `configs/neural_profiles/v002.pt`, Adam réinitialisé,
+  taux `1e-5`, split `game_id` seed `57057`, sans modifier le moteur, les heuristiques ou le masque.
+- [Résultat] Sur 100 parties par adversaire, Random `-3` points et v002 neural `-4` points ; v007
+  gagne `+8` et v008 `+5`. Le gain ciblé ne protège donc pas la force générale.
+- [Résultat] Le benchmark médian v002-v002 passe de `17,9658 s` à `18,3011 s`, de `17 334` à
+  `17 702` actions et de `7,1068 s` à `7,2240 s` d'inférence.
+- [Supprimé] Ne pas reprendre ce filtre PLAY seul ni accepter la moyenne positive du sous-script :
+  la non-régression Random/v002 reste obligatoire.
+
+## Nouvelles idées après exp-00057
+
+- [À privilégier] Mesurer les décisions modifiées par action et carte sur le holdout exp-00057,
+  puis entraîner seulement une correction sur les couples dont le gain v007/v008 est confirmé sans
+  perte Random/v002 ; fixer avant entraînement un budget d'argmax modifiés.
+- [À étudier] Refaire un cycle DAgGER avec un mélange explicite des labels v002 et v008 sur les
+  états divergents, afin de tester si la perte Random/v002 vient d'un déplacement trop complet vers
+  le professeur heuristique.
+- [À conserver] Le protocole de collecte stratégiquement divergent est informatif, mais tout
+  nouveau candidat doit être comparé à v002, Random, v007 et v008 avec le même panel complet.
+
 Critères de succès : gain reproductible sur une ou plusieurs slices ciblées, absence de régression
 robuste contre Random, v002, v007 et v008, et dérive d'argmax v002 dans le budget fixé. Critères de
 rejet : échec de reproduction, régression Random persistante, gain limité à v007/v008, ou amélioration
