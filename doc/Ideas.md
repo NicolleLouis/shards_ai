@@ -192,6 +192,31 @@ refuser toute conclusion fondée sur une amélioration contre v008 ou v002 neura
 - [À étudier] Mesurer le coût de validation offline sur le dataset complet et conserver un holdout
   par `game_id` explicitement matérialisé pour éviter les campagnes longues non reprenables.
 
+## Expérience exp-00077 — analyse terminée
+
+- [Terminé] Refaire le diagnostic sur 64 parties et 15 396 décisions visibles, avec v002, son parent
+  v001 et les enseignants v007/v008 ; ajouter macro-accuracy phase×action, cardinalité légale,
+  ECE/Brier et états représentatifs.
+- [Résultat] Après rééquilibrage descriptif, v002 garde une loss meilleure (`1,1806` contre `1,3079`)
+  mais une macro-accuracy plus faible (`68,96 %` contre `71,06 %`). `gain_mastery` reste à `48,70 %`
+  avec ECE `0,531`, `recruit_mercenary` à `23,87 %`, et l'accuracy tombe à `60,93 %` sur sept
+  actions légales.
+- [Conclusion] La faiblesse n'est pas seulement un artefact PLAY-heavy ; elle persiste dans les
+  slices équilibrées et est particulièrement calibrée sur `gain_mastery`/grands ensembles légaux.
+  Aucun checkpoint, moteur, heuristique ou masque n'a été modifié.
+- [Rapport] Les détails sont dans `doc/Experiments/exp-00077.md`; le dataset et les états bruts restent
+  temporaires hors dépôt.
+
+## Nouvelles idées après exp-00077
+
+- [À privilégier] Tester une correction bornée et conservatrice de `gain_mastery`/`recruit_mercenary`
+  avec budget d'argmax fixé avant sélection, protection exacte de v002 hors slice et holdout
+  `game_id` séparé.
+- [À étudier] Calibrer séparément les décisions selon la taille de l'ensemble légal, sans modifier
+  les logits bruts globalement ni pondérer les cartes rares sous un seuil de couverture.
+- [À supprimer] Toute nouvelle analyse globale PLAY-heavy sans macro-métriques phase×action, ECE et
+  cardinalité légale ; elle répéterait exp-00072 sans réduire l'incertitude.
+
 ## Pistes abandonnées
 
 - [À supprimer] Pondération globale `play_card`, conservation globale des logits, mélange DAgGER divergent ou calibration globale sans attribution causale.
