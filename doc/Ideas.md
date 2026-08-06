@@ -217,6 +217,30 @@ refuser toute conclusion fondée sur une amélioration contre v008 ou v002 neura
 - [À supprimer] Toute nouvelle analyse globale PLAY-heavy sans macro-métriques phase×action, ECE et
   cardinalité légale ; elle répéterait exp-00072 sans réduire l'incertitude.
 
+## Expérience exp-00078 — structured_semantic_v4 — inconclusive
+
+- [Terminé] Réentraîner V4 avec le profil `exp00078-v4`, le dataset normalisé et un split `game_id`,
+  depuis zéro, puis comparer à v002 avec le même seed et un benchmark runtime comparable.
+- [Résultat] L'entraînement complet (cinq époques) a été interrompu silencieusement avant d'écrire un
+  checkpoint. Un smoke-training explicite de 1 000 décisions a produit un checkpoint V4 et un screening
+  de 20 parties par adversaire : Random `+5`, v007 `+25`, v008 `+10` points contre v002.
+- [Limite] Ces deltas ne sont pas une preuve de qualité : le budget d'entraînement est très inférieur au
+  dataset, le screening est diagnostic, et le runtime augmente d'environ 48–50 % selon l'adversaire.
+  Aucune promotion ni conclusion sur l'encodeur V4 n'est autorisée.
+- [Conservé] La correction testée est distincte d'exp-00075/76 : profil V4 dédié, seed de split stable,
+  initialisation nulle et reprise observable ; elle doit être relancée sur un hôte qui permet le budget
+  complet avant toute nouvelle variation d'architecture.
+
+## Nouvelles idées après exp-00078
+
+- [À privilégier] Relancer exactement `exp00078-v4` avec cinq époques et checkpoint/reprise par époque,
+  puis utiliser un holdout `game_id` matérialisé et une validation longue batchée.
+- [À étudier] Si le budget complet reste impossible, réduire la capacité V4 ou le dataset de manière
+  pré-définie et comparer plusieurs seeds ; ne pas interpréter un smoke-training comme une expérience
+  de force.
+- [À supprimer] Toute acceptation fondée sur le screening positif de 20 parties, l'accuracy offline ou
+  le runtime ; le coût d'inférence V4 doit être profilé séparément avant optimisation.
+
 ## Pistes abandonnées
 
 - [À supprimer] Pondération globale `play_card`, conservation globale des logits, mélange DAgGER divergent ou calibration globale sans attribution causale.
