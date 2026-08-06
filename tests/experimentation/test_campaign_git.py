@@ -169,11 +169,11 @@ def test_orchestrator_recomputes_quality_gate_when_agent_says_rejected(tmp_path)
     )
 
     assert status.value == "accepted"
-    assert decision["mean_delta_win_rate"] == pytest.approx(0.015)
+    assert decision["mean_delta_win_rate"] == pytest.approx(0.03125)
     assert error is None
 
 
-def test_quality_gate_uses_one_equal_weight_per_opponent(tmp_path):
+def test_quality_gate_uses_configured_opponent_weights(tmp_path):
     repo = _repo(tmp_path)
     campaign = _campaign(repo, _agent(tmp_path, {"status": "rejected"}))
     status, decision, error = campaign._decide_result(
@@ -192,7 +192,7 @@ def test_quality_gate_uses_one_equal_weight_per_opponent(tmp_path):
     )
 
     assert status.value == "accepted"
-    assert decision["mean_delta_win_rate"] == pytest.approx(0.0333333333)
+    assert decision["mean_delta_win_rate"] == pytest.approx(0.1142857143)
     assert error is None
 
 
@@ -254,6 +254,29 @@ def test_analysis_schedule_triggers_after_four_quality_failures(tmp_path):
     assert campaign.quality_failure_streak == 4
 
 
+def test_analysis_schedule_does_not_trigger_after_quality_promotion(tmp_path):
+    repo = _repo(tmp_path)
+    result = {
+        "status": "accepted",
+        "validation": {"results": {
+            "random": {"delta_win_rate": 0.0},
+            "v007": {"delta_win_rate": 0.0},
+            "v008": {"delta_win_rate": 0.04},
+        }},
+        "performance": {
+            "baseline": {"elapsed_seconds": 100.0},
+            "candidate": {"elapsed_seconds": 100.0},
+        },
+    }
+    campaign = _campaign(repo, _agent(tmp_path, result))
+    campaign.preflight()
+
+    campaign.run_one()
+
+    assert campaign.analysis_followup_required is False
+    assert campaign.quality_failure_streak == 0
+
+
 def test_analysis_schedule_can_be_rebuilt_from_history(tmp_path):
     repo = _repo(tmp_path)
     artifact = repo / "artifacts" / "experiments" / "campaign-test" / "exp-00004"
@@ -267,6 +290,21 @@ def test_analysis_schedule_can_be_rebuilt_from_history(tmp_path):
         encoding="utf-8",
     )
     assert _analysis_schedule_from_history(repo, 4) == (False, 1)
+
+
+def test_analysis_schedule_history_does_not_trigger_after_quality_promotion(tmp_path):
+    repo = _repo(tmp_path)
+    artifact = repo / "artifacts" / "experiments" / "campaign-test" / "exp-00004"
+    artifact.mkdir(parents=True)
+    (artifact / "manifest.json").write_text(
+        json.dumps({
+            "experiment_id": "exp-00004",
+            "experiment_kind": "quality",
+            "status": "accepted",
+        }),
+        encoding="utf-8",
+    )
+    assert _analysis_schedule_from_history(repo, 4) == (False, 0)
 
 
 def test_interrupted_agent_is_committed_as_inconclusive(tmp_path):

@@ -48,6 +48,7 @@ from .neural_model import (
     SUPPORTED_ARCHITECTURES,
     build_neural_scorer,
 )
+from .structured_v004 import StructuredSemanticCardEncoder, StructuredSemanticV4Scorer
 from .neural_player import NeuralPlayer
 from .hybrid_player import HybridPlayer, HybridPolicy
 from .neural_training_profiles import (
@@ -127,6 +128,8 @@ __all__ = [
     "NeuralActionScorer",
     "ContextualNeuralActionScorer",
     "SemanticIdentityNeuralActionScorer",
+    "StructuredSemanticCardEncoder",
+    "StructuredSemanticV4Scorer",
     "SUPPORTED_ARCHITECTURES",
     "build_neural_scorer",
     "NeuralModelConfig",

@@ -216,6 +216,7 @@ META_TRAINING_BUDGET_SECONDS ?= 2400
 META_SCREENING_BUDGET_SECONDS ?= 750
 META_OVERHEAD_BUDGET_SECONDS ?= 450
 META_EXPERIMENT_KIND ?= quality
+META_TARGET_ARCHITECTURE ?=
 META_AGENT_COMMAND ?= codex exec --sandbox workspace-write --ephemeral -
 
 neural-validate:
@@ -246,4 +247,5 @@ meta-improve:
 		--screening-budget-seconds $(META_SCREENING_BUDGET_SECONDS) \
 		--overhead-budget-seconds $(META_OVERHEAD_BUDGET_SECONDS) \
 		--experiment-kind $(META_EXPERIMENT_KIND) \
+		$(if $(META_TARGET_ARCHITECTURE),--target-architecture $(META_TARGET_ARCHITECTURE),) \
 		--agent-command "$(META_AGENT_COMMAND)"

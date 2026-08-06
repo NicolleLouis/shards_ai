@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+import torch
 
 from shards_ai.ai import load_active_training_profile, load_training_profile
 from shards_ai.experimentation import (
@@ -177,7 +178,7 @@ def _analysis_schedule_from_history(repo: Path, failure_threshold: int) -> tuple
             continue
         if status == ExperimentStatus.ACCEPTED.value:
             failures = 0
-            pending = True
+            pending = False
         else:
             failures += 1
             pending = pending or failures >= failure_threshold
@@ -233,6 +234,7 @@ class Campaign:
         experiment_kind: str = "quality",
         max_performance_regression: float = 0.05,
         test_command: str | None = "poetry run pytest -q",
+        target_architecture: str | None = None,
     ):
         self.repo = repo.resolve()
         self.agent_command = agent_command
@@ -245,6 +247,7 @@ class Campaign:
         self.experiment_kind = experiment_kind
         self.max_performance_regression = max_performance_regression
         self.test_command = test_command
+        self.target_architecture = target_architecture
         settings_path = self.repo / "configs" / "meta_improvement.yaml"
         settings = yaml.safe_load(settings_path.read_text(encoding="utf-8")) if settings_path.exists() else {
             "seed": 104,
@@ -272,7 +275,6 @@ class Campaign:
             self.repo, self.max_performance_regression
         )
         self.analysis_after_quality_failures = int(settings.get("analysis_after_quality_failures", 4))
-        self.analysis_after_promotion = bool(settings.get("analysis_after_promotion", True))
         self.analysis_followup_required, self.quality_failure_streak = _analysis_schedule_from_history(
             self.repo, self.analysis_after_quality_failures
         )
@@ -445,10 +447,35 @@ class Campaign:
         if not profile_path.is_absolute():
             profile_path = worktree / profile_path
         candidate_profile = load_training_profile(profile_path)
-        if candidate_profile.method == "ppo":
-            active_profile = load_active_training_profile(
-                worktree / "configs" / "neural_training_profiles" / "active.yaml"
+        candidate_checkpoint_path = Path(checkpoint)
+        if not candidate_checkpoint_path.is_absolute():
+            candidate_checkpoint_path = worktree / candidate_checkpoint_path
+        candidate_checkpoint_document = torch.load(
+            candidate_checkpoint_path,
+            map_location="cpu",
+            weights_only=False,
+        )
+        checkpoint_architecture = str(
+            candidate_checkpoint_document.get("architecture", "independent_action")
+        )
+        profile_architecture = str(candidate_profile.metadata.get("architecture", "independent_action"))
+        if checkpoint_architecture != profile_architecture:
+            raise CampaignError(
+                "candidate profile architecture does not match checkpoint architecture: "
+                f"profile={profile_architecture!r}, checkpoint={checkpoint_architecture!r}"
             )
+        active_profile = load_active_training_profile(
+            worktree / "configs" / "neural_training_profiles" / "active.yaml"
+        )
+        active_architecture = str(active_profile.metadata.get("architecture", "independent_action"))
+        if candidate_profile.method == "imitation" and profile_architecture != active_architecture:
+            declared_initial = result.get("metrics", {}).get("training_initial_checkpoint")
+            if declared_initial:
+                raise CampaignError(
+                    "architecture-transition imitation must initialize from scratch; "
+                    "training_initial_checkpoint must be null"
+                )
+        if candidate_profile.method == "ppo":
             expected_checkpoint = (worktree / "configs" / "neural_profiles" / f"{active_profile.profile_id}.pt").resolve()
             declared_initial = candidate_profile.initial_checkpoint
             if not declared_initial:
@@ -500,6 +527,23 @@ class Campaign:
         result["promotion"] = promotion
         if promotion.get("decision") != "accepted" or not promotion.get("promotion"):
             raise CampaignError("independent neural promotion gate rejected the candidate")
+
+    def _validate_target_architecture(self, worktree: Path, result: dict[str, Any]) -> None:
+        if not self.target_architecture or self.experiment_kind != "quality":
+            return
+        profile = result.get("candidate_profile")
+        if not profile:
+            return
+        profile_path = Path(profile)
+        if not profile_path.is_absolute():
+            profile_path = worktree / profile_path
+        candidate_profile = load_training_profile(profile_path)
+        architecture = str(candidate_profile.metadata.get("architecture", "independent_action"))
+        if architecture != self.target_architecture:
+            raise CampaignError(
+                "candidate profile architecture does not match campaign target: "
+                f"expected={self.target_architecture!r}, got={architecture!r}"
+            )
 
     def run_one(self) -> str:
         self._assert_branch_unchanged()
@@ -554,10 +598,13 @@ class Campaign:
                     "or quality validation is required."
                 )
             else:
-                kind_instructions = (
-                    "This is a QUALITY experiment. Optimize playing strength and preserve the "
-                    "required comparable runtime measurements."
-                )
+                kind_instructions = "This is a QUALITY experiment. "
+                if self.target_architecture:
+                    kind_instructions += (
+                        f"Target architecture is {self.target_architecture!r}; the candidate profile "
+                        "metadata and checkpoint must use it. "
+                    )
+                kind_instructions += "Optimize playing strength and preserve the required comparable runtime measurements."
             prompt.write_text(
                 f"Run one {self.experiment_kind} experiment. {kind_instructions} First read doc/Ideas.md and all "
                 "relevant reports under doc/Experiments. Use that history to understand the "
@@ -582,9 +629,13 @@ class Campaign:
                 "For a quality experiment, validation.results must contain delta_win_rate for "
                 "random, v007 and v008, measured against the active latest neural reference. "
                 "The v008 entry is the protected heuristic guard, not the neural reference. "
-                f"Training must start from the latest active neural checkpoint, currently {self.parent_profile}; "
-                "resetting Adam optimizer state is allowed, but initializing weights from v001 "
-                "or an older neural version is not allowed. "
+                f"For a candidate that keeps the active architecture, training must start from the latest active "
+                f"neural checkpoint, currently {self.parent_profile}; resetting Adam optimizer state is allowed. "
+                "For an architecture-transition candidate such as structured_semantic_v4, do not load the V2 "
+                "state dict: initialize the new model from scratch and train it by imitation. Keep V2 as the "
+                "validation reference, report the architecture transition and a null training_initial_checkpoint, "
+                "and use a candidate profile whose metadata architecture matches the checkpoint. Initializing "
+                "from v001 or another older neural version is not allowed. "
                 "For quality and performance experiments, performance.baseline and performance.candidate "
                 "must contain comparable elapsed_seconds or throughput values. A quality result with "
                 "status accepted must also provide candidate_profile and candidate_checkpoint. "
@@ -598,6 +649,7 @@ class Campaign:
             )
             try:
                 result = self._agent(worktree, experiment_dir, prompt)
+                self._validate_target_architecture(worktree, result)
                 manifest.hypothesis = str(result.get("hypothesis", manifest.hypothesis))
                 family = str(result.get("experiment_family", "other"))
                 manifest.experiment_family = family if family in EXPERIMENT_FAMILIES else "other"
@@ -645,7 +697,7 @@ class Campaign:
                         self.performance_followup_required = False
                     elif self.experiment_kind == "quality":
                         self.quality_failure_streak = 0
-                        self.analysis_followup_required = self.analysis_after_promotion
+                        self.analysis_followup_required = False
                         self.performance_followup_required = (
                             self.performance_followup_required
                             or float(manifest.performance_gate.get("max_regression", 0.0))
@@ -755,6 +807,11 @@ def main() -> int:
         help="Active neural parent profile override; defaults to configs/neural_training_profiles/active.yaml.",
     )
     parser.add_argument("--experiment-kind", choices=("quality", "performance", "analysis"), default="quality")
+    parser.add_argument(
+        "--target-architecture",
+        default=None,
+        help="Require quality candidates to use this neural architecture, e.g. structured_semantic_v4.",
+    )
     parser.add_argument("--max-performance-regression", type=float, default=0.05)
     parser.add_argument("--test-command", default="poetry run pytest -q")
     parser.add_argument("--performance-maintenance-every", type=int, default=None)
@@ -786,6 +843,7 @@ def main() -> int:
             args.experiment_kind,
             args.max_performance_regression,
             args.test_command,
+            args.target_architecture,
         )
         campaign.preflight()
         maintenance_every = (

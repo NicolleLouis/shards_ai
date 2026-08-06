@@ -96,10 +96,10 @@ def test_validation_rule_requires_v008_and_positive_mean_progress():
     })
 
 
-def test_validation_rule_rejects_large_secondary_regression():
+def test_validation_rule_allows_random_regression_when_weighted_mean_is_positive():
     from scripts.validate_neural_profile import acceptance_decision
 
-    assert not acceptance_decision({
+    assert acceptance_decision({
         "random": {"delta_win_rate": -0.06},
         "v007": {"delta_win_rate": 0.03},
         "v008": {"delta_win_rate": 0.03},
@@ -111,7 +111,7 @@ def test_validation_rule_rejects_large_secondary_regression():
     })
 
 
-def test_validation_rule_uses_opponent_mean_and_ignores_category_weights():
+def test_validation_rule_uses_configured_opponent_weights_and_neural_group():
     from scripts.validate_neural_profile import acceptance_metrics
 
     metrics = acceptance_metrics(
@@ -124,7 +124,8 @@ def test_validation_rule_uses_opponent_mean_and_ignores_category_weights():
     )
 
     assert metrics["accepted"]
-    assert metrics["mean_delta_win_rate"] == pytest.approx(0.01)
+    assert metrics["mean_delta_win_rate"] == pytest.approx(0.0314285714)
+    assert metrics["opponent_weights"] == {"random": 0.5, "v007": 1.0, "v008": 2.0}
 
 
 def test_validation_output_shows_precise_candidate_and_reference_rates():

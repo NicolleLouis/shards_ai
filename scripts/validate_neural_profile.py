@@ -27,6 +27,14 @@ from shards_ai.ai.heuristic_profiles import load_profile
 from shards_ai.game import Game, GameRandom, GameRunner, GameStatus, PlayerId
 
 
+QUALITY_OPPONENT_WEIGHTS = {
+    "random": 0.5,
+    "v007": 1.0,
+    "v008": 2.0,
+}
+NEURAL_GROUP_WEIGHT = 0.5
+
+
 def _play(
     seed: int,
     candidate_scorer,
@@ -122,9 +130,10 @@ def acceptance_metrics(
 ) -> dict[str, object]:
     """Apply the quality gate once per opponent, never once per game.
 
-    V008 is a hard non-regression guard. The other condition is a strictly positive
-    arithmetic mean of the opponent-level deltas, so an opponent with more games
-    cannot silently receive more weight than another opponent.
+    V008 is a hard non-regression guard. The remaining condition is a strictly
+    positive weighted mean: Random has weight 0.5, v007 weight 1, v008 weight 2,
+    and all neural opponents are grouped into one batch with total weight 0.5.
+    Random is therefore a visible quality signal, not a hard non-regression guard.
     """
     deltas = {opponent: float(item["delta_win_rate"]) for opponent, item in results.items()}
     if "v008" not in deltas:
@@ -134,7 +143,24 @@ def acceptance_metrics(
             "mean_delta_win_rate": None,
             "deltas": deltas,
         }
-    mean_delta = sum(deltas.values()) / len(deltas)
+    weighted_sum = 0.0
+    total_weight = 0.0
+    applied_weights = {}
+    neural_deltas = []
+    for opponent, delta in deltas.items():
+        if opponent.startswith("neural:"):
+            neural_deltas.append(delta)
+            continue
+        weight = QUALITY_OPPONENT_WEIGHTS.get(opponent, 1.0)
+        weighted_sum += weight * delta
+        total_weight += weight
+        applied_weights[opponent] = weight
+    if neural_deltas:
+        neural_mean = sum(neural_deltas) / len(neural_deltas)
+        weighted_sum += NEURAL_GROUP_WEIGHT * neural_mean
+        total_weight += NEURAL_GROUP_WEIGHT
+        applied_weights["neural_group"] = NEURAL_GROUP_WEIGHT
+    mean_delta = weighted_sum / total_weight
     accepted = (
         deltas["v008"] >= 0.0
         and mean_delta > 0.0
@@ -145,13 +171,14 @@ def acceptance_metrics(
         "mean_delta_win_rate": mean_delta,
         "opponent_count": len(deltas),
         "deltas": deltas,
+        "opponent_weights": applied_weights,
         "v008_floor": 0.0,
-        "minimum_mean_delta": 0.0,
+        "minimum_weighted_mean_delta": 0.0,
     }
 
 
 def acceptance_decision(results: dict[str, dict[str, object]]) -> bool:
-    """Apply the V008 guard and mean opponent-level gain rule."""
+    """Apply the V008 guard and weighted opponent-level gain rule."""
     return bool(acceptance_metrics(results)["accepted"])
 
 

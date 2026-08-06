@@ -10,7 +10,10 @@ from shards_ai.ai import (
     NeuralActionScorer,
     NeuralModelConfig,
     SemanticIdentityNeuralActionScorer,
+    StructuredSemanticCardEncoder,
+    StructuredSemanticV4Scorer,
     build_neural_scorer,
+    representation_for_definition,
     representation_for_action,
 )
 from shards_ai.ai.neural_training import (
@@ -20,7 +23,7 @@ from shards_ai.ai.neural_training import (
     pairwise_ranking_loss,
     train_epoch,
 )
-from shards_ai.game import Game
+from shards_ai.game import CardDefinition, Effect, EffectStep, Game, Operation
 
 
 def _decision_fixture() -> tuple[Game, object, list]:
@@ -65,6 +68,56 @@ def test_v003_semantic_identity_model_scores_candidates_and_is_order_equivariant
     assert model._card_embedding(actions[0].card_definition_id).shape == (64,)
     assert torch.isfinite(scores).all()
     assert torch.allclose(scores, torch.flip(reversed_scores, dims=(0,)))
+
+
+def test_v004_structured_model_scores_candidates_and_is_order_equivariant() -> None:
+    game, observation, actions = _decision_fixture()
+    config = NeuralModelConfig(
+        card_embedding_dim=32,
+        state_hidden_dim=32,
+        action_hidden_dim=16,
+        semantic_token_hidden_dim=32,
+        semantic_attention_heads=4,
+    )
+    model = build_neural_scorer("structured_semantic_v4", config)
+
+    scores = model(observation, actions)
+    reversed_scores = model(observation, list(reversed(actions)))
+
+    assert isinstance(model, StructuredSemanticV4Scorer)
+    assert model._card_embedding(actions[0].card_definition_id).shape == (32,)
+    assert torch.isfinite(scores).all()
+    assert torch.allclose(scores, torch.flip(reversed_scores, dims=(0,)))
+
+
+def test_v004_semantic_encoder_keeps_operation_amounts() -> None:
+    one_draw = CardDefinition(
+        card_id="one-draw",
+        name="One draw",
+        cost=1,
+        effect=Effect(steps=(EffectStep((Operation("draw_card", amount=1),)),)),
+    )
+    three_draws = CardDefinition(
+        card_id="three-draws",
+        name="Three draws",
+        cost=1,
+        effect=Effect(steps=(EffectStep((Operation("draw_card", amount=3),)),)),
+    )
+    config = NeuralModelConfig(semantic_token_hidden_dim=32, semantic_attention_heads=4)
+    encoder = StructuredSemanticCardEncoder(
+        config,
+        {
+            card.card_id: representation_for_definition(card)
+            for card in (one_draw, three_draws)
+        },
+    )
+
+    embeddings = encoder(
+        [representation_for_definition(one_draw), representation_for_definition(three_draws)]
+    )
+
+    assert embeddings.shape == (2, config.card_embedding_dim)
+    assert not torch.allclose(embeddings[0], embeddings[1])
 
 
 def test_model_accepts_serialized_masked_observation() -> None:

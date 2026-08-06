@@ -41,6 +41,8 @@ class NeuralModelConfig:
     action_hidden_dim: int = 48
     scorer_hidden_dim: int = 96
     candidate_context_dim: int = 32
+    semantic_token_hidden_dim: int = 64
+    semantic_attention_heads: int = 4
 
 
 def _card_feature_size() -> int:
@@ -353,6 +355,7 @@ SUPPORTED_ARCHITECTURES = (
     NeuralActionScorer.architecture,
     ContextualNeuralActionScorer.architecture,
     SemanticIdentityNeuralActionScorer.architecture,
+    "structured_semantic_v4",
 )
 
 
@@ -369,6 +372,10 @@ def build_neural_scorer(
         ContextualNeuralActionScorer.architecture: ContextualNeuralActionScorer,
         SemanticIdentityNeuralActionScorer.architecture: SemanticIdentityNeuralActionScorer,
     }
+    if architecture == "structured_semantic_v4":
+        from .structured_v004 import StructuredSemanticV4Scorer
+
+        return StructuredSemanticV4Scorer(config, card_catalog=card_catalog)
     try:
         model_class = classes[architecture]
     except KeyError as error:
