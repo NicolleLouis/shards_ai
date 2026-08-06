@@ -32,6 +32,7 @@ complets, les métriques et les commandes sont conservés dans `doc/Experiments/
 | exp-00041 | Rejetée | Une marge teacher élevée seule ne garantit pas une meilleure politique en partie. |
 | exp-00045 | Rejetée | La correction ciblée de `recruit_mercenary` améliore v001 mais régresse v007, v008 et v002, avec un ralentissement médian de 61,3 %. |
 | exp-00046 | Rejetée | La distillation locale ancrée sur v002 hors états mercenaires réduit le temps de partie, mais régresse Random, v007 et v002 sur la validation longue. |
+| exp-00047 | Rejetée | L’ancrage local de v002 sur les alternatives hors achat/recrutement ciblés ne corrige pas la dérive : Random, v007, v008 et v002 régressent malgré un gain contre v001. |
 
 Les expériences antérieures sont également disponibles dans `doc/Experiments/`, mais ne doivent pas
 être reprises à l’identique sans nouvelle hypothèse ou nouveau protocole.
@@ -170,3 +171,25 @@ ci-dessus et détaillée dans son rapport d’expérience.
   v010 est plus rapide mais suit des trajectoires plus longues.
 - [À garder] Rejeter toute candidate qui régresse v002, Random ou v007, même si elle améliore v008
   et l'accuracy holdout.
+
+## Expérience exp-00047 — rejetée
+
+- [Terminé] Tester une imitation depuis v002 sur les états offrant simultanément l’achat et le
+  recrutement du même mercenaire, avec teacher v008 sur ces deux actions et ancrage MSE v002 sur
+  toutes les autres alternatives légales du même état. Le split est séparé par `game_id`.
+- [Résultat] Sur 100 parties par adversaire, la candidate régresse Random de `-5,0` points, v007 de
+  `-3,0`, v008 de `-1,0` et v002 de `-2,0`; le gain contre v001 (`+9,0`) ne généralise pas. Le
+  benchmark comparable de 50 parties est légèrement plus lent (`17,9898 s` contre `17,7198 s` en
+  médiane) et suit `17 691` actions contre `17 247`.
+- [Supprimé] Ne pas promouvoir v011 ni reprendre cet ancrage local sans attribution des décisions
+  changées et garde explicite de la trajectoire; cette correction concrète d’exp-00046 est rejetée.
+
+## Suites issues d'exp-00047
+
+- [À privilégier] Construire l’attribution offline des changements de politique par action et par
+  matchup avant tout nouvel entraînement, puis borner le nombre de décisions modifiées dans les
+  états ciblés.
+- [À étudier] Tester une correction de représentation ou une loss locale seulement sur les erreurs
+  `recruit_mercenary` confirmées par un holdout indépendant; conserver un contrôle sans correction.
+- [À supprimer] Tout ancrage MSE local ou global qui ne protège pas Random, v007, v008 et v002 sur
+  la validation longue; le gain contre v001 seul ne constitue pas une preuve de qualité.
