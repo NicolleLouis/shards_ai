@@ -351,3 +351,29 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
 - [À privilégier] Matérialiser un holdout V4 indépendant par `game_id` avant une nouvelle variation d'objectif.
 - [À étudier] Profiler séparément entraînement et inférence V4, puis reprendre par micro-lots avec checkpoints atomiques.
 - [À conserver] Initialisation nulle V4, profil/checkpoint cohérents, validation batchée et v002 comme référence.
+
+## Expérience exp-00084 — structured_semantic_v4 holdout — rejetée
+
+- [Terminé] Nouvelle séparation explicite par `game_id` : dataset canonique conservé pour
+  l'entraînement, holdout validation matérialisé séparément, profil V4 from-scratch et budget de
+  10 000 décisions.
+- [Résultat] Le screening batché de 20 parties est neutre contre Random (`0`), meilleur contre v007
+  et v008 (`+5` chacun), mais régresse fortement contre v002 et v001 (`-25` chacun). Le signal
+  contradictoire ne justifie pas la gate complète ni la promotion.
+- [Résultat] Le holdout indépendant atteint `83,89 %` top-1 sur 10 000 décisions ; cette métrique
+  reste descriptive et ne compense pas la régression contre les références neurales.
+- [Résultat] Runtime comparable contre v008 : v002 `1,8542 s` contre V4 `1,9445 s`, avec `5 805`
+  contre `6 265` actions et `1,0733 s` contre `1,1032 s` d'inférence. La candidate est plus lente
+  et joue davantage d'actions.
+- [Décision] V2 reste active. Le résultat confirme que le holdout explicite améliore la mesure
+  offline, mais ne résout pas la faiblesse en partie ; ne pas promouvoir ni réessayer cette recette
+  seule.
+
+## Nouvelles idées après exp-00084
+
+- [À privilégier] Comparer la dérive d'argmax V4/V2 sur le holdout par phase, action et cardinalité
+  légale avant une nouvelle correction, avec un budget de décisions modifiées fixé à l'avance.
+- [À étudier] Tester une capacité V4 réduite ou un curriculum phase/action sur le même split
+  `game_id`, en conservant le panel neural et la validation batchée.
+- [À supprimer] Toute sélection fondée sur le top-1 holdout ou sur les seuls gains v007/v008 lorsque
+  v002 régresse.

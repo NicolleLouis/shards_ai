@@ -1,0 +1,22 @@
+schema_version: 1
+profile_id: v003
+parent_profile_id: v002
+method: imitation
+dataset: artifacts/imitation_dataset/exp00084-v4-train.jsonl
+output: configs/neural_profiles/v003.pt
+seed: 84084
+split_seed: 84085
+epochs: 1
+learning_rate: 0.001
+torch_threads: 1
+max_records: 10000
+max_validation_records: 10000
+model:
+  semantic_token_hidden_dim: 64
+  semantic_attention_heads: 4
+metadata:
+  objective: structured_semantic_card_encoder
+  architecture: structured_semantic_v4
+  compare_to: v002
+  evaluation_split: game_id_holdout
+  training_protocol: atomic_micro_batch_resume

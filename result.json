@@ -1,85 +1,129 @@
 {
-  "experiment_id": "exp-00068",
-  "experiment_family": "performance",
-  "experiment_kind": "performance",
-  "status": "accepted",
-  "hypothesis": "Caching the deterministic card embedding vectors between inference decisions will reduce repeated PyTorch embedding and semantic-encoder work without changing the checkpoint, training path, or observable game trajectory.",
-  "novelty": "The repository history contains runtime measurements embedded in quality experiments but no dedicated performance-family experiment. This pass isolates an inference-only cache with the same v002 checkpoint and fixed game workload.",
+  "experiment_id": "exp-00084",
+  "experiment_kind": "quality",
+  "experiment_family": "data",
+  "status": "rejected",
+  "hypothesis": "A structured_semantic_v4 model trained from scratch with an explicit game_id holdout and a bounded 10000-decision imitation budget can improve playing strength over v002 without regressing Random, v007, or the protected v008 guard.",
   "selected_idea": {
-    "idea": "Reuse static scorer card embeddings across NeuralPlayer evaluation decisions.",
-    "reason": "The cProfile baseline identified repeated _embedding_lookup/_card_embeddings work as a hot path; the vectors depend only on frozen evaluation weights and card definitions."
+    "idea": "Materialize an independent game_id holdout before changing the V4 objective again.",
+    "reason": "exp-00080 through exp-00083 showed that offline and short heuristic gains were not enough; this experiment separates training and validation provenance while keeping the architecture transition and objective otherwise stable."
+  },
+  "novelty": "Data-family correction: explicit game_id holdout files and reproducible provenance for structured_semantic_v4, with no engine, heuristic, information-mask, or V2-checkpoint changes.",
+  "dataset": "artifacts/imitation_dataset/exp00084-v4-train.jsonl",
+  "dataset_sha256": "8aca90d400c8725c30bc1264f63ef4e282959d6e0e8c657238f9310058014cca",
+  "dataset_records": 100000,
+  "teacher_profile": "v008",
+  "training_recipe": {
+    "method": "imitation",
+    "architecture": "structured_semantic_v4",
+    "epochs": 1,
+    "max_records": 10000,
+    "max_validation_records": 10000,
+    "learning_rate": 0.001,
+    "seed": 84084,
+    "split": "train",
+    "split_seed": 84085,
+    "holdout_dataset": "artifacts/imitation_dataset/exp00084-v4-holdout.jsonl",
+    "holdout_sha256": "de0d880c1faed4f1017807338c4cfe255f2c64f405d65fde5395de7f95e427",
+    "holdout_records": 123848,
+    "torch_threads": 1,
+    "training_initial_checkpoint": null,
+    "model": {
+      "semantic_token_hidden_dim": 64,
+      "semantic_attention_heads": 4
+    }
+  },
+  "candidate_profile": "configs/neural_training_profiles/candidates/exp00084-structured-semantic-v4-holdout.yaml",
+  "candidate_checkpoint": "artifacts/neural_training/checkpoint.pt",
+  "metrics": {
+    "architecture_transition": "v002 independent_action to structured_semantic_v4",
+    "training_initial_checkpoint": null,
+    "holdout": {
+      "records": 10000,
+      "top1_accuracy": 0.8389,
+      "mean_loss": 0.3245378994569284,
+      "pairwise_accuracy": 0.9129571131005753
+    },
+    "tests": {
+      "command": "poetry run pytest -q",
+      "passed": 311,
+      "duration_seconds": 11.34
+    }
   },
   "performance": {
     "protocol": {
-      "games": 50,
-      "seeds": "0..49",
-      "player": "v002 NeuralPlayer",
-      "opponent": "v002 NeuralPlayer",
-      "checkpoint": "configs/neural_profiles/v002.pt",
+      "games": 20,
+      "opponent": "v008",
+      "seed": 84090,
       "torch_threads": 1,
-      "repetitions": 3,
-      "aggregation": "median",
-      "max_actions": 10000,
-      "max_turns": 200
+      "comparable_workload": true
     },
     "baseline": {
-      "elapsed_seconds": 14.719090116966981,
-      "throughput_games_per_second": 3.3969491050512715,
-      "neural_inference_seconds": 5.777275001601083,
-      "total_actions": 17587,
-      "neural_decisions": 8770,
-      "repetitions_elapsed_seconds": [14.569914002058795, 14.719090116966981, 14.78783298007329]
+      "checkpoint": "configs/neural_profiles/v002.pt",
+      "elapsed_seconds": 1.8541571559617296,
+      "neural_inference_seconds": 1.0733433574205264,
+      "neural_decisions": 2837,
+      "total_actions": 5805
     },
     "candidate": {
-      "elapsed_seconds": 12.988591678004013,
-      "throughput_games_per_second": 3.849532053938862,
-      "neural_inference_seconds": 4.964674497954547,
-      "total_actions": 17587,
-      "neural_decisions": 8770,
-      "repetitions_elapsed_seconds": [12.939106739970157, 13.03024313916103, 12.988591678004013]
-    },
-    "elapsed_delta_seconds": -1.730498438962968,
-    "relative_elapsed_change": -0.11756830247055752,
-    "relative_throughput_change": 0.13326461306975525,
-    "relative_inference_change": -0.1406546344810202,
-    "gate": "accepted: median elapsed time improved by 11.76%, exceeding the 2% performance threshold"
+      "checkpoint": "artifacts/neural_training/checkpoint.pt",
+      "elapsed_seconds": 1.9445010139606893,
+      "neural_inference_seconds": 1.1032069848733954,
+      "neural_decisions": 3113,
+      "total_actions": 6265
+    }
   },
-  "metrics": {
-    "baseline_elapsed_seconds": 14.719090116966981,
-    "candidate_elapsed_seconds": 12.988591678004013,
-    "elapsed_seconds_reduction": 1.730498438962968,
-    "elapsed_seconds_reduction_percent": 11.756830247055752,
-    "baseline_throughput_games_per_second": 3.3969491050512715,
-    "candidate_throughput_games_per_second": 3.849532053938862,
-    "throughput_increase_percent": 13.326461306975525,
-    "baseline_inference_seconds": 5.777275001601083,
-    "candidate_inference_seconds": 4.964674497954547,
-    "inference_reduction_percent": 14.06546344810202,
-    "actions_and_decisions_unchanged": true
+  "validation": {
+    "protocol": "validate_neural_profile_batched.py --games 20 --batch-games 20 --progress-output; paired candidate/reference with active v002",
+    "games_per_opponent": 20,
+    "seed": 84090,
+    "reference_profile": "v002",
+    "results": {
+      "random": {
+        "candidate_win_rate": 0.85,
+        "reference_win_rate": 0.85,
+        "delta_win_rate": 0.0,
+        "games": 20
+      },
+      "v007": {
+        "candidate_win_rate": 0.4,
+        "reference_win_rate": 0.35,
+        "delta_win_rate": 0.05,
+        "games": 20
+      },
+      "v008": {
+        "candidate_win_rate": 0.2,
+        "reference_win_rate": 0.15,
+        "delta_win_rate": 0.05,
+        "games": 20,
+        "protected_heuristic_guard": true
+      },
+      "neural:v002": {
+        "candidate_win_rate": 0.45,
+        "reference_win_rate": 0.70,
+        "delta_win_rate": -0.25,
+        "games": 20
+      },
+      "neural:v001": {
+        "candidate_win_rate": 0.40,
+        "reference_win_rate": 0.65,
+        "delta_win_rate": -0.25,
+        "games": 20
+      }
+    },
+    "weighted_mean_delta_win_rate": 0.00625,
+    "short_screening_only": true,
+    "final_gate_run": false
   },
   "analysis": {
-    "change": "Added an inference-only per-scorer cache in shards_ai/ai/neural_model.py. Missing card vectors are computed once and reused; training mode and gradient-enabled execution use the original uncached path.",
-    "attribution": "The baseline profile put 0.473 seconds in _embedding_lookup and 0.383 seconds in _card_embeddings over five representative games, while NeuralPlayer scoring dominated the runtime. The candidate keeps the same checkpoint, seeds, players, action limit, thread count and action/decision counts, so the elapsed reduction is attributable to avoiding repeated static embedding computation.",
-    "quality_evidence_used": false,
-    "performance_gate_only": true
+    "result": "The explicit holdout was reproducible and the candidate improved the two heuristic opponents in this short panel, but it lost 25 percentage points against both neural references. The positive weighted short-screen result is therefore not evidence of promotion, especially because v002 is the active neural reference.",
+    "causal_interpretation": "The experiment isolates data split/provenance from the prior V4 fallbacks, but does not establish that the representation is strong: the candidate still has a neural-reference regression and a 4.87 percent slower comparable runtime.",
+    "decision": "reject",
+    "next_step": "Measure V4/V2 argmax drift and calibration by phase, action type, and legal-action cardinality on the independent holdout before selecting a bounded capacity or curriculum change."
   },
   "future_ideas": [
-    "Profile the remaining encode_observation, pooling and action-representation costs before another runtime change.",
-    "Measure actual reuse before considering a bounded cache for immutable action representations.",
-    "Reject any pooling shortcut that changes trajectories or any cache that is not safely invalidated during training."
-  ],
-  "validation": {
-    "tests": "PYTHONPATH=. poetry run pytest -q",
-    "result": "307 passed",
-    "diff_check": "git diff --check"
-  },
-  "commands": {
-    "benchmark": "PYTHONPATH=. poetry run python benchmarks/benchmark_neural_players.py --checkpoint configs/neural_profiles/v002.pt --opponent neural --opponent-checkpoint configs/neural_profiles/v002.pt --games 50 --seed 0 --torch-threads 1 --output <result.json>",
-    "profile": "PYTHONPATH=. poetry run python -m cProfile -s cumulative -o /tmp/shards-exp-performance/baseline.prof benchmarks/benchmark_neural_players.py --checkpoint configs/neural_profiles/v002.pt --opponent neural --opponent-checkpoint configs/neural_profiles/v002.pt --games 5 --seed 0 --torch-threads 1"
-  },
-  "changed_files": [
-    "shards_ai/ai/neural_model.py",
-    "doc/Current state/Neural player.md",
-    "doc/Ideas.md"
+    "Compare argmax drift and ECE/Brier by phase, action type, and legal-action cardinality with a predeclared drift budget.",
+    "Test a reduced-capacity V4 or phase/action curriculum on the same game_id split and full reference panel.",
+    "Do not promote from holdout top-1 or gains against v007/v008 when v002 regresses."
   ]
 }
