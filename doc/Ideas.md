@@ -172,6 +172,26 @@ refuser toute conclusion fondée sur une amélioration contre v008 ou v002 neura
 - [À conserver] La contrainte d'initialisation depuis zéro, la vérification architecture profil/
   checkpoint et la validation batchée avec v002 comme référence.
 
+## Expérience exp-00076 — structured_semantic_v4 — rejetée
+
+- [Terminé] Réentraîner V4 depuis zéro par imitation sur le dataset V4 comparable disponible,
+  avec split `game_id`, puis mesurer le runtime et le panel complet contre v002, Random, v007 et v008.
+- [Résultat] La candidate régresse : Random `-10`, v007 `-10`, v008 `-5` et neural v002 `-25`
+  points sur 20 parties par adversaire. La garde v008 et la moyenne pondérée échouent ; V2 reste active.
+- [Résultat] Le benchmark comparable v002-v002 donne `4,3585 s` contre `4,2036 s` pour V4,
+  avec `7 173` contre `7 006` actions et `1,6640 s` contre `1,5156 s` d'inférence. Le runtime
+  légèrement inférieur de V4 ne compense pas la régression de force.
+- [Limite] Le dataset a été interrompu par l'environnement à `64 541` décisions et l'entraînement
+  borné à `1 000` décisions/une époque ; ce résultat est donc un diagnostic de sous-entraînement,
+  pas une invalidation définitive de l'encodeur V4.
+
+## Nouvelles idées après exp-00076
+
+- [À privilégier] Relancer V4 sur un hôte permettant le budget complet, avec checkpoint/reprise par
+  époque et validation holdout séparée avant toute conclusion sur la représentation.
+- [À étudier] Mesurer le coût de validation offline sur le dataset complet et conserver un holdout
+  par `game_id` explicitement matérialisé pour éviter les campagnes longues non reprenables.
+
 ## Pistes abandonnées
 
 - [À supprimer] Pondération globale `play_card`, conservation globale des logits, mélange DAgGER divergent ou calibration globale sans attribution causale.
