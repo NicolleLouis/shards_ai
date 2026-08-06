@@ -1,241 +1,102 @@
 # Idées et priorités de travail
 
-Ce fichier contient les décisions utiles pour choisir les prochaines expériences. Les détails
-complets, les métriques et les commandes sont conservés dans `doc/Experiments/`.
+Ce fichier contient le catalogue courant des décisions et des prochaines expériences. Les détails,
+les métriques et les commandes restent dans `doc/Experiments/`.
 
 ## Règles de décision
 
 - Comparer chaque candidate à la référence neural active, à Random, à v007 et à la garde v008.
-- Utiliser un panel complet et reproductible ; un screening court sert uniquement à détecter une
-  régression évidente, jamais à accepter une candidate.
-- Séparer les parties entre entraînement, validation et holdout. Le split doit être fait par partie,
-  pas seulement par décision.
-- Mesurer simultanément la qualité et le temps de partie. 
-- Modifier une seule hypothèse à la fois. Ne pas modifier le moteur, les heuristiques ou le masque
-  d’information pour une expérience neural.
-- Conserver v002 comme référence tant qu’un nouveau profil n’a pas passé la gate complète.
+- Utiliser un panel complet et reproductible ; un screening court ne peut jamais accepter une candidate.
+- Séparer entraînement, validation et holdout par `game_id`, et conserver la provenance des seeds.
+- Mesurer séparément qualité, temps de partie, nombre d'actions et coût d'inférence.
+- Modifier une seule hypothèse structurante à la fois ; ne pas modifier le moteur, les heuristiques ou le masque d'information.
+- Conserver v002 comme référence tant qu'un nouveau profil n'a pas passé la gate complète.
+- Ne pas reprendre une distillation locale ou une loss ranking-only sans preuve holdout indépendante et budget explicite de décisions modifiées.
 
-## Décisions issues des dernières expériences
+## Diagnostic de situation
+
+Les expériences `exp-00045` à `exp-00048` ont testé plusieurs corrections locales autour de
+`recruit_mercenary`, de l'ancrage v002 et de la loss d'imitation. Toutes ont régressé au moins une
+référence importante, malgré des gains isolés contre v001 ou v008. `exp-00049` confirme que les
+faiblesses sont liées à des catégories d'actions/cartes et que certaines erreurs PLAY sont
+confiantes.
+
+Conclusion : le catalogue ne doit plus privilégier une nouvelle variation locale de la même recette.
+La prochaine campagne doit tester une hypothèse de rupture, tout en conservant un protocole de
+comparaison contre v002.
+
+## Priorité immédiate : changer d'espace de solution
+
+### 1. À privilégier — architecture ou représentation
+
+Tester une seule modification structurelle susceptible de traiter les erreurs par phase, action ou
+carte que les pertes locales n'ont pas corrigées. Les options candidates sont, par exemple :
+
+- une tête ou un encodeur conditionné par phase/type d'action ;
+- une représentation des cartes combinant identité et information sémantique ;
+- une dimension d'embedding ou de contexte différente, mesurée explicitement ;
+- une représentation/pooling des actions légales qui conserve leur contexte sans fuite d'information.
+
+Hypothèse falsifiable : une modification structurelle bornée améliore les slices holdout ciblées
+(`play_card`, `banish_card`, `recruit_mercenary`) sans dégrader la moyenne contre v002, Random et
+v007, avec un coût d'inférence mesuré.
+
+Protocole minimal : conserver v002, le même split par partie, un contrôle sans changement, une seule
+variable d'architecture, puis mesurer qualité globale, slices ciblées, décisions changées, nombre
+d'actions, mémoire et temps d'inférence. Ne pas commencer par plusieurs dimensions ou plusieurs
+têtes à la fois.
+
+### 2. À privilégier — changer le type d'entraînement
+
+Tester une méthode qui ne repose pas uniquement sur l'imitation de labels heuristiques v008, par
+exemple un entraînement PPO suffisamment long et profilé, du reinforcement learning offline/online
+borné, ou un entraînement hybride imitation + objectif de résultat. Le choix exact doit être décrit
+dans une nouvelle architecture ou une hypothèse dédiée avant implémentation.
+
+Hypothèse falsifiable : un signal d'entraînement différent améliore la force en partie sur un panel
+reproductible sans apprendre simplement les biais v007/v008 et sans perdre la garde v002.
+
+Garde-fous : profiler d'abord la collecte si PPO est retenu, séparer les budgets collecte/entraînement/
+validation, conserver un holdout non utilisé pour choisir les mises à jour et refuser toute conclusion
+fondée sur une amélioration contre v008 seul.
+
+### 3. À conserver comme diagnostic préparatoire
+
+- Étendre le holdout de `exp-00049` par phase et type d'action ; mesurer ECE, Brier et reliability bins.
+- Séparer les erreurs de type d'action des erreurs de carte pour `crystal`, `moine_du_portail`,
+  `ojas`, `recruit_mercenary` et `banish_card`.
+- Attribuer les décisions modifiées et fixer un budget de dérive avant tout nouvel entraînement.
+- Utiliser `doc/Architecture/069-protocole-analyse-informative.md` pour éviter les analyses redondantes
+  et exiger une question de connaissance nouvelle.
+
+Ces diagnostics doivent servir à choisir entre l'axe architecture/représentation et l'axe training,
+pas devenir une nouvelle série d'analyses descriptives sans décision associée.
+
+## Historique condensé
 
 | Expérience | Statut | Conclusion opérationnelle |
 |---|---|---|
-| exp-00023 | Rejetée | Les reprises PPO courtes n’ont produit aucun gain ; réduire le coût de collecte avant de retenter PPO. |
-| exp-00024 à exp-00026 | Rejetées | Le DAgger uniforme et les mélanges historiques/on-policy dégradent Random, v007 ou v002. |
-| exp-00027 à exp-00031 | Rejetées | Les pondérations globales ou ciblées améliorent parfois v008, mais ne généralisent pas au panel neural et peuvent ralentir les parties. |
-| exp-00032 à exp-00035 | Rejetées | Le filtrage de désaccords, les marges teacher seules et l’ancrage global ne suffisent pas à préserver la politique. |
-| exp-00036 | Gate qualité positive, gate finale non retenue | Le dataset équilibré est prometteur, mais le coût de partie est proche de la limite et la régression contre v002 reste notable. |
-| exp-00037 | Rejetée | Réduire seulement la taille du fine-tuning ne corrige pas le compromis qualité/performance. |
-| exp-00038 | Rejetée | Les premières divergences stratégiques sont trop rares et favorisent `play_card`. |
-| exp-00039 | Analyse terminée | Le diagnostic met en évidence `recruit_mercenary`, BUY et les erreurs PLAY confiantes ; aucun checkpoint n’a été modifié. |
-| exp-00044 | Analyse terminée | Sur 6 246 états principaux visités par v002, `recruit_mercenary` reste à 22,38 %, les erreurs PLAY confiantes persistent et les logits v001/v002 ne sont pas comparables entre versions. Aucun checkpoint n’a été modifié. |
-| exp-00040 | Rejetée | La bonne accuracy holdout et le gain contre Random ne compensent pas la régression v007 ni le ralentissement de 13,57 %. |
-| exp-00041 | Rejetée | Une marge teacher élevée seule ne garantit pas une meilleure politique en partie. |
-| exp-00045 | Rejetée | La correction ciblée de `recruit_mercenary` améliore v001 mais régresse v007, v008 et v002, avec un ralentissement médian de 61,3 %. |
-| exp-00046 | Rejetée | La distillation locale ancrée sur v002 hors états mercenaires réduit le temps de partie, mais régresse Random, v007 et v002 sur la validation longue. |
-| exp-00047 | Rejetée | L’ancrage local de v002 sur les alternatives hors achat/recrutement ciblés ne corrige pas la dérive : Random, v007, v008 et v002 régressent malgré un gain contre v001. |
-| exp-00048 | Rejetée | La distillation ranking-only depuis v002 protège v008 (+1 point), mais régresse Random (-4), v007 (-3) et v002 (-7) ; retirer la loss d’action choisie ne stabilise pas la politique. |
-| exp-00049 | Analyse terminée | Le holdout indépendant de 80 parties confirme les faiblesses par catégorie : `play_card`/`crystal`, bannissement et `recruit_mercenary`; les erreurs face à v007 sont souvent confiantes. Aucun checkpoint n’a été modifié. |
+| exp-00023 | Rejetée | Les reprises PPO courtes n'ont pas produit de gain exploitable. |
+| exp-00024 à exp-00026 | Rejetées | DAgger uniforme et mélanges historiques/on-policy : régressions. |
+| exp-00027 à exp-00035 | Rejetées | Pondérations, filtrages, marges teacher et ancrages globaux : pas de généralisation robuste. |
+| exp-00036 à exp-00038 | Rejetées | Dataset équilibré, fine-tuning réduit et premières divergences : compromis non résolu. |
+| exp-00039 | Analyse terminée | Premiers signaux sur `recruit_mercenary`, BUY et PLAY confiants. |
+| exp-00040 à exp-00041 | Rejetées | Accuracy holdout ou marge teacher seules insuffisantes. |
+| exp-00044 | Analyse terminée | Diagnostic proche d'exp-00039 ; logits inter-version non comparables. |
+| exp-00045 | Rejetée | Surpondération mercenaire : régression de qualité et fort ralentissement. |
+| exp-00046 | Rejetée | Ancrage local hors états mercenaires : régression v002, Random et v007 malgré un gain de temps. |
+| exp-00047 | Rejetée | Ancrage dans les états achat/recrutement : régressions et trajectoires plus longues. |
+| exp-00048 | Rejetée | Ranking-only : v008 protégé, mais régressions Random, v007 et v002. |
+| exp-00049 | Analyse terminée | Holdout indépendant : faiblesses par action/carte et erreurs PLAY souvent confiantes. |
 
-Les expériences antérieures sont également disponibles dans `doc/Experiments/`, mais ne doivent pas
-être reprises à l’identique sans nouvelle hypothèse ou nouveau protocole.
+## Pistes écartées
 
-## Priorité immédiate
+- Reprendre à l'identique une distillation locale ou globale, une loss ranking-only ou une simple
+  surpondération de `recruit_mercenary`.
+- Promouvoir sur la base d'un gain contre v001 ou v008 seul.
+- Utiliser une accuracy holdout sans validation en partie.
+- Reprendre un PPO court ou interrompu sans profilage de collecte et budget complet.
+- Modifier le moteur, les heuristiques ou le masque d'information pour améliorer la candidate.
 
-### 1. Construire un diagnostic offline exploitable
-
-- Construire un holdout par partie et par seed, avec provenance complète des décisions.
-- Comparer v002 et les candidates par phase et type d’action : `buy_card`, `recruit_mercenary`,
-  `banish_card`, `play_card` et `attack`.
-- Mesurer les décisions changées, les alternatives légales, les marges teacher et les logits v002
-  sur ces mêmes états.
-- Examiner en priorité les cas où la candidate améliore v008 mais régresse Random, v007 ou v002.
-- Mesurer la calibration des erreurs PLAY à forte confiance, notamment pour `crystal`,
-  `ermite_fongique` et les champions.
-
-Rapport de départ : `doc/Experiments/exp-00039.md`.
-
-### 2. Tester une correction locale et attribuable
-
-Après le diagnostic uniquement :
-
-- sélectionner un sous-ensemble équilibré par phase et action ;
-- conserver explicitement les décisions v002 hors des états ciblés ;
-- comparer une loss de classement, une distillation ou une régularisation locale par ablation ;
-- conserver un holdout qui n’a jamais servi à choisir les exemples ;
-- arrêter la piste si le gain robuste reste inférieur à 2 % pour une optimisation de performance.
-
-### 3. Stabiliser les protocoles
-
-- Utiliser la validation par lots avec reprise pour les panels de plus de 20 parties par adversaire :
-  `scripts/validate_neural_profile_batched.py`.
-- Conserver les fichiers de progression hors de `doc/`.
-- Comparer les mêmes seeds, le même panel et le même nombre de parties entre candidate et référence.
-- Ne jamais conclure à partir d’un rapport interrompu ou d’un panel court.
-
-## Pistes à conserver, mais non prioritaires
-
-### Recherche de décision
-
-- Comparer la décision gloutonne à une recherche bornée par temps, avec le réseau comme prior.
-- Tester une politique hybride réseau + heuristique ou réseau + recherche uniquement si le budget de
-  temps est mesuré séparément.
-- Vérifier que toute recherche respecte strictement les informations visibles par le joueur.
-
-### Objectif et apprentissage
-
-- Tester une loss pairwise/margin ou une distillation contrôlée, avec ablation de chaque composante.
-- Comparer récompense terminale, shaping borné et shaping par phase, sans modifier plusieurs
-  composantes dans la même expérience.
-- Reprendre PPO seulement après profilage de la collecte, avec une durée suffisante et une sélection
-  monotone protégeant v002, Random, v007 et v008.
-- Tester Monte-Carlo à la place de PPO
-
-### Architecture et représentation
-
-- Comparer un encodeur partagé à l’architecture actuelle, avec têtes par phase ou type d’action.
-- Tester des variantes d’embeddings, de pooling invariant et de représentation des actions légales.
-- Mesurer séparément qualité, mémoire et coût d’inférence ; une architecture plus grande n’est pas
-  présumée meilleure.
-- Changer le nombre de dimenson notamment pour la représentation d'une carte entre l'aspect sémantique et l'aspect id
-
-### Performance d’inférence
-
-- Explorer le batching sûr, la compilation, la réduction des allocations et les caches sans changer
-  la politique observable.
-- Pour toute optimisation, conserver le protocole benchmark → profilage → changement ciblé →
-  re-mesure, avec au moins trois répétitions lorsque le gain est faible.
-
-## Pistes écartées jusqu’à nouvel élément
-
-- Reprises PPO courtes ou interrompues sans update complet.
-- Pondérations globales d’actions ou de phases sans analyse offline.
-- DAgger uniforme, premières divergences seules et sélection fondée uniquement sur la marge teacher.
-- Promotion fondée sur l’accuracy holdout ou sur un gain contre v008 seul.
-- Mélanges historiques/on-policy sans filtrage et sans garde explicite de v002.
-- Modification du moteur, des heuristiques ou du masque d’information pour améliorer une candidate
-  neural.
-
-Toute nouvelle idée doit être ajoutée dans une section courte avec une hypothèse falsifiable, les
-métriques attendues et les gardes à respecter. Une fois testée, elle doit être résumée dans le tableau
-ci-dessus et détaillée dans son rapport d’expérience.
-
-## Expérience exp-00044 — analyse terminée
-
-- [Terminé] Diagnostiquer v002 sur 6 246 états principaux visités, stratifiés par v001/v007/v008,
-  phase, action, carte, loss, confiance et désaccord avec v001.
-- [Résultat] `recruit_mercenary` reste à `22,38 %` d'accuracy ; PLAY représente `72,1 %` des états ;
-  174 erreurs v002 ont une confiance intra-état au moins égale à `0,8`.
-- [Corrigé] Le holdout par partie et la calibration restent à construire. Un libellé `random` mal
-  configuré a été exclu car il utilisait le profil heuristique v001, pas `RandomPlayer`.
-- [Suite] Confirmer `buy_card`/`recruit_mercenary` et les erreurs PLAY confiantes sur un holdout
-  indépendant avant tout entraînement.
-
-## Expérience exp-00045 — rejetée
-
-- [Terminé] Tester une imitation depuis v002 sur `15 052` décisions de `103` parties, séparées par
-  `game_id`, avec teacher v008 contre Random/v007 et une surpondération limitée aux décisions
-  `BuyCard`/`RecruitMercenary` ciblées (`2,0`); BUY/PLAY et les autres actions restent uniformes.
-- [Résultat] Le panel apparié de 20 parties donne Random `0,0`, v007 `-5,0`, v008 `-5,0` et v002
-  `-5,0` points; le gain contre v001 (`+15,0`) ne généralise pas. La médiane du benchmark v002-v002
-  passe de `27,9335 s` à `45,0660 s` sur 50 parties (`-38,04 %` de débit).
-- [Supprimé] Ne pas promouvoir v009; ne pas reprendre la surpondération mercenaire seule sans
-  corriger la dérive de politique et le coût d'inférence/partie.
-
-## Suites issues d'exp-00045
-
-- [À privilégier] Construire un holdout par partie avec attribution des décisions changées par
-  catégorie et matchup avant tout nouvel entraînement; vérifier si la correction mercenaire déplace
-  des décisions PLAY ou BUY hors de la cible.
-- [À étudier] Tester une distillation locale qui conserve explicitement les sorties de v002 hors des
-  états mercenaires ciblés, avec une ablation sans surpondération et un budget de changements borné.
-- [À étudier] Mesurer séparément le coût d'inférence de la candidate et le nombre d'actions avant de
-  poursuivre une piste qualité; toute candidate doit rester comparable à v002 sur le benchmark.
-
-## Expérience exp-00046 — rejetée
-
-- [Terminé] Tester une distillation locale depuis v002 avec une pénalité MSE (`0,25`) sur les
-  sorties v002 pour les décisions non ciblées ; les états offrant simultanément `buy_card` et
-  `recruit_mercenary` restent entraînés sans surpondération.
-- [Résultat] Sur 100 parties par adversaire, Random `-4` points, v007 `-7`, v008 `+4` et v002
-  `-9` ; la moyenne des trois gardes demandées est `-2,33` points. Le benchmark comparable de 50
-  parties passe de `46,4307 s` à `39,1018 s`, mais avec `18 636` actions contre `17 247`, donc ce
-  gain de temps ne constitue pas un gain de force.
-- [Supprimé] Ne pas promouvoir v010 ni reprendre cet ancrage global ; conserver l'idée d'un
-  ancrage conditionnel seulement après attribution des décisions changées et un budget explicite
-  de dérive par catégorie.
-
-## Suites issues d'exp-00046
-
-- [À privilégier] Construire une distillation réellement locale sur les états mercenaires ciblés,
-  avec pénalité v002 sur toutes les alternatives légales non ciblées dans le même état, puis
-  mesurer les décisions changées par action avant la validation longue.
-- [À mesurer] Séparer le temps d'inférence par décision du nombre total d'actions ; le benchmark
-  v010 est plus rapide mais suit des trajectoires plus longues.
-- [À garder] Rejeter toute candidate qui régresse v002, Random ou v007, même si elle améliore v008
-  et l'accuracy holdout.
-
-## Expérience exp-00047 — rejetée
-
-- [Terminé] Tester une imitation depuis v002 sur les états offrant simultanément l’achat et le
-  recrutement du même mercenaire, avec teacher v008 sur ces deux actions et ancrage MSE v002 sur
-  toutes les autres alternatives légales du même état. Le split est séparé par `game_id`.
-- [Résultat] Sur 100 parties par adversaire, la candidate régresse Random de `-5,0` points, v007 de
-  `-3,0`, v008 de `-1,0` et v002 de `-2,0`; le gain contre v001 (`+9,0`) ne généralise pas. Le
-  benchmark comparable de 50 parties est légèrement plus lent (`17,9898 s` contre `17,7198 s` en
-  médiane) et suit `17 691` actions contre `17 247`.
-- [Supprimé] Ne pas promouvoir v011 ni reprendre cet ancrage local sans attribution des décisions
-  changées et garde explicite de la trajectoire; cette correction concrète d’exp-00046 est rejetée.
-
-## Suites issues d'exp-00047
-
-- [À privilégier] Construire l’attribution offline des changements de politique par action et par
-  matchup avant tout nouvel entraînement, puis borner le nombre de décisions modifiées dans les
-  états ciblés.
-- [À étudier] Tester une correction de représentation ou une loss locale seulement sur les erreurs
-  `recruit_mercenary` confirmées par un holdout indépendant; conserver un contrôle sans correction.
-- [À supprimer] Tout ancrage MSE local ou global qui ne protège pas Random, v007, v008 et v002 sur
-  la validation longue; le gain contre v001 seul ne constitue pas une preuve de qualité.
-
-## Expérience exp-00048 — rejetée
-
-- [Terminé] Tester une distillation ranking-only depuis v002, avec Adam réinitialisé, taux
-  d'apprentissage `5e-6`, dataset train d'exp-00047 séparé par `game_id`, et poids `ranking=1.0`,
-  `chosen_action=0.0`; aucune pondération d'action, modification de représentation ou garde
-  mercenaire supplémentaire n'a été ajoutée.
-- [Résultat] Le benchmark v002 contre v002 passe de `23,0237 s` à `22,9718 s` sur 50 parties,
-  mais la candidate suit `17 839` actions contre `17 247` et son win-rate direct passe de `52 %` à
-  `44 %`. Sur 100 parties par adversaire, les deltas sont Random `-4,0`, v007 `-3,0`, v008 `+1,0`
-  et v002 `-7,0` points.
-- [Supprimé] Ne pas promouvoir v012 ; ne pas reprendre ranking-only sans une contrainte explicite
-  sur les décisions changées et une analyse holdout indépendante par phase/action.
-
-## Suites issues d'exp-00048
-
-- [À privilégier] Construire l'attribution holdout des décisions changées par phase et type d'action,
-  puis tester une régularisation de la politique v002 uniquement sur les états où la candidate
-  change effectivement le choix.
-- [À étudier] Comparer une ablation `chosen_action` faible mais non nulle à ranking-only sur le même
-  split, avec un budget de changements et une validation contre v002 avant le panel complet.
-- [À garder] Maintenir v002 comme référence active ; le gain contre v008 seul ne suffit pas à
-  accepter une candidate qui régresse Random, v007 ou v002.
-
-## Expérience exp-00049 — analyse terminée
-
-- [Terminé] Construire un holdout indépendant par partie et seed : 80 parties, 20 contre v001,
-  v007, v008 et `RandomPlayer`, 19 622 annotations visibles.
-- [Résultat] v002 atteint 83,98 % contre v001, 81,22 % contre v008 et 67,36 % contre v007 ; les
-  erreurs à confiance >= 0,8 sont respectivement 1,06 %, 1,79 % et 11,49 %. `recruit_mercenary`
-  reste faible face à v007/v008 et `play_card` concentre les erreurs confiantes contre v007.
-- [Sélection] Idée choisie : corriger le biais des exp-00039/44 par un holdout indépendant et une
-  calibration intra-état, sans entraînement.
-- [Conservé] Le protocole, les limites et les recommandations sont dans
-  `doc/Experiments/exp-00049.md`; le détail brut reste temporaire hors dépôt.
-
-## Suites issues d'exp-00049
-
-- [À privilégier] Étendre le holdout avec un échantillonnage équilibré par phase/action, puis mesurer
-  ECE/Brier et reliability bins sur les erreurs PLAY confiantes.
-- [À étudier] Distinguer les erreurs de type d'action et de carte pour `crystal`, `moine_du_portail`,
-  `ojas`, `recruit_mercenary` et `banish_card`.
-- [À garder] Toute correction future doit borner les décisions modifiées et repasser d'abord une
-  comparaison directe contre v002 ; les labels heuristiques ne suffisent pas à justifier une cible.
+Toute nouvelle idée doit préciser l'axe choisi (architecture/représentation ou training), une
+hypothèse falsifiable, la référence v002, les métriques attendues et la condition de rejet.
