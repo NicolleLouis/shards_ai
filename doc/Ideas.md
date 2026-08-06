@@ -107,6 +107,7 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 | exp-00067 | Rejetée | Continuation PPO courte depuis v002 avec horizon GAE v002, sans shaping v003 : aucun checkpoint candidat sauvegardé dans l'environnement ; le contrôle v002/v002 est neutre et la recette doit être reprise seulement avec une collecte instrumentée. |
 | exp-00069 | Rejetée | Reprise PPO instrumentée depuis v002 : le processus est encore arrêté avant le premier checkpoint, donc aucune force apprise n'est mesurable ; le contrôle v002/v002 reste neutre en qualité et plus lent au second passage. |
 | exp-00070 | Rejetée | Petit pas d'imitation sur dataset frais v007/v008 : Random -5 points et v007 -25 malgré v008 +5 et v002 +15 ; runtime -1,9 %. |
+| exp-00071 | Rejetée | PPO court instrumenté depuis v002 : un checkpoint est bien sauvegardé après chaque rollout, mais la politique reste identique sur le panel (deltas 0) et le runtime augmente légèrement. |
 
 ## Expérience exp-00065 — rejetée
 
@@ -259,6 +260,35 @@ hypothèse falsifiable, la référence v002, les métriques attendues et la cond
   atomique externe et smoke test de reprise avant toute campagne plus longue depuis v002.
 - [À conserver] La validation qualité doit comparer Random, v007, v008 et v002 ; le runtime reste
   une mesure obligatoire mais ne peut pas compenser une régression de force.
+
+## Expérience exp-00071 — PPO — rejetée
+
+- [Terminé] Tester une continuation PPO très courte depuis `configs/neural_profiles/v002.pt`, avec
+  Adam réinitialisé, `gamma=0,995`, `gae_lambda=0,95`, quatre rollouts d'une partie, une époque
+  d'optimisation et une sauvegarde du checkpoint mutable après chaque rollout. La famille est
+  `ppo`; la nouveauté est le protocole de sauvegarde/reprise vérifiable qui corrige l'échec
+  opérationnel des exp-00067 et exp-00069, sans changer le moteur, les heuristiques ou le masque.
+- [Résultat] Le checkpoint `artifacts/neural_training/checkpoint.pt` a été écrit après chaque
+  update, pour 4 parties et 511 transitions. Les quatre updates ont une perte de politique quasi
+  nulle et la candidate conserve exactement les mêmes 3 585 décisions sur le benchmark v002-v002.
+- [Résultat] Le panel batché de 20 parties par adversaire donne Random `0`, v007 `0`, v008 `0`,
+  neural v002 `0` et neural v001 `0` point de delta. La candidate est rejetée : elle ne démontre
+  aucun gain de force et le protocole court ne peut pas être promu.
+- [Résultat] Le benchmark comparable v002-v002 passe de `13,1551 s` à `13,3451 s`, avec `7 117`
+  actions identiques et une inférence de `4,9579 s` à `5,0245 s` ; la hausse de temps est faible
+  mais ne constitue pas un gain de performance.
+- [Supprimé] Ne pas considérer la réussite de l'écriture du checkpoint comme une preuve de progrès
+  PPO, ni relancer cette recette courte inchangée.
+
+## Nouvelles idées après exp-00071
+
+- [À privilégier] Diagnostiquer la collecte PPO sur un rollout d'une partie avec attribution des
+  avantages et vérifier qu'un batch non dégénéré produit des gradients avant toute campagne longue.
+- [À étudier] Reprendre le PPO depuis v002 avec un budget de collecte suffisant et une évaluation
+  holdout séparée, seulement après avoir confirmé que les récompenses terminales et les avantages
+  ne sont pas quasi nuls ; conserver une sauvegarde atomique par rollout.
+- [À supprimer] Les campagnes PPO de quatre parties ou moins et toute conclusion de qualité fondée
+  sur la seule conservation de trajectoire.
 
 
 ## Décisions issues de la campagne exp-00050 à exp-00055
