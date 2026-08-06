@@ -440,3 +440,28 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
   neural dès chaque palier; conserver un holdout indépendant et un budget de dérive V2 fixé avant
   sélection.
 - [À supprimer] Les fallbacks 1k et les gains de runtime comme bases d'une promotion V4.
+
+## Expérience exp-00088 — structured_semantic_v4 reprise vérifiable — rejetée
+
+- [Terminé] Correction de la piste exp-00087 : entraînement V4 from-scratch par imitation sur le
+  dataset canonique, avec checkpoint sauvegardé après chaque micro-lot de 1 000 décisions et
+  reprise par `record_offset` en conservant l'état Adam. Le budget de 10 000 décisions a été
+  atteint sans fallback interrompu.
+- [Résultat] Le holdout de 9 654 décisions atteint `79,99 %` top-1 à la fin, mais le panel batché
+  contre la référence active V3 donne Random `0`, v007 `-10`, v008 `0`, v002 `-10` et v003 `-10`
+  points. La garde v008 est neutre, mais la moyenne pondérée est `-3,75` points : aucune promotion.
+- [Résultat] Benchmark comparable contre v008 : V3 `1,9497 s` contre V4 `2,0266 s` sur 20 parties,
+  avec `6 189` contre `6 350` actions et `1,0834 s` contre `1,1535 s` d'inférence. Le coût
+  supplémentaire n'apporte pas de gain de force.
+- [Conclusion] La reprise atomique supprime le confondant technique des expériences 79–87, mais
+  10 000 décisions restent insuffisantes ou inadéquates pour produire une amélioration en partie.
+  V2/V3 restent actives; le checkpoint V4 reste candidat et non promu.
+
+## Nouvelles idées après exp-00088
+
+- [À privilégier] Utiliser la reprise atomique pour comparer 10k et dataset complet sur le même
+  holdout, avec sélection uniquement sur le panel complet et une mesure de dérive d'argmax V3.
+- [À étudier] Tester un objectif hybride imitation/résultat sur V4 après matérialisation d'un
+  holdout par `game_id`; ne pas réintroduire une pondération ciblée seule.
+- [À supprimer] Toute promotion fondée sur le top-1 holdout, la neutralité V008 ou le runtime
+  seul; la régression V007/V3 reste bloquante.
