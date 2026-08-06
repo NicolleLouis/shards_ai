@@ -101,6 +101,7 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 | exp-00061 | Analyse terminée | Holdout diagnostique masqué de 13 816 décisions : dérive v007 concentrée en PLAY/cartes, erreurs souvent confiantes, calibration ECE v007 0,171 et v008 0,027 ; aucune candidate. |
 | exp-00062 | Rejetée | Biais scalaires gelés sur cinq cartes PLAY v007 : politique identique à v002 sur le panel et aucune amélioration de force ; coût médian +9,7 %. |
 | exp-00063 | Rejetée | DAgGER on-policy priorisé sur quatre catégories : v008 +5 et v002 neural +2, mais Random -5, v007 -1 et runtime +3,6 %. |
+| exp-00064 | Rejetée | Imitation conservatrice depuis v002 (1e-5, 10 000 décisions) : v007 +8, mais Random -4, v008 -3 et v002 -14 ; runtime +5,0 %. |
 
 ## Pistes écartées
 
@@ -390,6 +391,29 @@ Ordre des expériences :
   suffisants ; protéger explicitement les décisions hors slice.
 - [À supprimer] Toute nouvelle collecte DAgGER uniforme ou pondération des quatre catégories sans
   budget d'argmax modifiés et sans contrôle Random/v002 au screening.
+
+## Expérience exp-00064 — rejetée
+
+- [Terminé] Tester une mise à jour d'objectif conservatrice depuis `v002`, avec dataset mixte v007/v008,
+  split par `game_id`, Adam réinitialisé, un seul passage effectif sur 10 000 décisions et taux
+  d'apprentissage `1e-5`. Cette correction teste une dérive plus petite que les pondérations et le
+  DAgGER d'exp-00063, sans changer l'architecture, le moteur, les heuristiques ou le masque.
+- [Résultat] Sur 100 parties par référence, Random `-4` points, v007 `+8`, v008 `-3` et v002 neural
+  `-14`. Le gain v007 est donc incompatible avec la non-régression obligatoire ; aucune promotion.
+- [Résultat] Le benchmark comparable v002-v002 sur 50 parties passe de `10,6280 s` à `11,1570 s`,
+  de `16 588` à `17 335` actions et de `4,2240 s` à `4,4051 s` d'inférence.
+- [Supprimé] Ne pas reprendre l'imitation conservatrice seule ; elle confirme qu'un faible taux
+  d'apprentissage ne suffit pas à protéger la référence active ni Random.
+
+## Nouvelles idées après exp-00064
+
+- [À privilégier] Mesurer explicitement les changements d'argmax v002 sur un holdout indépendant,
+  puis tester une mise à jour uniquement sur une slice dont l'effet causal est confirmé, avec une
+  contrainte de conservation de l'action v002 hors slice.
+- [À étudier] Ajouter une loss de conservation de politique v002 dans l'entraînement, plutôt que
+  seulement réduire le taux d'apprentissage ; rejeter si Random ou v002 régresse au screening.
+- [À supprimer] Les recettes qui améliorent v007/v008 seul ou l'accuracy offline sans gain moyen
+  sur le panel complet.
 
 Critères de succès : gain reproductible sur une ou plusieurs slices ciblées, absence de régression
 robuste contre Random, v002, v007 et v008, et dérive d'argmax v002 dans le budget fixé. Critères de
