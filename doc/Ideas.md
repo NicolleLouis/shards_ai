@@ -434,6 +434,26 @@ une piste existante.
 - [À supprimer] Les lots composés de quelques divergences `play_card` seulement et toute conclusion
   fondée sur le gain v008 sans gain contre une référence neural.
 
+## Expérience exp-00039 — analyse terminée
+
+- [Terminé] Analyser v002 sans entraînement : loss, accuracy, couverture/imbalance, confiance,
+  cartes, comparaison v001 et panels visibles v008/v007.
+- [Résultat] Sur 12 114 décisions visibles, l’accuracy est `85,03 %`; BUY est à `77,04 %`,
+  `recruit_mercenary` à `25,64 %`, et PLAY représente `73,36 %` des labels. Les erreurs PLAY
+  peuvent rester très confiantes; le panel 20 parties donne v002 à `15 %` contre v008 et `50 %`
+  contre v007.
+- [Conservé] Le diagnostic et ses recommandations sont dans `doc/Experiments/exp-00039.md`;
+  aucun checkpoint n’a été modifié.
+
+## Suites issues de l’analyse exp-00039
+
+- [À privilégier] Construire un holdout par partie stratifié par phase/action avant tout nouvel
+  entraînement, puis traiter séparément `recruit_mercenary` et les choix BUY.
+- [À étudier] Mesurer la calibration des probabilités intra-état et les erreurs PLAY à confiance
+  élevée, notamment `crystal`, `ermite_fongique` et les champions.
+- [À supprimer] Toute pondération globale ou promotion fondée sur les seuls labels v008 sans
+  protection explicite de v002, Random et la garde v008.
+
 ## Pistes générales à explorer
 
 Ces pistes sont volontairement larges. Elles ne constituent pas un plan imposé : l'agent peut les
