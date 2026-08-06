@@ -265,6 +265,29 @@ refuser toute conclusion fondée sur une amélioration contre v008 ou v002 neura
 - [À supprimer] Toute acceptation issue du seul screening 20 parties ou d'un gain contre Random/v007
   lorsque les références neurales régressent.
 
+## Expérience exp-00080 — structured_semantic_v4 — rejetée
+
+- [Terminé] Correction de exp-00079 : dataset normalisé canonique de 100 000 décisions, profil V4
+  dédié, initialisation from-scratch et tentative d'un passage complet borné ; le checkpoint de
+  diagnostic final porte les 1 000 premières décisions uniquement.
+- [Résultat] Le panel batché de 20 parties par adversaire régresse contre Random `-10`, v007 `-40`,
+  v008 `-25` et v002 `-20` points. La garde v008 et la moyenne pondérée échouent ; aucune promotion.
+- [Résultat] L'accuracy top-1 offline du checkpoint diagnostic est `71,1 %`, sans valeur probante
+  face aux résultats en partie. Le benchmark V4 contre v008 donne `2,0065 s` contre `2,1701 s` pour
+  v002, avec `6 448` contre `6 602` actions et `1,1445 s` contre `1,3081 s` d'inférence.
+- [Échec technique] Le passage complet de 100 000 décisions n'a produit aucun checkpoint après plus
+  de 40 minutes et a été interrompu ; le résultat de force est donc celui du fallback diagnostic,
+  explicitement non assimilé à un entraînement complet.
+
+## Nouvelles idées après exp-00080
+
+- [À privilégier] Instrumenter et optimiser le coût d'entraînement de `structured_semantic_v4` avant
+  une nouvelle campagne de qualité ; préserver les mêmes données et le même protocole de validation.
+- [À étudier] Comparer un budget pré-déclaré de 1 000 puis 10 000 décisions avec checkpoints après
+  chaque lot, mais seulement si les références neurales sont incluses à chaque étape.
+- [À supprimer] Toute nouvelle conclusion de force fondée sur l'accuracy offline ou un panel court
+  positif contre les heuristiques ; V4 n'a encore aucune preuve de promotion.
+
 ## Pistes abandonnées
 
 - [À supprimer] Pondération globale `play_card`, conservation globale des logits, mélange DAgGER divergent ou calibration globale sans attribution causale.
