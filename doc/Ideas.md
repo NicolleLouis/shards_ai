@@ -628,3 +628,27 @@ robuste contre Random, v002, v007 et v008, et dérive d'argmax v002 dans le budg
 rejet : échec de reproduction, régression Random persistante, gain limité à v007/v008, ou amélioration
 qui disparaît avec un panel indépendant. Le runtime, le débit et le nombre d'actions restent des
 métriques secondaires et ne peuvent pas compenser un échec de qualité.
+
+## Expérience exp-00073 — PPO — rejetée
+
+- [Terminé] Tester une continuation PPO depuis `configs/neural_profiles/v002.pt` en remplaçant
+  `gamma=0,995` par `gamma=1,0`, avec architecture, moteur, heuristiques et masque inchangés.
+- [Résultat] Le smoke test a écrit un checkpoint, mais la campagne prévue de 128 parties n'a
+  sauvegardé que le premier palier de 16 parties (2 885 transitions), puis s'est arrêtée
+  silencieusement, y compris lors de la reprise.
+- [Résultat] Sur 20 parties par adversaire, les deltas contre v002 sont Random `+10`, v007 `-5`,
+  v008 `0` et neural v002 `-10` points. Le gain Random isolé ne se généralise pas ; aucune
+  promotion n'est justifiée.
+- [Résultat] Le benchmark comparable passe de `26,2268 s` à `25,8814 s` (`-1,32 %`), avec
+  `6 668` contre `7 057` actions ; cette variation ne constitue pas un gain de qualité.
+- [Supprimé] Ne pas reprendre `gamma=1,0` seul ni considérer un palier PPO partiel comme une
+  campagne suffisante.
+
+## Nouvelles idées après exp-00073
+
+- [À privilégier] Instrumenter un rollout PPO unique avec résultats terminaux, variance des
+  avantages et norme des gradients avant toute campagne longue ; arrêter si le signal est quasi nul.
+- [À étudier] Comparer `gamma=0,995` et `gamma=1,0` sur un même budget réellement atteint, avec
+  reprise vérifiée après chaque palier et holdout séparé.
+- [À conserver] Exiger Random, v007, v008 et neural v002, ainsi qu'un runtime comparable ; le gain
+  contre Random seul ne suffit jamais.
