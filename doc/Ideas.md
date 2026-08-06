@@ -149,6 +149,29 @@ refuser toute conclusion fondée sur une amélioration contre v008 ou v002 neura
 - [À étudier] Une continuation PPO avec KL non nul mais borné, uniquement après preuve d'un signal non dégénéré et sélection sur holdout indépendant.
 - [À étudier] Augmenter la couverture de `recruit_mercenary`, `choose_pending_decision` et des cartes rares ; aucune conclusion causale sous 20 observations.
 
+## Expérience exp-00075 — structured_semantic_v4 — rejetée
+
+- [Terminé] Réentraîner depuis zéro l'architecture `structured_semantic_v4` par imitation sur le
+  dataset normalisé, avec un budget borné de 1 000 décisions, puis comparer V4 à v002 sur les mêmes
+  seeds et le panel Random/v007/v008/v001/v002.
+- [Résultat] Le checkpoint est techniquement compatible avec les métadonnées V4, mais la candidate
+  régresse contre Random `-15` points, v007 `-10`, v008 `-10` et v002 `-5` sur 20 parties par
+  adversaire. La garde v008 et la moyenne pondérée échouent ; aucune promotion.
+- [Résultat] Le runtime v002-v002 est `4,9054 s` contre `5,3725 s` pour V4 sur 20 parties ; les
+  actions passent de `6 801` à `7 764`. La hausse de coût et de trajectoires ne compense pas la
+  régression de qualité.
+- [Supprimé] Ne pas considérer l'accuracy offline V4 (`72,4 %` top-1 sur le millier évalué) comme
+  une preuve de force ; ne pas charger les poids V2 dans cette transition.
+
+## Nouvelles idées après exp-00075
+
+- [À privilégier] Réentraîner V4 sur un budget complet et stable avec split `game_id` explicite,
+  validation holdout séparée et reprise par lots, avant d'attribuer l'échec à l'encodeur structuré.
+- [À étudier] Tester une capacité V4 plus petite ou un curriculum phase/action, en gardant le même
+  dataset et le même panel, afin de séparer sous-entraînement et mauvaise représentation.
+- [À conserver] La contrainte d'initialisation depuis zéro, la vérification architecture profil/
+  checkpoint et la validation batchée avec v002 comme référence.
+
 ## Pistes abandonnées
 
 - [À supprimer] Pondération globale `play_card`, conservation globale des logits, mélange DAgGER divergent ou calibration globale sans attribution causale.
