@@ -98,6 +98,7 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 | exp-00058 | Rejetée | Mélange DAgGER v002/v008 sur les états divergents : v002 et Random protégés au screening, mais aucune hausse moyenne et runtime/inférence en hausse. |
 | exp-00059 | Rejetée | Pondération ciblée `play_card` depuis v002 : +4 points contre v002, mais v007 -5, v008 -1 et runtime médian +45,4 %. |
 | exp-00060 | Rejetée | Pondération PLAY conservatrice (1,10, 1 000 décisions) : Random +2 et v002 +4, mais v007/v008 -8 et runtime +3,7 %. |
+| exp-00061 | Analyse terminée | Holdout diagnostique masqué de 13 816 décisions : dérive v007 concentrée en PLAY/cartes, erreurs souvent confiantes, calibration ECE v007 0,171 et v008 0,027 ; aucune candidate. |
 
 ## Pistes écartées
 
@@ -287,6 +288,31 @@ Ordre des expériences :
   pondération de type d'action comme approximation.
 - [À supprimer] Toute nouvelle variation `play_card` globale ou sélectionnée sur le duel v002,
   Random ou v008 seul. v002 reste la référence active.
+
+## Expérience exp-00061 — analyse terminée
+
+- [Terminé] Mesurer v002 sur 80 parties indépendantes par référence (v001, v007, v008, Random),
+  avec 13 816 décisions visibles, loss/accuracy/Brier/ECE par phase, action et carte, couverture,
+  confiance, logits et états représentatifs.
+- [Résultat] L'accord est 83,48 % avec v001, 66,23 % avec v007 et 79,74 % avec v008. v007 est
+  faible surtout en PLAY (60,27 %), `play_card` (50,95 %) et `activate_champion` (29,96 %) ; les
+  erreurs carte v007 les plus nettes sont `blaster`, `infinity_shard`, `legionnaire_korvus`,
+  `chevalier_le_shai` et `li_hin_la_brisee`.
+- [Résultat] Les désaccords sont parfois très confiants (jusqu'à 0,987 dans les exemples v007).
+  Le dataset reste PLAY-heavy (71,75 %) et les slices rares sont insuffisantes ; les logits bruts
+  sont saturés et ne doivent pas être comparés entre versions.
+- [Conservé] Utiliser ce diagnostic pour fixer un budget de décisions modifiées et une correction
+  bornée par carte ; ne pas sélectionner une candidate sur l'accuracy offline ou v008 seul.
+
+## Nouvelles idées après exp-00061
+
+- [À privilégier] Construire un holdout par `game_id` plus large, équilibré par phase/action, puis
+  estimer des intervalles pour les slices PLAY/cartes v007 avant entraînement.
+- [À étudier] Tester une protection stricte de l'argmax v002 hors des cartes attribuées, avec un
+  budget de changements fixé avant l'apprentissage et arrêt précoce sur calibration/holdout.
+- [À étudier] Collecter délibérément davantage de décisions `recruit_mercenary`,
+  `choose_pending_decision` et de cartes rares ; ne pas leur appliquer de pondération tant que la
+  couverture ne dépasse pas un seuil explicite.
 
 ## Expérience exp-00059 — rejetée
 
