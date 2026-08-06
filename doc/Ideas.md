@@ -488,6 +488,28 @@ hypothèse et comparer la candidate à la dernière version neural active.
 
 ### Recherche et décision
 
+## Expérience exp-00041 — rejetée
+
+- [Terminé] Tester une sélection de données d’imitation v008 depuis v002 fondée uniquement sur une
+  marge teacher d’au moins `2,0` points contre la meilleure alternative légale, vérifiée sur toutes
+  les actions de chaque état. Les parties ont été séparées déterministiquement en train/holdout et
+  aucune pondération d’action n’a été appliquée.
+- [Résultat] La collecte contient `14 118` décisions sur `93` parties ; `4 610` états ont été
+  retenus (`3 765` train, `845` holdout). Le holdout atteint `93,96 %` top-1 et `92,23 %` pairwise,
+  mais le panel de screening donne Random `-8,0`, v007 `-2,0` et v008 `-6,0` points contre v002.
+  Le benchmark comparable passe de `10,0496 s` à `10,1379 s` (`+0,88 %`).
+- [Supprimé] Ne pas promouvoir cette candidate ni reprendre le seuil de marge seul : une marge
+  teacher élevée et une bonne accuracy holdout ne garantissent pas la force en partie.
+
+## Suites issues d’exp-00041
+
+- [À privilégier] Comparer les erreurs holdout par action et par matchup avant tout nouvel
+  entraînement, en recherchant les labels à forte marge qui déplacent BUY/PLAY contre v007 et Random.
+- [À étudier] Tester une représentation ou une loss qui conserve explicitement les décisions v002
+  hors des états ciblés, avec un ablation sans filtre pour mesurer l’effet propre de la marge.
+- [À supprimer] Les sélections historiques fondées sur la seule marge teacher, la seule accuracy
+  holdout ou un panel court ne doivent pas être considérées comme promotion evidence.
+
 - [À étudier] Ajouter une recherche Monte Carlo ou Monte Carlo Tree Search limitée par un budget de
   temps, avec le réseau comme politique/prior et éventuellement comme estimateur de valeur.
 - [À étudier] Comparer une décision gloutonne, une moyenne de rollouts, une recherche par action et
