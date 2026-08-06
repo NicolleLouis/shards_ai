@@ -338,3 +338,16 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
 - [À privilégier] Instrumenter et reprendre V4 par micro-lots atomiques avant une nouvelle hypothèse.
 - [À étudier] Holdout V4 indépendant par `game_id` et budgets ciblés prédéclarés avec panel complet.
 - [À supprimer] Toute conclusion de force fondée sur le fallback 1 000 ou le seul gain v008/v002.
+
+## Expérience exp-00083 — structured_semantic_v4 ciblée — rejetée
+
+- [Terminé] Correction de exp-00082 : imitation V4 from-scratch sur le dataset disponible, split `game_id`, avec pondération ciblée `gain_mastery`/`recruit_mercenary` et checkpoint V4 complété.
+- [Résultat] Le panel batché régresse Random `-95`, v007 `-55`, v008 `-15` et v002 `-60` points ; aucune promotion.
+- [Résultat] Runtime v002/V4 contre v008 : `1,8358 s` / `1,6956 s`, mais les trajectoires ont moins de décisions/actions ; le gain de temps ne compense pas la régression qualité.
+- [À supprimer] Reprendre la pondération ciblée seule sans holdout `game_id`, budget de dérive et micro-lots atomiques.
+
+## Nouvelles idées après exp-00083
+
+- [À privilégier] Matérialiser un holdout V4 indépendant par `game_id` avant une nouvelle variation d'objectif.
+- [À étudier] Profiler séparément entraînement et inférence V4, puis reprendre par micro-lots avec checkpoints atomiques.
+- [À conserver] Initialisation nulle V4, profil/checkpoint cohérents, validation batchée et v002 comme référence.
