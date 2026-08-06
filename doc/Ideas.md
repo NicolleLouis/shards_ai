@@ -290,6 +290,39 @@ hypothèse falsifiable, la référence v002, les métriques attendues et la cond
 - [À supprimer] Les campagnes PPO de quatre parties ou moins et toute conclusion de qualité fondée
   sur la seule conservation de trajectoire.
 
+## Expérience exp-00072 — analyse terminée
+
+- [Terminé] Rejouer 40 parties déterministes avec les enseignants visibles v007/v008 et analyser
+  10 830 décisions sous observation masquée, en comparant v001 et le profil neural actif v002.
+  L'analyse couvre loss, accuracy, Brier, confiance, marge, couverture par phase/action/carte,
+  désaccord d'argmax par partie et états représentatifs ; aucun checkpoint n'a été modifié.
+- [Résultat] v002 obtient une accuracy de 75,93 %, une loss moyenne de 1,1885 et 12,14 % d'erreurs
+  confiantes, contre 76,60 %, 1,3602 et 13,71 % pour v001. Le gain de loss/calibration de v002 ne
+  constitue pas une preuve de force en partie.
+- [Résultat] Les faiblesses v002 sont `gain_mastery` (49,9 %, 42,4 % d'erreurs confiantes),
+  `recruit_mercenary` (28,4 %, couverture 229), `play_card` (76,4 %, 13,8 % d'erreurs confiantes)
+  et `activate_champion` (69,2 %). Les cartes `crystal` (2 659 décisions), `li_hin_la_brisee`
+  (108) et `giga_adepte_de_la_source` (118) combinent couverture ou erreur notable ; les cartes
+  sous 20 décisions restent non attribuables.
+- [Résultat] Le désaccord d'argmax v001/v002 est de 6,48 % des décisions et apparaît dans 40/40
+  parties, mais sa fréquence par partie varie fortement. Les exemples les plus confiants sont
+  des choix PLAY où v002 choisit une carte au lieu de `gain_mastery`; cela confirme un slice
+  informative, sans établir la causalité du résultat de partie.
+- [Conservé] Ne pas entraîner sur ce diagnostic seul. Avant toute correction, construire un
+  holdout séparé par `game_id`, augmenter `gain_mastery`/`recruit_mercenary` et les cartes rares,
+  puis fixer un budget d'argmax modifiés et des intervalles par slice.
+
+## Nouvelles idées après exp-00072
+
+- [À privilégier] Collecter un holdout équilibré par phase/action et par taille d'ensemble légal,
+  avec sur-échantillonnage descriptif de `gain_mastery`, `recruit_mercenary` et des cartes rares,
+  sans réutiliser les trajectoires pour sélectionner une correction.
+- [À étudier] Vérifier si les erreurs `gain_mastery` contre `play_card` persistent après contrôle
+  du nombre d'actions légales et du profil teacher v007/v008 ; seulement ensuite tester une
+  calibration ou protection bornée de v002.
+- [À supprimer] Toute conclusion sur une carte avec moins de 20 observations, toute comparaison
+  de logits bruts entre versions et toute promotion fondée sur cette accuracy offline.
+
 
 ## Décisions issues de la campagne exp-00050 à exp-00055
 
