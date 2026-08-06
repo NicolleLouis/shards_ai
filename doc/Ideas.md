@@ -652,3 +652,31 @@ métriques secondaires et ne peuvent pas compenser un échec de qualité.
   reprise vérifiée après chaque palier et holdout séparé.
 - [À conserver] Exiger Random, v007, v008 et neural v002, ainsi qu'un runtime comparable ; le gain
   contre Random seul ne suffit jamais.
+
+## Expérience exp-00074 — PPO — rejetée
+
+- [Terminé] Tester une continuation PPO depuis `configs/neural_profiles/v002.pt` avec
+  `gamma=0,995` et `gae_lambda=0,95`, en supprimant uniquement la pénalité KL vers v002
+  (`reference_kl_coefficient=0`). La nouveauté est de libérer l'actualisation après le signal
+  PPO non nul mais quasi nul observé en exp-00071, sans changer le moteur, les heuristiques ou le
+  masque d'information.
+- [Résultat] Le checkpoint canonique a été écrit après le premier palier atteint : 16 parties,
+  2 476 transitions, `approx_kl=0,0252`, clipping `0,1022` et perte de politique `0,0183`.
+  L'exécution prévue de 64 parties n'a pas dépassé ce palier dans l'environnement.
+- [Résultat] Le screening batché de 20 parties par adversaire donne Random `-20`, v007 `-5`,
+  v008 `-15` et neural v002 `+20` points de delta. Le gain contre v002 neural est isolé et les
+  trois références obligatoires régressent ; aucune validation longue ni promotion n'est justifiée.
+- [Résultat] Le benchmark comparable v002-v002 passe de `9,3434 s` à `9,4915 s` (`+1,59 %`),
+  avec `6 774` contre `7 085` actions et une inférence de `3,4492 s` à `3,4072 s`.
+- [Supprimé] Ne pas reprendre la suppression KL seule : elle libère bien une dérive de politique,
+  mais cette dérive dégrade Random, v007 et v008.
+
+## Nouvelles idées après exp-00074
+
+- [À privilégier] Instrumenter et comparer les avantages, gradients et décisions modifiées par
+  phase/action sur un holdout séparé avant tout nouveau PPO ; le signal d'actualisation est réel,
+  mais sa direction est manifestement mal alignée avec les trois références.
+- [À étudier] Tester une continuation PPO avec KL non nul mais borné et une sélection par holdout
+  indépendant, uniquement si un budget d'argmax modifiés et une attribution causale sont définis.
+- [À supprimer] Toute suppression globale de KL, toute campagne PPO interrompue avant un budget
+  comparable et tout gain contre le seul adversaire neural v002.
