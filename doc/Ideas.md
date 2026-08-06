@@ -30,6 +30,7 @@ complets, les métriques et les commandes sont conservés dans `doc/Experiments/
 | exp-00044 | Analyse terminée | Sur 6 246 états principaux visités par v002, `recruit_mercenary` reste à 22,38 %, les erreurs PLAY confiantes persistent et les logits v001/v002 ne sont pas comparables entre versions. Aucun checkpoint n’a été modifié. |
 | exp-00040 | Rejetée | La bonne accuracy holdout et le gain contre Random ne compensent pas la régression v007 ni le ralentissement de 13,57 %. |
 | exp-00041 | Rejetée | Une marge teacher élevée seule ne garantit pas une meilleure politique en partie. |
+| exp-00045 | Rejetée | La correction ciblée de `recruit_mercenary` améliore v001 mais régresse v007, v008 et v002, avec un ralentissement médian de 61,3 %. |
 
 Les expériences antérieures sont également disponibles dans `doc/Experiments/`, mais ne doivent pas
 être reprises à l’identique sans nouvelle hypothèse ou nouveau protocole.
@@ -124,3 +125,24 @@ ci-dessus et détaillée dans son rapport d’expérience.
   configuré a été exclu car il utilisait le profil heuristique v001, pas `RandomPlayer`.
 - [Suite] Confirmer `buy_card`/`recruit_mercenary` et les erreurs PLAY confiantes sur un holdout
   indépendant avant tout entraînement.
+
+## Expérience exp-00045 — rejetée
+
+- [Terminé] Tester une imitation depuis v002 sur `15 052` décisions de `103` parties, séparées par
+  `game_id`, avec teacher v008 contre Random/v007 et une surpondération limitée aux décisions
+  `BuyCard`/`RecruitMercenary` ciblées (`2,0`); BUY/PLAY et les autres actions restent uniformes.
+- [Résultat] Le panel apparié de 20 parties donne Random `0,0`, v007 `-5,0`, v008 `-5,0` et v002
+  `-5,0` points; le gain contre v001 (`+15,0`) ne généralise pas. La médiane du benchmark v002-v002
+  passe de `27,9335 s` à `45,0660 s` sur 50 parties (`-38,04 %` de débit).
+- [Supprimé] Ne pas promouvoir v009; ne pas reprendre la surpondération mercenaire seule sans
+  corriger la dérive de politique et le coût d'inférence/partie.
+
+## Suites issues d'exp-00045
+
+- [À privilégier] Construire un holdout par partie avec attribution des décisions changées par
+  catégorie et matchup avant tout nouvel entraînement; vérifier si la correction mercenaire déplace
+  des décisions PLAY ou BUY hors de la cible.
+- [À étudier] Tester une distillation locale qui conserve explicitement les sorties de v002 hors des
+  états mercenaires ciblés, avec une ablation sans surpondération et un budget de changements borné.
+- [À étudier] Mesurer séparément le coût d'inférence de la candidate et le nombre d'actions avant de
+  poursuivre une piste qualité; toute candidate doit rester comparable à v002 sur le benchmark.
