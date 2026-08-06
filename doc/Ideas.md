@@ -147,3 +147,27 @@ hypothèse falsifiable, la référence v002, les métriques attendues et la cond
   complète contre Random, v007, v008 et v002.
 - [À supprimer] Les résidus bornés ou gains de runtime acceptés malgré une forte baisse contre
   Random/v002 ; ne pas utiliser v001 seul comme critère de sélection.
+
+## Expérience exp-00052 — rejetée
+
+- [Terminé] Tester une imitation depuis v002 avec une régularisation KL de `0,5` vers la politique
+  active v002 sur chaque état et chaque action légale. Cette correction concrète des dérives des
+  résidus d'exp-00050/00051 conserve le même scorer `global_candidate_context`, utilise Adam réinitialisé,
+  un taux d'apprentissage réduit à `1e-4` et un split par `game_id`.
+- [Résultat] Sur 100 parties par adversaire, Random progresse de `+1,0` point, mais v007 régresse de
+  `-1,0` et la garde v008 de `-3,0` ; le panel direct contre v002 donne `+17,0` points mais ne
+  compense pas les références heuristiques actives. Le benchmark comparable passe de `9,2263 s`
+  et `16 739` actions à `9,1367 s` et `16 544` actions sur 50 parties.
+- [Supprimé] Ne pas promouvoir cette régularisation globale : elle réduit le coût mesuré mais ne
+  démontre pas une force supérieure contre v007 et v008.
+
+## Suites issues d'exp-00052
+
+- [À privilégier] Mesurer les décisions effectivement changées par la pénalité KL, par phase et type
+  d'action, avant de retenter une contrainte de conservation ; conditionner éventuellement la KL aux
+  états hors slices ciblées tout en conservant un budget explicite de dérive.
+- [À étudier] Tester une température ou une cible de distillation calibrée sur les logits v002, avec
+  une validation holdout indépendante des états changés ; ne pas confondre la KL avec une garantie de
+  conservation de l'argmax.
+- [À supprimer] Toute nouvelle imitation globale avec seulement un taux d'apprentissage différent,
+  ou toute promotion fondée sur le gain contre v002 neural seul.
