@@ -219,3 +219,28 @@ hypothèse falsifiable, la référence v002, les métriques attendues et la cond
 - [À étudier] Augmenter la couverture des cartes rares avant de leur appliquer une pondération.
 - [À supprimer] Toute sélection fondée sur l'accuracy offline, v008 seul ou les logits bruts
   inter-version ; ne pas reprendre une loss globale sans attribution de dérive.
+
+## Expérience exp-00055 — rejetée
+
+- [Terminé] Tester une architecture `phase_action_interaction_v1` depuis v002 : ajouter un biais
+  scalaire phase×type d'action initialisé à zéro au scorer contextuel, sur un dataset masqué v008
+  contre Random/v007 séparé par `game_id`. La famille est `architecture`; la nouveauté est de rendre
+  explicite l'interaction phase/action sans reprendre le biais global par type d'exp-00053.
+- [Résultat] La validation complète de 100 parties par adversaire donne Random `-2,0` points,
+  v007 `+2,0`, v008 `+3,0` et v002 neural `+1,0`; la régression v001 est `-5,0`. La moyenne des
+  cinq deltas est `-0,2` point : la candidate est rejetée malgré les gains sur v007/v008/v002.
+- [Résultat] Le benchmark comparable médian sur 50 parties contre v002 passe de `9,6103 s` et
+  `16 883` actions à `9,5426 s` et `17 029` actions, soit un débit de `5,2028` à `5,2397` parties/s.
+  Le petit gain de temps ne compense pas la non-régression Random manquée.
+- [Supprimé] Ne pas promouvoir cette candidate ni reprendre un biais phase×action sans une nouvelle
+  hypothèse et une correction concrète de la dérive Random.
+
+## Suites issues d'exp-00055
+
+- [À privilégier] Analyser la dérive de la candidate par phase/type d'action et conserver uniquement
+  les couples responsables des gains v007/v008 si une prochaine expérience protège explicitement
+  Random et v002.
+- [À étudier] Tester un budget de décisions modifiées ou un gel sélectif des poids v002 hors slices
+  PLAY confirmées, avec le même panel complet et le même benchmark runtime.
+- [À supprimer] Toute promotion fondée sur les seuls gains v007/v008/v002, l'augmentation d'actions
+  ou le gain de débit.
