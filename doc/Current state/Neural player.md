@@ -60,7 +60,9 @@ Le chemin CPU du modèle batch les embeddings des cartes distinctes par décisio
 recalculer plusieurs fois les mêmes cartes dans les zones et les actions. Les caractéristiques
 sémantiques statiques du catalogue sont stockées dans un buffer de modèle non persisté et
 sélectionnées par index à chaque décision, ce qui réduit les allocations sans modifier le
-checkpoint ni le résultat observable. Le script d'entraînement
+checkpoint ni le résultat observable. En évaluation sous `torch.inference_mode()`, les vecteurs
+d'embedding fusionnés sont maintenant conservés par scorer pour éviter leur reconstruction entre
+décisions ; ce cache n'est pas utilisé pendant l'entraînement. Le script d'entraînement
 utilise par défaut un thread PyTorch (`--torch-threads`) adapté aux petits forwards successifs ;
 ce paramètre reste configurable pour les autres machines et workloads.
 

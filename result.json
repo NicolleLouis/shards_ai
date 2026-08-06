@@ -1,0 +1,85 @@
+{
+  "experiment_id": "exp-00068",
+  "experiment_family": "performance",
+  "experiment_kind": "performance",
+  "status": "accepted",
+  "hypothesis": "Caching the deterministic card embedding vectors between inference decisions will reduce repeated PyTorch embedding and semantic-encoder work without changing the checkpoint, training path, or observable game trajectory.",
+  "novelty": "The repository history contains runtime measurements embedded in quality experiments but no dedicated performance-family experiment. This pass isolates an inference-only cache with the same v002 checkpoint and fixed game workload.",
+  "selected_idea": {
+    "idea": "Reuse static scorer card embeddings across NeuralPlayer evaluation decisions.",
+    "reason": "The cProfile baseline identified repeated _embedding_lookup/_card_embeddings work as a hot path; the vectors depend only on frozen evaluation weights and card definitions."
+  },
+  "performance": {
+    "protocol": {
+      "games": 50,
+      "seeds": "0..49",
+      "player": "v002 NeuralPlayer",
+      "opponent": "v002 NeuralPlayer",
+      "checkpoint": "configs/neural_profiles/v002.pt",
+      "torch_threads": 1,
+      "repetitions": 3,
+      "aggregation": "median",
+      "max_actions": 10000,
+      "max_turns": 200
+    },
+    "baseline": {
+      "elapsed_seconds": 14.719090116966981,
+      "throughput_games_per_second": 3.3969491050512715,
+      "neural_inference_seconds": 5.777275001601083,
+      "total_actions": 17587,
+      "neural_decisions": 8770,
+      "repetitions_elapsed_seconds": [14.569914002058795, 14.719090116966981, 14.78783298007329]
+    },
+    "candidate": {
+      "elapsed_seconds": 12.988591678004013,
+      "throughput_games_per_second": 3.849532053938862,
+      "neural_inference_seconds": 4.964674497954547,
+      "total_actions": 17587,
+      "neural_decisions": 8770,
+      "repetitions_elapsed_seconds": [12.939106739970157, 13.03024313916103, 12.988591678004013]
+    },
+    "elapsed_delta_seconds": -1.730498438962968,
+    "relative_elapsed_change": -0.11756830247055752,
+    "relative_throughput_change": 0.13326461306975525,
+    "relative_inference_change": -0.1406546344810202,
+    "gate": "accepted: median elapsed time improved by 11.76%, exceeding the 2% performance threshold"
+  },
+  "metrics": {
+    "baseline_elapsed_seconds": 14.719090116966981,
+    "candidate_elapsed_seconds": 12.988591678004013,
+    "elapsed_seconds_reduction": 1.730498438962968,
+    "elapsed_seconds_reduction_percent": 11.756830247055752,
+    "baseline_throughput_games_per_second": 3.3969491050512715,
+    "candidate_throughput_games_per_second": 3.849532053938862,
+    "throughput_increase_percent": 13.326461306975525,
+    "baseline_inference_seconds": 5.777275001601083,
+    "candidate_inference_seconds": 4.964674497954547,
+    "inference_reduction_percent": 14.06546344810202,
+    "actions_and_decisions_unchanged": true
+  },
+  "analysis": {
+    "change": "Added an inference-only per-scorer cache in shards_ai/ai/neural_model.py. Missing card vectors are computed once and reused; training mode and gradient-enabled execution use the original uncached path.",
+    "attribution": "The baseline profile put 0.473 seconds in _embedding_lookup and 0.383 seconds in _card_embeddings over five representative games, while NeuralPlayer scoring dominated the runtime. The candidate keeps the same checkpoint, seeds, players, action limit, thread count and action/decision counts, so the elapsed reduction is attributable to avoiding repeated static embedding computation.",
+    "quality_evidence_used": false,
+    "performance_gate_only": true
+  },
+  "future_ideas": [
+    "Profile the remaining encode_observation, pooling and action-representation costs before another runtime change.",
+    "Measure actual reuse before considering a bounded cache for immutable action representations.",
+    "Reject any pooling shortcut that changes trajectories or any cache that is not safely invalidated during training."
+  ],
+  "validation": {
+    "tests": "PYTHONPATH=. poetry run pytest -q",
+    "result": "307 passed",
+    "diff_check": "git diff --check"
+  },
+  "commands": {
+    "benchmark": "PYTHONPATH=. poetry run python benchmarks/benchmark_neural_players.py --checkpoint configs/neural_profiles/v002.pt --opponent neural --opponent-checkpoint configs/neural_profiles/v002.pt --games 50 --seed 0 --torch-threads 1 --output <result.json>",
+    "profile": "PYTHONPATH=. poetry run python -m cProfile -s cumulative -o /tmp/shards-exp-performance/baseline.prof benchmarks/benchmark_neural_players.py --checkpoint configs/neural_profiles/v002.pt --opponent neural --opponent-checkpoint configs/neural_profiles/v002.pt --games 5 --seed 0 --torch-threads 1"
+  },
+  "changed_files": [
+    "shards_ai/ai/neural_model.py",
+    "doc/Current state/Neural player.md",
+    "doc/Ideas.md"
+  ]
+}

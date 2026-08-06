@@ -188,6 +188,26 @@ hypothèse falsifiable, la référence v002, les métriques attendues et la cond
   checkpoint avec absence d'effet de l'objectif.
 - [À conserver] Le contrôle v002/v002 et les métriques de runtime restent la référence comparable.
 
+## Expérience exp-00068 — performance — acceptée
+
+- [Terminé] Tester une cache des embeddings statiques de cartes dans `NeuralActionScorer`, active
+  uniquement en mode évaluation sans gradient ; l'entraînement conserve le chemin non caché.
+- [Résultat] Sur 50 parties v002 contre v002, seeds `0..49`, un thread PyTorch et trois répétitions,
+  la médiane passe de `14,7191 s` à `12,9886 s` (`-11,76 %`) et l'inférence de `5,7773 s` à
+  `4,9647 s` (`-14,07 %`). Les `17 587` actions et `8 770` décisions sont identiques.
+- [Conservé] Le gain est attribuable à la suppression des reconstructions répétées des embeddings
+  déterministes pendant les décisions ; aucun moteur, joueur heuristique, masque, checkpoint ou
+  objectif d'entraînement n'a été modifié.
+
+## Suites après exp-00068
+
+- [À privilégier] Profiler séparément le coût restant de `encode_observation`, du pooling et de la
+  construction des représentations d'actions avant une nouvelle optimisation runtime.
+- [À étudier] Évaluer une réutilisation bornée des représentations d'actions uniquement si elle peut
+  respecter les identifiants et l'état observable ; mesurer d'abord son taux réel de réutilisation.
+- [À supprimer] Toute modification de pooling qui change les trajectoires ou toute cache active en
+  entraînement sans stratégie explicite d'invalidation.
+
 
 ## Décisions issues de la campagne exp-00050 à exp-00055
 

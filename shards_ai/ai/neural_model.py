@@ -119,6 +119,12 @@ class NeuralActionScorer(nn.Module):
             ),
             persistent=False,
         )
+        # Card embeddings depend only on the frozen scorer weights and the card
+        # definition.  NeuralPlayer runs the scorer in eval/inference mode, so
+        # retain the vectors between decisions instead of rebuilding them for
+        # every observation.  Training keeps the uncached path because its
+        # parameters change after every optimizer step.
+        self._inference_card_embedding_cache: dict[str | None, Tensor] = {}
 
     def forward(self, observation: NeuralObservation, actions: Sequence[ActionRepresentation]) -> Tensor:
         return self.scores_for_actions(observation, actions)
@@ -209,6 +215,22 @@ class NeuralActionScorer(nn.Module):
         return dict(zip(unique_ids, self._card_embeddings(unique_ids)))
 
     def _card_embeddings(self, card_ids: Sequence[str | None]) -> Tensor:
+        if not self.training and not torch.is_grad_enabled():
+            missing_ids = [
+                card_id for card_id in dict.fromkeys(card_ids)
+                if card_id not in self._inference_card_embedding_cache
+            ]
+            if missing_ids:
+                computed = self._card_embeddings_uncached(missing_ids)
+                self._inference_card_embedding_cache.update(
+                    zip(missing_ids, computed.unbind())
+                )
+            return torch.stack(
+                [self._inference_card_embedding_cache[card_id] for card_id in card_ids]
+            )
+        return self._card_embeddings_uncached(card_ids)
+
+    def _card_embeddings_uncached(self, card_ids: Sequence[str | None]) -> Tensor:
         indices = torch.tensor(
             [self.card_to_index.get(card_id or "", self.unk_card_index) for card_id in card_ids],
             dtype=torch.long, device=self.device,
