@@ -106,6 +106,7 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 | exp-00066 | Analyse terminée | La difficulté de v002 augmente avec la compétition de l’ensemble légal : accuracy v007 64,7 %, erreurs confiantes 20,7 %, et dérive d’argmax v001/v002 7,7 % ; le signal reste surtout PLAY/gain_mastery et cartes. |
 | exp-00067 | Rejetée | Continuation PPO courte depuis v002 avec horizon GAE v002, sans shaping v003 : aucun checkpoint candidat sauvegardé dans l'environnement ; le contrôle v002/v002 est neutre et la recette doit être reprise seulement avec une collecte instrumentée. |
 | exp-00069 | Rejetée | Reprise PPO instrumentée depuis v002 : le processus est encore arrêté avant le premier checkpoint, donc aucune force apprise n'est mesurable ; le contrôle v002/v002 reste neutre en qualité et plus lent au second passage. |
+| exp-00070 | Rejetée | Petit pas d'imitation sur dataset frais v007/v008 : Random -5 points et v007 -25 malgré v008 +5 et v002 +15 ; runtime -1,9 %. |
 
 ## Expérience exp-00065 — rejetée
 
@@ -233,6 +234,31 @@ hypothèse falsifiable, la référence v002, les métriques attendues et la cond
   la recette `exp-00069` depuis v002.
 - [À conserver] Le protocole de qualité doit toujours mesurer Random, v007, v008 et v002, avec
   validation batchée dès que le panel dépasse 20 parties et un benchmark runtime comparable.
+
+## Expérience exp-00070 — imitation — rejetée
+
+- [Terminé] Tester une mise à jour d'imitation bornée depuis `configs/neural_profiles/v002.pt` avec
+  Adam réinitialisé, `1 000` décisions maximum, taux `1e-5`, et un dataset frais équilibrant les
+  labels v007/v008. Cette hypothèse corrige les mises à jour plus larges des expériences 00059,
+  00060 et 00064 en limitant simultanément le budget de données et le pas d'apprentissage.
+- [Résultat] Sur le screening reproductible de 20 parties par adversaire contre la référence active
+  v002, les deltas sont Random `-5`, v007 `-25`, v008 `+5` et neural v002 `+15` points. Le gain
+  v008/v002 ne protège pas les références obligatoires ; aucune promotion n'est justifiée.
+- [Résultat] Le benchmark comparable v002-v002 sur 20 parties donne `11,9271 s` pour la baseline
+  et `11,7022 s` pour la candidate (`-1,9 %`), avec `6 662` contre `6 260` actions et `4,3824 s`
+  contre `4,3485 s` d'inférence. Le léger gain de temps ne compense pas la régression de force.
+- [Supprimé] Ne pas reprendre un simple petit pas d'imitation depuis v002, même avec un dataset frais
+  ou un taux inférieur, sans holdout d'attribution montrant quelles décisions peuvent changer sans
+  dégrader Random et v007.
+
+## Nouvelles idées après exp-00070
+
+- [À privilégier] Reprendre l'analyse de dérive par `game_id`, taille d'ensemble légal, phase/action
+  et carte avant toute nouvelle candidate ; fixer un budget d'argmax modifiés et un holdout séparé.
+- [À étudier] Diagnostiquer enfin le terminateur PPO avec un rollout d'une seule partie, écriture
+  atomique externe et smoke test de reprise avant toute campagne plus longue depuis v002.
+- [À conserver] La validation qualité doit comparer Random, v007, v008 et v002 ; le runtime reste
+  une mesure obligatoire mais ne peut pas compenser une régression de force.
 
 
 ## Décisions issues de la campagne exp-00050 à exp-00055
