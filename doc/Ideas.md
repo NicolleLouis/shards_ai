@@ -34,6 +34,7 @@ complets, les métriques et les commandes sont conservés dans `doc/Experiments/
 | exp-00046 | Rejetée | La distillation locale ancrée sur v002 hors états mercenaires réduit le temps de partie, mais régresse Random, v007 et v002 sur la validation longue. |
 | exp-00047 | Rejetée | L’ancrage local de v002 sur les alternatives hors achat/recrutement ciblés ne corrige pas la dérive : Random, v007, v008 et v002 régressent malgré un gain contre v001. |
 | exp-00048 | Rejetée | La distillation ranking-only depuis v002 protège v008 (+1 point), mais régresse Random (-4), v007 (-3) et v002 (-7) ; retirer la loss d’action choisie ne stabilise pas la politique. |
+| exp-00049 | Analyse terminée | Le holdout indépendant de 80 parties confirme les faiblesses par catégorie : `play_card`/`crystal`, bannissement et `recruit_mercenary`; les erreurs face à v007 sont souvent confiantes. Aucun checkpoint n’a été modifié. |
 
 Les expériences antérieures sont également disponibles dans `doc/Experiments/`, mais ne doivent pas
 être reprises à l’identique sans nouvelle hypothèse ou nouveau protocole.
@@ -217,3 +218,24 @@ ci-dessus et détaillée dans son rapport d’expérience.
   split, avec un budget de changements et une validation contre v002 avant le panel complet.
 - [À garder] Maintenir v002 comme référence active ; le gain contre v008 seul ne suffit pas à
   accepter une candidate qui régresse Random, v007 ou v002.
+
+## Expérience exp-00049 — analyse terminée
+
+- [Terminé] Construire un holdout indépendant par partie et seed : 80 parties, 20 contre v001,
+  v007, v008 et `RandomPlayer`, 19 622 annotations visibles.
+- [Résultat] v002 atteint 83,98 % contre v001, 81,22 % contre v008 et 67,36 % contre v007 ; les
+  erreurs à confiance >= 0,8 sont respectivement 1,06 %, 1,79 % et 11,49 %. `recruit_mercenary`
+  reste faible face à v007/v008 et `play_card` concentre les erreurs confiantes contre v007.
+- [Sélection] Idée choisie : corriger le biais des exp-00039/44 par un holdout indépendant et une
+  calibration intra-état, sans entraînement.
+- [Conservé] Le protocole, les limites et les recommandations sont dans
+  `doc/Experiments/exp-00049.md`; le détail brut reste temporaire hors dépôt.
+
+## Suites issues d'exp-00049
+
+- [À privilégier] Étendre le holdout avec un échantillonnage équilibré par phase/action, puis mesurer
+  ECE/Brier et reliability bins sur les erreurs PLAY confiantes.
+- [À étudier] Distinguer les erreurs de type d'action et de carte pour `crystal`, `moine_du_portail`,
+  `ojas`, `recruit_mercenary` et `banish_card`.
+- [À garder] Toute correction future doit borner les décisions modifiées et repasser d'abord une
+  comparaison directe contre v002 ; les labels heuristiques ne suffisent pas à justifier une cible.
