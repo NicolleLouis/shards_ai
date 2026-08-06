@@ -33,6 +33,7 @@ complets, les métriques et les commandes sont conservés dans `doc/Experiments/
 | exp-00045 | Rejetée | La correction ciblée de `recruit_mercenary` améliore v001 mais régresse v007, v008 et v002, avec un ralentissement médian de 61,3 %. |
 | exp-00046 | Rejetée | La distillation locale ancrée sur v002 hors états mercenaires réduit le temps de partie, mais régresse Random, v007 et v002 sur la validation longue. |
 | exp-00047 | Rejetée | L’ancrage local de v002 sur les alternatives hors achat/recrutement ciblés ne corrige pas la dérive : Random, v007, v008 et v002 régressent malgré un gain contre v001. |
+| exp-00048 | Rejetée | La distillation ranking-only depuis v002 protège v008 (+1 point), mais régresse Random (-4), v007 (-3) et v002 (-7) ; retirer la loss d’action choisie ne stabilise pas la politique. |
 
 Les expériences antérieures sont également disponibles dans `doc/Experiments/`, mais ne doivent pas
 être reprises à l’identique sans nouvelle hypothèse ou nouveau protocole.
@@ -193,3 +194,26 @@ ci-dessus et détaillée dans son rapport d’expérience.
   `recruit_mercenary` confirmées par un holdout indépendant; conserver un contrôle sans correction.
 - [À supprimer] Tout ancrage MSE local ou global qui ne protège pas Random, v007, v008 et v002 sur
   la validation longue; le gain contre v001 seul ne constitue pas une preuve de qualité.
+
+## Expérience exp-00048 — rejetée
+
+- [Terminé] Tester une distillation ranking-only depuis v002, avec Adam réinitialisé, taux
+  d'apprentissage `5e-6`, dataset train d'exp-00047 séparé par `game_id`, et poids `ranking=1.0`,
+  `chosen_action=0.0`; aucune pondération d'action, modification de représentation ou garde
+  mercenaire supplémentaire n'a été ajoutée.
+- [Résultat] Le benchmark v002 contre v002 passe de `23,0237 s` à `22,9718 s` sur 50 parties,
+  mais la candidate suit `17 839` actions contre `17 247` et son win-rate direct passe de `52 %` à
+  `44 %`. Sur 100 parties par adversaire, les deltas sont Random `-4,0`, v007 `-3,0`, v008 `+1,0`
+  et v002 `-7,0` points.
+- [Supprimé] Ne pas promouvoir v012 ; ne pas reprendre ranking-only sans une contrainte explicite
+  sur les décisions changées et une analyse holdout indépendante par phase/action.
+
+## Suites issues d'exp-00048
+
+- [À privilégier] Construire l'attribution holdout des décisions changées par phase et type d'action,
+  puis tester une régularisation de la politique v002 uniquement sur les états où la candidate
+  change effectivement le choix.
+- [À étudier] Comparer une ablation `chosen_action` faible mais non nulle à ranking-only sur le même
+  split, avec un budget de changements et une validation contre v002 avant le panel complet.
+- [À garder] Maintenir v002 comme référence active ; le gain contre v008 seul ne suffit pas à
+  accepter une candidate qui régresse Random, v007 ou v002.
