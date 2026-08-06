@@ -94,6 +94,7 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 | exp-00053 | Rejetée | Biais global par type d'action : régressions v007, v002 et coût d'inférence accru. |
 | exp-00054 | Analyse terminée | 15 711 décisions : erreurs v007 concentrées en PLAY, cartes rares sous-couvertes. |
 | exp-00055 | Rejetée | Interaction phase×action : gains v007/v008/v002, mais Random régresse et moyenne -0,2 point. |
+| exp-00056 | Rejetée | Le résidu phase×action avec base v002 gelée protège v002, mais régresse Random et v007 ; runtime légèrement supérieur. |
 
 ## Pistes écartées
 
@@ -190,6 +191,28 @@ Ordre des expériences :
 - [Ciblage] Si la régression Random est localisée, limiter le biais aux couples attribués et protéger
   explicitement les autres états par conservation de l'action ou des logits v002. Ne pas élargir la
   correction à toutes les phases sans preuve issue de l'analyse.
+
+### Expérience exp-00056 — rejetée
+
+- [Terminé] Tester une correction d'exp-00055 avec tous les poids du scorer contextuel v002 gelés et
+  seulement un résidu scalaire phase×type d'action de 72 paramètres, initialisé à zéro, entraîné sur
+  20 000 décisions du dataset v008 contre Random/v007.
+- [Résultat] Sur 100 parties par adversaire, Random `-1,0` point, v007 `-2,0`, v008 `+1,0`, v002
+  neural `0,0` et v001 `-1,0`. La moyenne des cinq adversaires est `-0,6` point : rejet.
+- [Résultat] Le benchmark médian v002-v002 de 50 parties passe de `10,1959 s` à `10,6544 s`, avec
+  `18 216` contre `18 181` actions et `4,0100 s` contre `4,3518 s` d'inférence.
+- [Supprimé] Ne pas promouvoir ni reprendre le résidu phase×action seul : le gain v008 ne compense
+  pas les régressions Random/v007.
+
+## Suites issues d'exp-00056
+
+- [À privilégier] Attribuer les états où le résidu change effectivement l'argmax v002, par phase,
+  action et carte, avant toute nouvelle correction ; vérifier si les régressions Random/v007 viennent
+  de quelques couples ou d'un effet diffus.
+- [À étudier] Si une slice causale est confirmée, tester une correction bornée qui conserve l'argmax
+  v002 hors de cette slice et mesurer un budget de décisions modifiées sur un holdout par `game_id`.
+- [À conserver] Le gel de la base reste un contrôle utile pour les futurs résidus, mais n'est pas une
+  amélioration de force dans ce protocole.
 
 Critères de succès : gain reproductible sur une ou plusieurs slices ciblées, absence de régression
 robuste contre Random, v002, v007 et v008, et dérive d'argmax v002 dans le budget fixé. Critères de
