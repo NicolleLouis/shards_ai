@@ -103,6 +103,7 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 | exp-00063 | Rejetée | DAgGER on-policy priorisé sur quatre catégories : v008 +5 et v002 neural +2, mais Random -5, v007 -1 et runtime +3,6 %. |
 | exp-00064 | Rejetée | Imitation conservatrice depuis v002 (1e-5, 10 000 décisions) : v007 +8, mais Random -4, v008 -3 et v002 -14 ; runtime +5,0 %. |
 | exp-00065 | Rejetée | Conservation de politique par logits centrés v002 : Random +5 et v008 +10 au screening, mais v007 -20, v002 -10 et runtime médian +37,5 %. |
+| exp-00066 | Analyse terminée | La difficulté de v002 augmente avec la compétition de l’ensemble légal : accuracy v007 64,7 %, erreurs confiantes 20,7 %, et dérive d’argmax v001/v002 7,7 % ; le signal reste surtout PLAY/gain_mastery et cartes. |
 
 ## Expérience exp-00065 — rejetée
 
@@ -136,6 +137,31 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 
 Toute nouvelle idée doit préciser l'axe choisi (architecture/représentation ou training), une
 hypothèse falsifiable, la référence v002, les métriques attendues et la condition de rejet.
+
+## Expérience exp-00066 — analyse terminée
+
+- [Terminé] Mesurer, sur 48 parties et 14 387 observations visibles, la compétition intra-état de
+  v002 : taille de l'ensemble légal, marge top-1/top-2, entropie, confiance, loss, Brier,
+  accuracy, désaccord d'argmax avec v001, et attribution phase/action/carte.
+- [Résultat] Sur les ensembles de 2 actions, l'accuracy est 84,4 %, contre 58,4 % à 7 actions et
+  54,6 % à 9 actions. Les erreurs sur 3-4 actions sont particulièrement confiantes (23,3 % et
+  27,6 % au seuil 0,8).
+- [Résultat] `gain_mastery` atteint 47,8 % d'accuracy avec 44,2 % d'erreurs confiantes,
+  `play_card` 72,8 % et `recruit_mercenary` 19,9 % sur 306 exemples. Les cartes faibles restent
+  trop peu couvertes pour une correction isolée.
+- [Résultat] v002 et v001 changent d'argmax sur 7,7 % des décisions ; le taux atteint 20,1 % pour
+  les ensembles de 9 actions, mais seulement 6,9 % sur les trajectoires v007 et 8,7 % sur v008.
+- [Conservé] Avant tout entraînement, fixer un budget de dérive par taille d'ensemble et vérifier
+  si une slice causale conserve son effet après stratification par partie.
+
+## Nouvelles idées après exp-00066
+
+- [À privilégier] Construire un holdout par `game_id` équilibré sur `legal_action_set_size` et
+  `phase/action`, puis estimer les intervalles de la dérive v001/v002 et de l'erreur confiante.
+- [À étudier] Si le signal reste après stratification, tester une calibration bornée uniquement sur
+  `gain_mastery`/PLAY et les ensembles de 3-4 actions, avec argmax v002 conservé ailleurs.
+- [À supprimer] Toute calibration globale fondée sur la confiance moyenne : les états à 1 action
+  gonflent artificiellement l'accuracy, et les logits inter-version ne sont pas comparables.
 
 
 ## Décisions issues de la campagne exp-00050 à exp-00055
