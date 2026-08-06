@@ -88,16 +88,6 @@ def _aggregate(records: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
-OPPONENT_ACCEPTANCE_WEIGHTS = {
-    "random": 0.10,
-    "v007": 0.20,
-    "v008": 0.50,
-}
-SOFT_OPPONENT_REGRESSION_FLOOR = -0.05
-MIN_GLOBAL_WIN_RATE_GAIN = 0.005
-MIN_MEANINGFUL_WIN_RATE_GAIN = 0.01
-
-
 def checkpoint_weights_digest(checkpoint_path: Path) -> str:
     """Return a stable digest of the model architecture and learned weights.
 
@@ -130,67 +120,38 @@ def acceptance_metrics(
     results: dict[str, dict[str, object]],
     category_results: dict[str, dict[str, object]] | None = None,
 ) -> dict[str, object]:
-    """Compute a tolerant but guarded promotion score for opponent aggregates."""
+    """Apply the quality gate once per opponent, never once per game.
+
+    V008 is a hard non-regression guard. The other condition is a strictly positive
+    arithmetic mean of the opponent-level deltas, so an opponent with more games
+    cannot silently receive more weight than another opponent.
+    """
     deltas = {opponent: float(item["delta_win_rate"]) for opponent, item in results.items()}
     if "v008" not in deltas:
         return {
             "accepted": False,
             "reason": "missing_v008_guard",
-            "weighted_delta_win_rate": None,
+            "mean_delta_win_rate": None,
             "deltas": deltas,
         }
-    weights = {opponent: weight for opponent, weight in OPPONENT_ACCEPTANCE_WEIGHTS.items() if opponent in deltas}
-    # Neural reference opponents are useful evidence but must not silently dominate V008.
-    neural_opponents = sorted(opponent for opponent in deltas if opponent.startswith("neural:"))
-    if neural_opponents:
-        neural_weight = 0.20 / len(neural_opponents)
-        weights.update({opponent: neural_weight for opponent in neural_opponents})
-    total_weight = sum(weights.values())
-    weighted_delta = sum(deltas[opponent] * weight for opponent, weight in weights.items()) / total_weight
-    soft_deltas = {
-        opponent: delta
-        for opponent, delta in deltas.items()
-        if opponent != "v008"
-    }
-    soft_floor_ok = all(delta >= SOFT_OPPONENT_REGRESSION_FLOOR for delta in soft_deltas.values())
-    meaningful_gain = any(delta >= MIN_MEANINGFUL_WIN_RATE_GAIN for delta in deltas.values())
-    category_results = category_results or {}
-    category_deltas = {
-        category: float(item.get("delta", item.get("delta_score", item.get("delta_win_rate", 0.0))))
-        for category, item in category_results.items()
-    }
-    category_weights = {category: float(item.get("weight", 1.0)) for category, item in category_results.items()}
-    category_weight_total = sum(category_weights.values())
-    category_weighted_delta = (
-        sum(category_deltas[category] * weight for category, weight in category_weights.items()) / category_weight_total
-        if category_weight_total else 0.0
-    )
-    combined_delta = weighted_delta if not category_deltas else 0.7 * weighted_delta + 0.3 * category_weighted_delta
-    meaningful_gain = meaningful_gain or any(delta >= MIN_MEANINGFUL_WIN_RATE_GAIN for delta in category_deltas.values())
+    mean_delta = sum(deltas.values()) / len(deltas)
     accepted = (
         deltas["v008"] >= 0.0
-        and soft_floor_ok
-        and combined_delta >= MIN_GLOBAL_WIN_RATE_GAIN
-        and meaningful_gain
+        and mean_delta > 0.0
     )
     return {
         "accepted": accepted,
-        "reason": "weighted_gain" if accepted else "guard_or_weighted_gain_failed",
-        "weighted_delta_win_rate": weighted_delta,
-        "category_deltas": category_deltas,
-        "category_weighted_delta": category_weighted_delta if category_deltas else None,
-        "combined_delta": combined_delta,
-        "weights": weights,
+        "reason": "mean_opponent_gain" if accepted else "v008_guard_or_mean_gain_failed",
+        "mean_delta_win_rate": mean_delta,
+        "opponent_count": len(deltas),
         "deltas": deltas,
         "v008_floor": 0.0,
-        "soft_opponent_regression_floor": SOFT_OPPONENT_REGRESSION_FLOOR,
-        "minimum_global_gain": MIN_GLOBAL_WIN_RATE_GAIN,
-        "minimum_meaningful_gain": MIN_MEANINGFUL_WIN_RATE_GAIN,
+        "minimum_mean_delta": 0.0,
     }
 
 
 def acceptance_decision(results: dict[str, dict[str, object]]) -> bool:
-    """Apply the weighted promotion rule to one aggregate result per opponent."""
+    """Apply the V008 guard and mean opponent-level gain rule."""
     return bool(acceptance_metrics(results)["accepted"])
 
 

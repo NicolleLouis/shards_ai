@@ -127,6 +127,63 @@ def _experiment_history(repo: Path) -> list[dict[str, Any]]:
     return history
 
 
+def _performance_followup_from_history(repo: Path, threshold: float) -> bool:
+    """Rebuild the performance-debt flag when a campaign is resumed later."""
+    manifests = []
+    for path in (repo / "artifacts" / "experiments").glob("*/exp-*/manifest.json"):
+        try:
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if manifest.get("experiment_id"):
+            manifests.append(manifest)
+
+    pending = False
+    for manifest in sorted(manifests, key=lambda item: item["experiment_id"]):
+        if manifest.get("status") != ExperimentStatus.ACCEPTED.value:
+            continue
+        if manifest.get("experiment_kind") == "performance":
+            pending = False
+            continue
+        if manifest.get("experiment_kind") != "quality":
+            continue
+        gate = manifest.get("performance_gate") or {}
+        pending = float(gate.get("max_regression", 0.0)) > threshold
+    return pending
+
+
+def _analysis_schedule_from_history(repo: Path, failure_threshold: int) -> tuple[bool, int]:
+    """Rebuild the diagnostic-analysis schedule when a campaign is resumed."""
+    manifests = []
+    for path in (repo / "artifacts" / "experiments").glob("*/exp-*/manifest.json"):
+        try:
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if manifest.get("experiment_id"):
+            manifests.append(manifest)
+
+    failures = 0
+    pending = False
+    for manifest in sorted(manifests, key=lambda item: item["experiment_id"]):
+        kind = manifest.get("experiment_kind")
+        status = manifest.get("status")
+        if kind == "analysis":
+            if status == ExperimentStatus.ACCEPTED.value:
+                failures = 0
+                pending = False
+            continue
+        if kind != "quality":
+            continue
+        if status == ExperimentStatus.ACCEPTED.value:
+            failures = 0
+            pending = True
+        else:
+            failures += 1
+            pending = pending or failures >= failure_threshold
+    return pending, failures
+
+
 def _file_digest(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -193,7 +250,7 @@ class Campaign:
             "seed": 104,
             "opponents": ["random", "v007", "v008"],
             "baseline_profile": "v008",
-            "acceptance_rule": "weighted_v008_guard",
+            "acceptance_rule": "mean_opponent_v008_guard",
         }
         validate_campaign_settings(settings)
         active_path = self.repo / "configs" / "neural_training_profiles" / "active.yaml"
@@ -211,6 +268,14 @@ class Campaign:
         self.parent_profile = parent_profile
         self.seed = int(settings["seed"])
         self.performance_maintenance_every = int(settings.get("performance_maintenance_every", 0))
+        self.performance_followup_required = _performance_followup_from_history(
+            self.repo, self.max_performance_regression
+        )
+        self.analysis_after_quality_failures = int(settings.get("analysis_after_quality_failures", 4))
+        self.analysis_after_promotion = bool(settings.get("analysis_after_promotion", True))
+        self.analysis_followup_required, self.quality_failure_streak = _analysis_schedule_from_history(
+            self.repo, self.analysis_after_quality_failures
+        )
         self.branch = _current_branch(self.repo)
         self.parent_commit = _run(self.repo, "rev-parse", "HEAD")
         self.campaign_id = f"campaign-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
@@ -331,6 +396,14 @@ class Campaign:
             return ExperimentStatus.INCONCLUSIVE, {}, "fixed test budget expired"
         if tests.get("exit_code", 0) != 0:
             return ExperimentStatus.FAILED, {}, "fixed tests failed"
+        if self.experiment_kind == "analysis":
+            analysis = result.get("analysis") or result.get("observations")
+            if not analysis:
+                return ExperimentStatus.FAILED, {}, "analysis result has no observations"
+            return ExperimentStatus.ACCEPTED, {
+                "analysis_complete": True,
+                "subject_profile": result.get("analysis_subject_profile", self.parent_profile),
+            }, None
         if self.experiment_kind == "performance":
             gate = evaluate_performance_gate(result.get("performance", {}), max_regression=0.02)
             improvement = -float(gate.get("max_regression", 0.0))
@@ -352,8 +425,11 @@ class Campaign:
         )
         if not performance_gate["available"]:
             return ExperimentStatus.FAILED, decision, "accepted result has no comparable performance metrics"
-        if not performance_gate["accepted"]:
-            return ExperimentStatus.REJECTED, decision, "performance regression exceeds the protected threshold"
+        performance_followup_required = (
+            float(performance_gate.get("max_regression", 0.0)) > self.max_performance_regression
+        )
+        decision["performance_gate"] = performance_gate
+        decision["performance_followup_required"] = performance_followup_required
         return (
             ExperimentStatus.ACCEPTED if decision["accepted"] else ExperimentStatus.REJECTED,
             decision,
@@ -447,8 +523,40 @@ class Campaign:
             _run(self.repo, "worktree", "add", "-b", temp_branch, str(worktree), self.parent_commit)
             prompt = experiment_dir / "prompt.md"
             diversity = family_guidance(_experiment_history(self.repo))
+            if self.experiment_kind == "performance":
+                kind_instructions = (
+                    "This is a PURE PERFORMANCE experiment. Do not try to improve the neural "
+                    "player's playing strength, training objective, dataset or architecture "
+                    "unless the change is strictly required to measure or improve execution "
+                    "speed. Focus on game simulation, inference, data loading, batching, "
+                    "allocation, serialization, multiprocessing or other runtime bottlenecks. "
+                    "Run a reproducible before/after benchmark on the same workload, seed, "
+                    "checkpoint and number of games. Report elapsed_seconds or throughput for "
+                    "both sides and explain why the change is attributable to the code. The "
+                    "result must use experiment_family=performance. Do not provide quality "
+                    "validation results as evidence of success; the performance gate alone "
+                    "decides this experiment."
+                )
+            elif self.experiment_kind == "analysis":
+                kind_instructions = (
+                    "This is a PURE DIAGNOSTIC ANALYSIS of the latest active neural player. Do not "
+                    "train, modify or promote a checkpoint. Measure where the current neural player "
+                    "fails or disagrees with its parent and visible opponents: loss and accuracy by "
+                    "phase/action/card, dataset coverage and imbalance, logits or confidence, and "
+                    "representative game states. Use only information visible to the neural player. "
+                    "You may write temporary analysis code and generate local artifacts, but keep "
+                    "the durable result in the Markdown report and Ideas.md. The result must use "
+                    "experiment_family=analysis and include analysis_subject_profile, analysis, "
+                    "observations, limitations and recommendations. No candidate profile, checkpoint "
+                    "or quality validation is required."
+                )
+            else:
+                kind_instructions = (
+                    "This is a QUALITY experiment. Optimize playing strength and preserve the "
+                    "required comparable runtime measurements."
+                )
             prompt.write_text(
-                f"Run one {self.experiment_kind} experiment. First read doc/Ideas.md and all "
+                f"Run one {self.experiment_kind} experiment. {kind_instructions} First read doc/Ideas.md and all "
                 "relevant reports under doc/Experiments. Use that history to understand the "
                 "latest attempts and avoid repeating an experiment that already failed without "
                 "a concrete correction. Then choose freely among resuming a promising incomplete "
@@ -465,15 +573,17 @@ class Campaign:
                 "Do not modify the game engine, "
                 "heuristic players, or the information mask. Write the final JSON result to "
                 "$META_RESULT_PATH (not to META_EXPERIMENT_DIR). It must contain hypothesis, "
-                "status, performance.baseline, performance.candidate, metrics and analysis. "
+                "status, metrics and analysis. For quality experiments, include performance.baseline, "
+                "performance.candidate and validation.results. For performance experiments, include "
+                "performance.baseline and performance.candidate. "
                 "For a quality experiment, validation.results must contain delta_win_rate for "
                 "random, v007 and v008, measured against the active latest neural reference. "
                 "The v008 entry is the protected heuristic guard, not the neural reference. "
                 f"Training must start from the latest active neural checkpoint, currently {self.parent_profile}; "
                 "resetting Adam optimizer state is allowed, but initializing weights from v001 "
                 "or an older neural version is not allowed. "
-                "performance.baseline and performance.candidate must "
-                "contain comparable elapsed_seconds or throughput values. A quality result with "
+                "For quality and performance experiments, performance.baseline and performance.candidate "
+                "must contain comparable elapsed_seconds or throughput values. A quality result with "
                 "status accepted must also provide candidate_profile and candidate_checkpoint. "
                 "The orchestrator performs the final deterministic gate, so do not report accepted "
                 "from an alternate short protocol. After evaluation, update doc/Ideas.md with done "
@@ -512,10 +622,36 @@ class Campaign:
                     manifest.error = str(exc)
                 if manifest.status is ExperimentStatus.ACCEPTED and self.experiment_kind == "quality":
                     self._promote_quality_candidate(worktree, experiment_dir, result)
-                manifest.performance_gate = decision if self.experiment_kind == "performance" else evaluate_performance_gate(
-                    manifest.performance,
-                    max_regression=self.max_performance_regression,
-                )
+                if self.experiment_kind == "analysis":
+                    manifest.performance_gate = {}
+                elif self.experiment_kind == "performance":
+                    manifest.performance_gate = decision
+                else:
+                    manifest.performance_gate = evaluate_performance_gate(
+                        manifest.performance,
+                        max_regression=self.max_performance_regression,
+                    )
+                if manifest.status is ExperimentStatus.ACCEPTED:
+                    if self.experiment_kind == "analysis":
+                        self.analysis_followup_required = False
+                        self.quality_failure_streak = 0
+                    elif self.experiment_kind == "performance":
+                        self.performance_followup_required = False
+                    elif self.experiment_kind == "quality":
+                        self.quality_failure_streak = 0
+                        self.analysis_followup_required = self.analysis_after_promotion
+                        self.performance_followup_required = (
+                            self.performance_followup_required
+                            or float(manifest.performance_gate.get("max_regression", 0.0))
+                            > self.max_performance_regression
+                        )
+                elif self.experiment_kind == "quality":
+                    self.quality_failure_streak += 1
+                    self.analysis_followup_required = (
+                        self.analysis_followup_required
+                        or self.quality_failure_streak >= self.analysis_after_quality_failures
+                    )
+                manifest.performance_followup_required = self.performance_followup_required
                 result["decision_metrics"] = decision
             except (subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
                 manifest.status = ExperimentStatus.INTERRUPTED
@@ -546,7 +682,7 @@ class Campaign:
             ideas_path = worktree / "doc" / "Ideas.md"
             ideas_content = ideas_path.read_text(encoding="utf-8") if "doc/Ideas.md" in changed and ideas_path.exists() else None
 
-            if manifest.status is not ExperimentStatus.ACCEPTED:
+            if manifest.status is not ExperimentStatus.ACCEPTED or self.experiment_kind == "analysis":
                 # Disposable candidate code is removed; only its durable report is committed.
                 _run(worktree, "restore", "--worktree", "--staged", ".")
                 for path in _changed_paths(worktree):
@@ -578,6 +714,9 @@ class Campaign:
             commit_sha = manifest.commit
             _run(self.repo, "cherry-pick", commit_sha)
             self.parent_commit = _run(self.repo, "rev-parse", "HEAD")
+            active_path = self.repo / "configs" / "neural_training_profiles" / "active.yaml"
+            if active_path.exists():
+                self.parent_profile = load_active_training_profile(active_path).profile_id
             manifest.commit = self.parent_commit
             artifact_dir = self.repo / "artifacts" / "experiments" / self.campaign_id / experiment_id
             artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -609,11 +748,12 @@ def main() -> int:
         default=None,
         help="Active neural parent profile override; defaults to configs/neural_training_profiles/active.yaml.",
     )
-    parser.add_argument("--experiment-kind", choices=("quality", "performance"), default="quality")
+    parser.add_argument("--experiment-kind", choices=("quality", "performance", "analysis"), default="quality")
     parser.add_argument("--max-performance-regression", type=float, default=0.05)
     parser.add_argument("--test-command", default="poetry run pytest -q")
     parser.add_argument("--performance-maintenance-every", type=int, default=None)
     parser.add_argument("--performance-agent-command", default=None)
+    parser.add_argument("--analysis-agent-command", default=None)
     parser.add_argument(
         "--agent-command",
         default="codex exec --sandbox workspace-write --ephemeral -",
@@ -650,22 +790,49 @@ def main() -> int:
         if maintenance_every < 0:
             parser.error("--performance-maintenance-every cannot be negative")
         performance_command = args.performance_agent_command or args.agent_command
+        analysis_command = args.analysis_agent_command or args.agent_command
+
+        def run_performance_experiment() -> None:
+            quality_command = campaign.agent_command
+            quality_kind = campaign.experiment_kind
+            campaign.agent_command = performance_command
+            campaign.experiment_kind = "performance"
+            try:
+                campaign.run_one()
+            finally:
+                campaign.agent_command = quality_command
+                campaign.experiment_kind = quality_kind
+
+        def run_analysis_experiment() -> None:
+            quality_command = campaign.agent_command
+            quality_kind = campaign.experiment_kind
+            campaign.agent_command = analysis_command
+            campaign.experiment_kind = "analysis"
+            try:
+                campaign.run_one()
+            finally:
+                campaign.agent_command = quality_command
+                campaign.experiment_kind = quality_kind
+
         for index in range(args.experiments):
+            if campaign.analysis_followup_required:
+                run_analysis_experiment()
+                continue
+            if campaign.performance_followup_required:
+                run_performance_experiment()
+                continue
             campaign.run_one()
+            if campaign.analysis_followup_required:
+                run_analysis_experiment()
+                continue
+            if campaign.performance_followup_required:
+                continue
             if (
                 campaign.experiment_kind == "quality"
                 and maintenance_every
                 and (index + 1) % maintenance_every == 0
             ):
-                quality_command = campaign.agent_command
-                quality_kind = campaign.experiment_kind
-                campaign.agent_command = performance_command
-                campaign.experiment_kind = "performance"
-                try:
-                    campaign.run_one()
-                finally:
-                    campaign.agent_command = quality_command
-                    campaign.experiment_kind = quality_kind
+                run_performance_experiment()
     except CampaignError as exc:
         parser.exit(2, f"meta-improve: {exc}\n")
     return 0

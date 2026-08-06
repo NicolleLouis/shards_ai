@@ -53,10 +53,23 @@ et promotion. Le seul checkpoint d'entraînement mutable reste
 protégés contre l'agent et ne peuvent être créés ou modifiés que par la promotion indépendante
 après validation.
 
+La vitesse n'est pas un veto automatique à une promotion de qualité. Une amélioration de qualité
+reste promouvable même si sa régression d'exécution dépasse 5 %, dès que les métriques de qualité
+franchissent le gate. Le manifeste et le rapport signalent alors une dette de performance et la
+prochaine expérience de la campagne est forcée en famille `performance`. Cette obligation reste
+active jusqu'à une expérience de performance acceptée ; un échec ou un timeout de cette
+expérience n'efface pas la dette.
+
 Le catalogue `doc/Ideas.md` est lu au début d'une expérience et peut être mis à jour pendant la
 préparation puis après l'analyse : nouvelles idées, suppressions, statuts `done` et next steps.
 Les modifications sont conservées même pour un candidat rejeté et leur diff est inclus dans le
 rapport.
+
+La campagne possède aussi un mode `analysis` diagnostique. Il étudie la dernière version neural
+active sans entraîner ni promouvoir de checkpoint et conserve ses observations, limites et
+recommandations dans le rapport. Une analyse est déclenchée après une promotion qualité ou après
+quatre expériences qualité consécutives non promues ; les expériences performance ne modifient pas
+ce compteur. Une analyse réussie le remet à zéro.
 
 Chaque agent classe aussi son expérience (`ppo`, `imitation`, `dagger`, `data`, `objective`,
 `inference`, `monte_carlo`, `architecture`, `representation`, `search`, `performance` ou `other`)

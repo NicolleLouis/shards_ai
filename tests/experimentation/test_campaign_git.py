@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.meta_improve import Campaign
+from scripts.meta_improve import Campaign, _analysis_schedule_from_history
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -169,8 +169,104 @@ def test_orchestrator_recomputes_quality_gate_when_agent_says_rejected(tmp_path)
     )
 
     assert status.value == "accepted"
-    assert decision["combined_delta"] == pytest.approx(0.0335)
+    assert decision["mean_delta_win_rate"] == pytest.approx(0.015)
     assert error is None
+
+
+def test_quality_gate_uses_one_equal_weight_per_opponent(tmp_path):
+    repo = _repo(tmp_path)
+    campaign = _campaign(repo, _agent(tmp_path, {"status": "rejected"}))
+    status, decision, error = campaign._decide_result(
+        {
+            "validation": {"results": {
+                "random": {"delta_win_rate": -0.20},
+                "v007": {"delta_win_rate": 0.10},
+                "v008": {"delta_win_rate": 0.20},
+            }},
+            "performance": {
+                "baseline": {"elapsed_seconds": 100.0},
+                "candidate": {"elapsed_seconds": 100.0},
+            },
+        },
+        {"exit_code": 0, "timed_out": False},
+    )
+
+    assert status.value == "accepted"
+    assert decision["mean_delta_win_rate"] == pytest.approx(0.0333333333)
+    assert error is None
+
+
+def test_quality_gain_with_large_runtime_regression_is_accepted_and_schedules_performance(tmp_path):
+    repo = _repo(tmp_path)
+    campaign = _campaign(repo, _agent(tmp_path, {"status": "accepted"}))
+    status, decision, error = campaign._decide_result(
+        {
+            "validation": {"results": {
+                "random": {"delta_win_rate": 0.0},
+                "v007": {"delta_win_rate": 0.0},
+                "v008": {"delta_win_rate": 0.04},
+            }},
+            "performance": {
+                "baseline": {"elapsed_seconds": 100.0},
+                "candidate": {"elapsed_seconds": 106.0},
+            },
+        },
+        {"exit_code": 0, "timed_out": False},
+    )
+
+    assert status.value == "accepted"
+    assert decision["performance_followup_required"] is True
+    assert error is None
+
+
+def test_analysis_experiment_commits_only_diagnostic_report(tmp_path):
+    repo = _repo(tmp_path)
+    result = {
+        "status": "accepted",
+        "hypothesis": "localiser les erreurs PLAY",
+        "experiment_family": "analysis",
+        "analysis_subject_profile": "v002",
+        "analysis": "Les erreurs sont concentrées sur PLAY.",
+        "observations": {"play": {"error_rate": 0.42}},
+        "limitations": ["panel offline limité"],
+        "recommendations": ["tester une représentation dédiée"],
+    }
+    campaign = _campaign(repo, _agent(tmp_path, result), kind="analysis")
+    campaign.preflight()
+    campaign.run_one()
+
+    assert not (repo / "candidate.txt").exists()
+    report = repo / "doc" / "Experiments" / "exp-00001.md"
+    assert "Les erreurs sont concentrées" in report.read_text(encoding="utf-8")
+    assert "error_rate" in report.read_text(encoding="utf-8")
+    assert "experiment: accepted exp-00001" in _git(repo, "log", "-1", "--format=%s")
+
+
+def test_analysis_schedule_triggers_after_four_quality_failures(tmp_path):
+    repo = _repo(tmp_path)
+    campaign = _campaign(repo, _agent(tmp_path, {"status": "rejected"}))
+    campaign.preflight()
+
+    for _ in range(4):
+        campaign.run_one()
+
+    assert campaign.analysis_followup_required is True
+    assert campaign.quality_failure_streak == 4
+
+
+def test_analysis_schedule_can_be_rebuilt_from_history(tmp_path):
+    repo = _repo(tmp_path)
+    artifact = repo / "artifacts" / "experiments" / "campaign-test" / "exp-00004"
+    artifact.mkdir(parents=True)
+    (artifact / "manifest.json").write_text(
+        json.dumps({
+            "experiment_id": "exp-00004",
+            "experiment_kind": "quality",
+            "status": "rejected",
+        }),
+        encoding="utf-8",
+    )
+    assert _analysis_schedule_from_history(repo, 4) == (False, 1)
 
 
 def test_interrupted_agent_is_committed_as_inconclusive(tmp_path):

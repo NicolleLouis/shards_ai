@@ -41,6 +41,9 @@ def render_experiment_report(manifest: ExperimentManifest, result: dict[str, Any
         _section("Recette d'entraînement", manifest.training_recipe),
         _section("Commandes", manifest.commands),
         _section("Résultats offline", result.get("offline", {})),
+        _section("Observations analytiques", result.get("observations", {})),
+        _section("Limites de l'analyse", result.get("limitations", {})),
+        _section("Recommandations", result.get("recommendations", {})),
         _section("Résultats de screening", manifest.screening),
         _section("Validation", manifest.validation),
         _section("Promotion", result.get("promotion", {})),
@@ -48,6 +51,7 @@ def render_experiment_report(manifest: ExperimentManifest, result: dict[str, Any
         _section("Décision déterministe", manifest.decision_metrics),
         _section("Performance", manifest.performance),
         _section("Performance gate", manifest.performance_gate),
+        _section("Suivi performance obligatoire", manifest.performance_followup_required),
         _section("Analyse humaine", result.get("analysis", "")),
     ]
     if manifest.error:

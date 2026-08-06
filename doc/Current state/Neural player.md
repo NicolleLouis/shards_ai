@@ -121,9 +121,10 @@ victoires/parties. Le défaut Makefile est de 100 parties par adversaire ; un pa
 parties est recommandé pour une promotion finale. Le script propose de ne promouvoir le candidat
 que par rapport au profil neural actif courant (v002 actuellement) ; `v008` reste l'adversaire
 heuristique protégé et ne constitue pas la référence neural remplacée à chaque promotion.
-que si son taux de victoire contre V008 ne baisse pas, que les baisses contre Random ou v007 restent
-dans une tolérance de 5 points, que le gain pondéré du panel atteint au moins 0,5 point et qu'un
-gain individuel atteint 1 point. Cette validation
+que si son taux de victoire contre V008 ne baisse pas et que la moyenne arithmétique des deltas de
+tous les adversaires est strictement positive. Chaque adversaire compte une fois, indépendamment
+du nombre de parties jouées ; les résultats sont d'abord agrégés par adversaire. Les résultats de
+catégories éventuelles sont conservés mais ne modifient pas cette gate. Cette validation
 peut être exécutée hors de Codex ; le résultat doit alors être conservé ou fourni avant promotion.
 Une promotion crée le prochain
 profil versionné et met à jour `active.yaml` ; un rejet ne modifie aucun profil.

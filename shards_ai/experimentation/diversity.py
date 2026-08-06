@@ -16,6 +16,7 @@ EXPERIMENT_FAMILIES = (
     "representation",
     "search",
     "performance",
+    "analysis",
     "other",
 )
 

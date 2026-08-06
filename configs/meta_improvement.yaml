@@ -5,6 +5,8 @@ opponents:
   - v007
   - v008
 baseline_profile: v008
-acceptance_rule: weighted_v008_guard
+acceptance_rule: mean_opponent_v008_guard
 performance_regression_threshold: 0.05
 performance_maintenance_every: 10
+analysis_after_quality_failures: 4
+analysis_after_promotion: true

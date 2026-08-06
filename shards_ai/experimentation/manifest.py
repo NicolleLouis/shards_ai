@@ -46,6 +46,7 @@ class ExperimentManifest:
     decision_metrics: dict[str, Any] = field(default_factory=dict)
     performance: dict[str, Any] = field(default_factory=dict)
     performance_gate: dict[str, Any] = field(default_factory=dict)
+    performance_followup_required: bool = False
     commit: str | None = None
     error: str | None = None
 

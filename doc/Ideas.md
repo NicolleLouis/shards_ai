@@ -433,3 +433,101 @@ une piste existante.
   avec les divergences stratégiques, en imposant une garde Random/v002 avant toute promotion.
 - [À supprimer] Les lots composés de quelques divergences `play_card` seulement et toute conclusion
   fondée sur le gain v008 sans gain contre une référence neural.
+
+## Pistes générales à explorer
+
+Ces pistes sont volontairement larges. Elles ne constituent pas un plan imposé : l'agent peut les
+décomposer, les combiner avec prudence, les reformuler après une analyse offline ou les supprimer
+si les rapports montrent qu'elles n'ont plus de sens. Chaque expérience doit toutefois isoler une
+hypothèse et comparer la candidate à la dernière version neural active.
+
+### Recherche et décision
+
+- [À étudier] Ajouter une recherche Monte Carlo ou Monte Carlo Tree Search limitée par un budget de
+  temps, avec le réseau comme politique/prior et éventuellement comme estimateur de valeur.
+- [À étudier] Comparer une décision gloutonne, une moyenne de rollouts, une recherche par action et
+  une recherche limitée aux états visités, sans exposer à l'IA des informations masquées.
+- [À étudier] Tester une politique hybride : réseau pour sélectionner les actions candidates puis
+  recherche Monte Carlo ou heuristique uniquement comme outil de décision autorisé.
+- [À étudier] Mesurer séparément le coût et le gain de la recherche afin de distinguer une
+  amélioration de qualité d'une simple dégradation du temps de partie.
+
+### Objectif d'apprentissage et pertes
+
+- [À étudier] Remplacer ou compléter la cross-entropy d'imitation par une loss de classement
+  pairwise/margin entre l'action du teacher et les alternatives légales.
+- [À étudier] Tester une loss focalisée ou pondérée par la difficulté, la rareté de l'action, la
+  phase et le désaccord entre le réseau et le teacher.
+- [À étudier] Ajouter une distillation KL vers v008, v002 ou un ensemble de teachers, avec une
+  pondération contrôlée et une comparaison séparée des labels et des logits.
+- [À étudier] Tester une contrainte de conservation de la politique v002, locale aux états non
+  ciblés, plutôt qu'une régularisation uniforme de tout le dataset.
+- [À étudier] Comparer imitation pure, actor-critic, PPO, A2C et une loss hybride imitation plus
+  renforcement, en conservant un protocole d'évaluation commun.
+
+### Variantes PPO et renforcement
+
+- [À étudier] Tester une variante PPO réellement distincte : clipping, coefficient de valeur,
+  entropie, GAE, horizon, mini-batches, nombre d'epochs ou stratégie de sélection du meilleur état.
+- [À étudier] Tester PPO avec un réseau valeur séparé, une tête politique/valeur partagée ou une
+  initialisation de la valeur par une estimation Monte Carlo.
+- [À étudier] Comparer PPO depuis v002 avec Adam réinitialisé à une continuation contrôlée avec
+  état d'optimiseur, en documentant l'effet propre de l'optimizer.
+- [À étudier] Tester une politique d'exploration différente : température, epsilon, bruit de logits,
+  entropie adaptative ou exploration ciblée des actions rarement choisies.
+- [À étudier] Tester des retours Monte Carlo complets, n-step ou TD(lambda) au lieu de la seule
+  combinaison actuelle des retours PPO.
+
+### Reward shaping et objectif de jeu
+
+- [À étudier] Comparer plusieurs shaping potentiels : maîtrise, dégâts, shards, champions, unités,
+  deckbuilding et contrôle de phase, avec une seule composante ajoutée par expérience.
+- [À étudier] Tester un shaping potentiel invariant par état, borné et nul à l'état terminal, afin
+  d'éviter de modifier artificiellement la préférence entre trajectoires gagnantes.
+- [À étudier] Tester un shaping distinct par phase (`attack`, `buy`, `play`, `banish`) ou par type
+  d'action, avec ablation de chaque composante.
+- [À étudier] Comparer récompense terminale seule, récompense terminale plus shaping dense, et
+  shaping utilisé uniquement pour l'avantage ou la sélection des trajectoires.
+- [À étudier] Mesurer si le shaping améliore la qualité réelle ou seulement des métriques offline
+  corrélées aux choix de v008.
+
+### Architecture et dimensions
+
+- [À étudier] Varier la largeur et la profondeur du tronc et des têtes d'action, avec une petite,
+  moyenne et grande configuration évaluées sous le même budget d'entraînement.
+- [À étudier] Comparer les réseaux indépendants actuels à un encodeur partagé avec têtes spécialisées
+  par phase ou par type d'action.
+- [À étudier] Tester des embeddings de cartes plus larges ou plus compacts, des embeddings séparés
+  par zone et une projection commune des cartes similaires.
+- [À étudier] Tester une architecture avec attention sur la main, la rivière, les champions et les
+  unités visibles, sans ajouter d'information inaccessible au joueur.
+- [À étudier] Comparer une architecture MLP, une architecture résiduelle légère, une architecture
+  avec pooling invariant et éventuellement une architecture récurrente pour l'historique visible.
+- [À étudier] Tester une tête de valeur distincte, des sorties factorisées par action et une
+  représentation des actions légales adaptée à leur cardinalité variable.
+- [À étudier] Mesurer séparément la qualité, la mémoire et le temps d'inférence de chaque dimension
+  ou architecture ; une architecture plus grande ne doit pas être présumée meilleure.
+
+### Données et imitation
+
+- [À étudier] Construire des datasets train/validation/holdout distincts par partie et par seed,
+  plutôt qu'un simple split de décisions individuelles.
+- [À étudier] Comparer imitation v008, imitation v002, mélange de teachers et labels issus d'un
+  vote entre teachers, en conservant la provenance de chaque décision.
+- [À étudier] Tester DAgGER avec plusieurs itérations courtes, un budget de divergences contrôlé et
+  un mélange explicite avec le dataset historique.
+- [À étudier] Réimpliquer le réseau sur des datasets distincts par phase, type d'action, difficulté
+  ou désaccord, avec une validation holdout correspondante.
+- [À étudier] Tester le dédoublonnage, l'équilibrage, le curriculum et le filtrage par confiance du
+  teacher, sans laisser une seule phase ou action dominer le dataset.
+
+### Représentation et inférence
+
+- [À étudier] Tester de nouvelles représentations des ressources, de l'état des cartes, des effets
+  persistants et des actions légales tout en vérifiant explicitement le masque d'information.
+- [À étudier] Comparer normalisation, encodage ordinal, one-hot, pooling invariant et features
+  relatives au joueur, avec une ablation par groupe de features.
+- [À étudier] Tester calibration des logits, température, seuil de confiance et fallback interne
+  lorsque le réseau est incertain, sans consulter l'état caché.
+- [À étudier] Explorer des optimisations d'inférence indépendantes de la qualité : batch de
+  décisions, compilation, réduction des allocations, cache sûr et nombre de threads contrôlé.
