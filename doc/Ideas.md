@@ -97,6 +97,7 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 | exp-00056 | Rejetée | Le résidu phase×action avec base v002 gelée protège v002, mais régresse Random et v007 ; runtime légèrement supérieur. |
 | exp-00058 | Rejetée | Mélange DAgGER v002/v008 sur les états divergents : v002 et Random protégés au screening, mais aucune hausse moyenne et runtime/inférence en hausse. |
 | exp-00059 | Rejetée | Pondération ciblée `play_card` depuis v002 : +4 points contre v002, mais v007 -5, v008 -1 et runtime médian +45,4 %. |
+| exp-00060 | Rejetée | Pondération PLAY conservatrice (1,10, 1 000 décisions) : Random +2 et v002 +4, mais v007/v008 -8 et runtime +3,7 %. |
 
 ## Pistes écartées
 
@@ -262,6 +263,30 @@ Ordre des expériences :
   v007 est confirmé, en protégeant Random et v002 par conservation de l'action v002 hors slice.
 - [À supprimer] Toute conclusion fondée sur v008 seul, sur le screening de 20 parties seul, ou sur
   le runtime ; l'échec d'exp-00058 impose une validation complète avant toute nouvelle candidate.
+
+## Expérience exp-00060 — rejetée
+
+- [Terminé] Corriger exp-00059 avec une pondération `play_card` réduite à `1,10` et un budget de
+  `1 000` décisions, depuis v002, afin de tester si son gain contre v002 pouvait être conservé avec
+  moins de dérive et un coût comparable.
+- [Résultat] La validation batchée complète de 100 parties par adversaire donne Random `+2` points,
+  v002 `+4`, mais v007 `-8`, v008 `-8` et v001 `-3`; la moyenne des cinq références est `-2,6`
+  points. La candidate est rejetée malgré les gains Random/v002.
+- [Résultat] Le benchmark v002-v002 médian comparable passe de `14,5231 s` à `15,0631 s`, de
+  `17 444` à `18 021` actions et de `5,7213 s` à `6,0329 s` d'inférence.
+- [Supprimé] Ne pas poursuivre une pondération globale `play_card`, même réduite, sans attribution
+  par carte et protection explicite des décisions responsables des régressions v007/v008.
+
+## Suites issues d'exp-00060
+
+- [À privilégier] Construire le holdout d'attribution par carte/action demandé après exp-00049 et
+  mesurer quelles décisions PLAY changent réellement entre v002 et chaque candidate; fixer ensuite
+  un budget d'argmax modifiés avant tout apprentissage.
+- [À étudier] Tester uniquement une correction sur une carte/slice dont le gain v007 est confirmé,
+  avec conservation exacte de l'action v002 hors slice et validation complète; ne plus utiliser une
+  pondération de type d'action comme approximation.
+- [À supprimer] Toute nouvelle variation `play_card` globale ou sélectionnée sur le duel v002,
+  Random ou v008 seul. v002 reste la référence active.
 
 ## Expérience exp-00059 — rejetée
 
