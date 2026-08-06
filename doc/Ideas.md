@@ -241,6 +241,30 @@ refuser toute conclusion fondée sur une amélioration contre v008 ou v002 neura
 - [À supprimer] Toute acceptation fondée sur le screening positif de 20 parties, l'accuracy offline ou
   le runtime ; le coût d'inférence V4 doit être profilé séparément avant optimisation.
 
+## Expérience exp-00079 — structured_semantic_v4 — rejetée
+
+- [Terminé] Reprendre la piste exp-00078 avec le dataset normalisé de 100 000 décisions, un split
+  `game_id`, une initialisation from-scratch et un profil V4 dédié ; le budget complet a été tenté,
+  puis un fallback borné à 1 000 décisions a été exécuté après interruption technique.
+- [Résultat] Le screening batché de 20 parties donne Random `+15`, v007 `+10`, v008 `0`, mais
+  neural v002 `-15` et v001 `-15` points. Ce signal court ne constitue pas une preuve de force et
+  la candidate n'est pas promue.
+- [Résultat] Le benchmark comparable V2/V4 contre v008 donne `2,2401 s` contre `2,1853 s`,
+  `1,2908 s` contre `1,2301 s` d'inférence et `6498` contre `6814` actions ; l'écart de runtime
+  ne compense pas la régression contre les références neurales.
+- [Échec technique] Le protocole complet (une époque sur le split train) n'a pas atteint la fin de
+  l'époque après environ huit minutes et n'a produit aucun checkpoint ; le résultat mesuré est
+  donc un diagnostic borné, non une validation du budget complet.
+
+## Nouvelles idées après exp-00079
+
+- [À privilégier] Déporter l'entraînement V4 complet sur un hôte permettant une reprise atomique par
+  époque, puis refaire la validation longue avant toute nouvelle variation d'architecture.
+- [À étudier] Comparer plusieurs budgets de décisions prédéclarés (1k, 10k, dataset complet) avec
+  le même seed et le même holdout afin de distinguer vitesse d'apprentissage et force finale.
+- [À supprimer] Toute acceptation issue du seul screening 20 parties ou d'un gain contre Random/v007
+  lorsque les références neurales régressent.
+
 ## Pistes abandonnées
 
 - [À supprimer] Pondération globale `play_card`, conservation globale des logits, mélange DAgGER divergent ou calibration globale sans attribution causale.
