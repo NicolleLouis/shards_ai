@@ -322,3 +322,19 @@ refuser toute conclusion fondée sur une amélioration contre v008 ou v002 neura
 Critères de succès : gain reproductible sur une ou plusieurs slices ciblées, absence de régression
 contre Random, v002, v007 et v008, et dérive d'argmax v002 dans le budget fixé. Le runtime, le débit
 et le nombre d'actions restent des métriques secondaires et ne peuvent pas compenser un échec de qualité.
+
+## Expérience exp-00082 — structured_semantic_v4 targeted — rejetée
+
+- [Terminé] Correction bornée V4 : surpondération de `gain_mastery` et `recruit_mercenary`, avec
+  facteur additionnel lorsque l'achat et le recrutement du même mercenaire sont concurrents.
+- [Échec technique] Le budget de 20 000 décisions n'a pas terminé son époque et n'a écrit aucun
+  checkpoint. Le fallback reproductible de 1 000 décisions a été utilisé comme diagnostic.
+- [Résultat] Sur 20 parties par adversaire : Random `0`, v007 `-20`, v008 `+10`, v002 `+5` et
+  v001 `-30` points ; moyenne pondérée `-1,5625` point. V4 n'est pas promue.
+- [Résultat] Runtime contre v008 : v002 `2,0859 s`, V4 `2,0493 s`; actions `6 130` contre `6 230`.
+
+## Nouvelles idées après exp-00082
+
+- [À privilégier] Instrumenter et reprendre V4 par micro-lots atomiques avant une nouvelle hypothèse.
+- [À étudier] Holdout V4 indépendant par `game_id` et budgets ciblés prédéclarés avec panel complet.
+- [À supprimer] Toute conclusion de force fondée sur le fallback 1 000 ou le seul gain v008/v002.
