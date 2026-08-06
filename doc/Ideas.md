@@ -100,6 +100,7 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 | exp-00060 | Rejetée | Pondération PLAY conservatrice (1,10, 1 000 décisions) : Random +2 et v002 +4, mais v007/v008 -8 et runtime +3,7 %. |
 | exp-00061 | Analyse terminée | Holdout diagnostique masqué de 13 816 décisions : dérive v007 concentrée en PLAY/cartes, erreurs souvent confiantes, calibration ECE v007 0,171 et v008 0,027 ; aucune candidate. |
 | exp-00062 | Rejetée | Biais scalaires gelés sur cinq cartes PLAY v007 : politique identique à v002 sur le panel et aucune amélioration de force ; coût médian +9,7 %. |
+| exp-00063 | Rejetée | DAgGER on-policy priorisé sur quatre catégories : v008 +5 et v002 neural +2, mais Random -5, v007 -1 et runtime +3,6 %. |
 
 ## Pistes écartées
 
@@ -365,6 +366,30 @@ Ordre des expériences :
   de changement ou si la candidate ne bat pas v002 sans régresser Random/v007/v008.
 - [À conserver] La protection stricte hors slice est un contrôle causal utile, mais son surcoût
   d'inférence doit être supprimé ou justifié avant toute future candidate.
+
+## Expérience exp-00063 — rejetée
+
+- [Terminé] Tester un cycle DAgGER on-policy distinct du mélange stratégique exp-00058 : collecter
+  les trajectoires v002 contre v008, v007, v001 et v002, puis prioriser `play_card`,
+  `recruit_mercenary`, `assign_power` et `choose_pending_decision` sans remplacer la base par une
+  pondération globale PLAY.
+- [Résultat] La validation batchée de 100 parties par adversaire donne Random `-5` points, v007
+  `-1`, v008 `+5` et le duel v002 `+2`. La garde Random échoue ; aucune promotion n'est justifiée.
+- [Résultat] Le benchmark comparable passe de `21,6276 s` à `22,4119 s`, de `17 073` à `17 592`
+  actions, soit environ `+3,6 %` de temps et `+3,0 %` d'actions.
+- [Supprimé] Ne pas reprendre cette priorisation seule : le gain v008/v002 neural ne compense pas
+  la régression Random et la candidate n'est pas une amélioration robuste.
+
+## Nouvelles idées après exp-00063
+
+- [À privilégier] Avant tout nouveau DAgGER, mesurer la conservation de l'argmax v002 et les
+  transitions réellement modifiées par phase/action sur un holdout séparé ; la priorisation doit
+  être conditionnée à une slice causale, pas seulement à une couverture faible.
+- [À étudier] Tester un mélange à faible fraction de labels teacher uniquement sur les décisions
+  `recruit_mercenary` ou `choose_pending_decision` si leur couverture et leur effet causal sont
+  suffisants ; protéger explicitement les décisions hors slice.
+- [À supprimer] Toute nouvelle collecte DAgGER uniforme ou pondération des quatre catégories sans
+  budget d'argmax modifiés et sans contrôle Random/v002 au screening.
 
 Critères de succès : gain reproductible sur une ou plusieurs slices ciblées, absence de régression
 robuste contre Random, v002, v007 et v008, et dérive d'argmax v002 dans le budget fixé. Critères de
