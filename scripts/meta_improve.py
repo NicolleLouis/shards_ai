@@ -472,12 +472,15 @@ class Campaign:
                     )
         output = experiment_dir / "promotion.json"
         command = [
-            "poetry", "run", "python", "scripts/validate_neural_profile.py",
+            "poetry", "run", "python", "scripts/validate_neural_profile_batched.py",
             "--candidate-profile", str(profile),
             "--candidate-checkpoint", str(checkpoint),
             "--games", "200",
+            "--batch-games", "20",
             "--seed", "90000",
             "--output", str(output),
+            "--progress-output", str(experiment_dir / "promotion.progress.json"),
+            "--promote",
         ]
         completed = subprocess.run(
             command,
@@ -585,6 +588,9 @@ class Campaign:
                 "For quality and performance experiments, performance.baseline and performance.candidate "
                 "must contain comparable elapsed_seconds or throughput values. A quality result with "
                 "status accepted must also provide candidate_profile and candidate_checkpoint. "
+                "For validation beyond 20 games per opponent, use "
+                "scripts/validate_neural_profile_batched.py with --batch-games 20 and a "
+                "--progress-output file so the run can resume after interruption. "
                 "The orchestrator performs the final deterministic gate, so do not report accepted "
                 "from an alternate short protocol. After evaluation, update doc/Ideas.md with done "
                 "statuses, removals and next steps, then write the final JSON result.\n",

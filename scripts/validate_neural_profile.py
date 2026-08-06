@@ -192,6 +192,64 @@ def _panel(args: argparse.Namespace, candidate_profile_id: str) -> tuple[list[st
     return opponents, heuristic_profiles, neural_profiles
 
 
+def promote_candidate(args: argparse.Namespace, candidate_profile, active_profile, candidate_checkpoint: Path) -> dict[str, object]:
+    """Promote a validated candidate without rerunning the games."""
+    promoted_id = next_training_profile_id(args.profile_dir)
+    promoted_checkpoint = args.checkpoint_dir / f"{promoted_id}.pt"
+    if promoted_checkpoint.exists():
+        raise FileExistsError(f"Promoted checkpoint already exists: {promoted_checkpoint}")
+    promoted = replace(
+        candidate_profile,
+        profile_id=promoted_id,
+        parent_profile_id=active_profile.profile_id,
+        output=str(promoted_checkpoint),
+    )
+    promoted_path = args.profile_dir / f"{promoted_id}.yaml"
+    args.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    candidate_weights_digest = checkpoint_weights_digest(candidate_checkpoint)
+    checkpoint = torch.load(candidate_checkpoint, map_location="cpu", weights_only=False)
+    checkpoint["profile_id"] = promoted.profile_id
+    checkpoint["profile_fingerprint"] = promoted.fingerprint
+    training_config = dict(checkpoint.get("training_config", {}))
+    training_config.update({
+        "profile_id": promoted.profile_id,
+        "profile_fingerprint": promoted.fingerprint,
+        "output": str(promoted_checkpoint),
+    })
+    checkpoint["training_config"] = training_config
+    temporary_checkpoint = promoted_checkpoint.with_suffix(".pt.tmp")
+    try:
+        torch.save(checkpoint, temporary_checkpoint)
+        os.replace(temporary_checkpoint, promoted_checkpoint)
+        promoted_weights_digest = checkpoint_weights_digest(promoted_checkpoint)
+        if promoted_weights_digest != candidate_weights_digest:
+            raise ValueError("Promoted checkpoint weights differ from the validated candidate")
+        NeuralPlayer.load_scorer(promoted_checkpoint)
+    except Exception:
+        temporary_checkpoint.unlink(missing_ok=True)
+        promoted_checkpoint.unlink(missing_ok=True)
+        raise
+    save_training_profile(promoted, promoted_path)
+    args.active_profile.parent.mkdir(parents=True, exist_ok=True)
+    args.active_profile.write_text(
+        yaml.safe_dump({"schema_version": 1, "active_profile_id": promoted_id}, sort_keys=False),
+        encoding="utf-8",
+    )
+    args.active_neural_profile.parent.mkdir(parents=True, exist_ok=True)
+    args.active_neural_profile.write_text(
+        yaml.safe_dump({"schema_version": 1, "active_profile_id": promoted_id}, sort_keys=False),
+        encoding="utf-8",
+    )
+    return {
+        "profile_id": promoted_id,
+        "profile_path": str(promoted_path),
+        "checkpoint_path": str(promoted_checkpoint),
+        "candidate_weights_digest": candidate_weights_digest,
+        "promoted_weights_digest": promoted_weights_digest,
+        "post_promotion_checkpoint_validation": "passed",
+    }
+
+
 def validate(args: argparse.Namespace) -> dict[str, object]:
     torch.set_num_threads(args.torch_threads)
     candidate_profile = load_training_profile(args.candidate_profile)
@@ -249,62 +307,7 @@ def validate(args: argparse.Namespace) -> dict[str, object]:
         "promotion": None,
     }
     if accepted and not args.no_promote:
-        promoted_id = next_training_profile_id(args.profile_dir)
-        promoted_checkpoint = args.checkpoint_dir / f"{promoted_id}.pt"
-        if promoted_checkpoint.exists():
-            raise FileExistsError(f"Promoted checkpoint already exists: {promoted_checkpoint}")
-        promoted = replace(
-            candidate_profile,
-            profile_id=promoted_id,
-            parent_profile_id=active_profile.profile_id,
-            output=str(promoted_checkpoint),
-        )
-        promoted_path = args.profile_dir / f"{promoted_id}.yaml"
-        args.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        candidate_weights_digest = checkpoint_weights_digest(candidate_checkpoint)
-        checkpoint = torch.load(candidate_checkpoint, map_location="cpu", weights_only=False)
-        checkpoint["profile_id"] = promoted.profile_id
-        checkpoint["profile_fingerprint"] = promoted.fingerprint
-        training_config = dict(checkpoint.get("training_config", {}))
-        training_config.update({
-            "profile_id": promoted.profile_id,
-            "profile_fingerprint": promoted.fingerprint,
-            "output": str(promoted_checkpoint),
-        })
-        checkpoint["training_config"] = training_config
-        temporary_checkpoint = promoted_checkpoint.with_suffix(".pt.tmp")
-        try:
-            torch.save(checkpoint, temporary_checkpoint)
-            os.replace(temporary_checkpoint, promoted_checkpoint)
-            promoted_weights_digest = checkpoint_weights_digest(promoted_checkpoint)
-            if promoted_weights_digest != candidate_weights_digest:
-                raise ValueError("Promoted checkpoint weights differ from the validated candidate")
-            # Validate the actual promoted artifact through the production loader,
-            # not only the in-memory checkpoint used for the games above.
-            NeuralPlayer.load_scorer(promoted_checkpoint)
-        except Exception:
-            temporary_checkpoint.unlink(missing_ok=True)
-            promoted_checkpoint.unlink(missing_ok=True)
-            raise
-        save_training_profile(promoted, promoted_path)
-        args.active_profile.parent.mkdir(parents=True, exist_ok=True)
-        args.active_profile.write_text(
-            yaml.safe_dump({"schema_version": 1, "active_profile_id": promoted_id}, sort_keys=False),
-            encoding="utf-8",
-        )
-        args.active_neural_profile.parent.mkdir(parents=True, exist_ok=True)
-        args.active_neural_profile.write_text(
-            yaml.safe_dump({"schema_version": 1, "active_profile_id": promoted_id}, sort_keys=False),
-            encoding="utf-8",
-        )
-        report["promotion"] = {
-            "profile_id": promoted_id,
-            "profile_path": str(promoted_path),
-            "checkpoint_path": str(promoted_checkpoint),
-            "candidate_weights_digest": candidate_weights_digest,
-            "promoted_weights_digest": promoted_weights_digest,
-            "post_promotion_checkpoint_validation": "passed",
-        }
+        report["promotion"] = promote_candidate(args, candidate_profile, active_profile, candidate_checkpoint)
     return report
 
 

@@ -69,6 +69,12 @@ def test_active_neural_profile_resolves_versioned_checkpoint(tmp_path):
     assert profile.checkpoint_path == checkpoint
 
 
+def test_batched_validation_ranges_cover_games_without_overlap():
+    from scripts.validate_neural_profile_batched import batch_ranges
+
+    assert batch_ranges(45, 20) == [(0, 20), (20, 40), (40, 45)]
+
+
 def test_validation_rule_accepts_positive_mean_with_secondary_regressions():
     from scripts.validate_neural_profile import acceptance_decision
 

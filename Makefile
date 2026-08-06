@@ -1,5 +1,5 @@
 .PHONY: heuristic-benchmark-mix neural-rl-train neural-rl-train-resume \
-	neural-benchmark-mix neural-hybrid-benchmark neural-dagger-rebuild-baseline neural-dagger-collect neural-dagger-sample neural-dagger-train neural-dagger2-collect neural-dagger2-sample neural-dagger-merge neural-validate neural-imitation-analysis neural-visited-state-analysis meta-improve
+	neural-benchmark-mix neural-hybrid-benchmark neural-dagger-rebuild-baseline neural-dagger-collect neural-dagger-sample neural-dagger-train neural-dagger2-collect neural-dagger2-sample neural-dagger-merge neural-validate neural-validate-batched neural-imitation-analysis neural-visited-state-analysis meta-improve
 
 HEURISTIC_VERSION := v008
 HEURISTIC_PUBLISHED_PROFILE := configs/heuristic_profiles/$(HEURISTIC_VERSION).yaml
@@ -205,8 +205,10 @@ neural-dagger-train:
 
 NEURAL_CANDIDATE_PROFILE ?=
 NEURAL_VALIDATION_GAMES ?= 100
+NEURAL_VALIDATION_BATCH_GAMES ?= 20
 NEURAL_VALIDATION_SEED ?= 90000
 NEURAL_VALIDATION_OUTPUT ?= artifacts/neural_validation/latest.json
+NEURAL_VALIDATION_PROGRESS_OUTPUT ?= artifacts/neural_validation/latest.progress.json
 
 META_EXPERIMENTS ?= 1
 META_BUDGET_SECONDS ?= 3600
@@ -224,6 +226,17 @@ neural-validate:
 		--games $(NEURAL_VALIDATION_GAMES) \
 		--seed $(NEURAL_VALIDATION_SEED) \
 		--output $(NEURAL_VALIDATION_OUTPUT)
+
+neural-validate-batched:
+	@test -n "$(NEURAL_CANDIDATE_PROFILE)" || (echo "Set NEURAL_CANDIDATE_PROFILE=..." && exit 1)
+	PYTHONPATH=. poetry run python scripts/validate_neural_profile_batched.py \
+		--candidate-profile $(NEURAL_CANDIDATE_PROFILE) \
+		--candidate-checkpoint $(NEURAL_CHECKPOINT) \
+		--games $(NEURAL_VALIDATION_GAMES) \
+		--batch-games $(NEURAL_VALIDATION_BATCH_GAMES) \
+		--seed $(NEURAL_VALIDATION_SEED) \
+		--output $(NEURAL_VALIDATION_OUTPUT) \
+		--progress-output $(NEURAL_VALIDATION_PROGRESS_OUTPUT)
 
 meta-improve:
 	PYTHONPATH=. poetry run python scripts/meta_improve.py \
