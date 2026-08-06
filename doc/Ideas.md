@@ -415,3 +415,28 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
   supplémentaire, changement de modèle, moteur, heuristique ou masque d'information.
 - [À supprimer] Les index de vocabulaires seuls : ils ont été mesurés et ralentissent le workload
   contrôlé de `0,96 %`.
+
+## Expérience exp-00087 — structured_semantic_v4 micro-lots — rejetée
+
+- [Terminé] Correction concrète des échecs exp-00079 à exp-00085 : dataset V4 régénéré avec
+  manifeste et SHA-256, profil candidat dédié et sortie vers le checkpoint mutable unique. Le
+  budget complet de 10 000 décisions n'a pas produit de checkpoint; un fallback explicitement
+  borné à 1 000 décisions a fourni le diagnostic final.
+- [Résultat] Le panel batché de 20 parties régresse contre Random `-20`, v007 `-20`, v008 `-15`,
+  v003 `-35` et v002 `-20` points. La candidate n'est pas promue; le screening court n'est pas
+  une preuve de force finale.
+- [Résultat] Runtime comparable contre v008 : v003 `2,2844 s` contre V4 `1,9505 s`, avec
+  `3 364` contre `2 832` décisions neural et `6 701` contre `5 931` actions. Le gain de temps ne
+  compense pas la régression qualité.
+- [Limite] Le résultat mesure un fallback sous-entraîné après échec technique du budget complet;
+  il ne tranche pas définitivement l'encodeur V4 entraîné à budget complet.
+
+## Nouvelles idées après exp-00087
+
+- [À privilégier] Corriger la reprise d'entraînement elle-même : checkpoint atomique après chaque
+  micro-lot et reprise vérifiable, puis exécuter le budget complet avant tout nouveau changement
+  d'architecture ou d'objectif.
+- [À étudier] Comparer, sur le même split `game_id`, les courbes 1k/10k/complet avec le panel
+  neural dès chaque palier; conserver un holdout indépendant et un budget de dérive V2 fixé avant
+  sélection.
+- [À supprimer] Les fallbacks 1k et les gains de runtime comme bases d'une promotion V4.
