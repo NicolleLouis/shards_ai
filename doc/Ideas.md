@@ -171,3 +171,27 @@ hypothèse falsifiable, la référence v002, les métriques attendues et la cond
   conservation de l'argmax.
 - [À supprimer] Toute nouvelle imitation globale avec seulement un taux d'apprentissage différent,
   ou toute promotion fondée sur le gain contre v002 neural seul.
+
+## Expérience exp-00053 — rejetée
+
+- [Terminé] Tester une architecture `global_context_action_type_bias_v1` depuis v002 : conserver
+  le scorer contextuel et ajouter un biais scalaire par type d'action, initialisé à zéro. Le dataset
+  a été régénéré avec v008 comme teacher, les matchups v008/v007, séparé par `game_id`.
+- [Résultat] La validation officielle de 100 parties par adversaire donne, contre la référence
+  v002, Random `-2,0` points, v007 `-8,0`, v008 `+1,0`, neural v002 `-6,0` et neural v001 `+9,0`.
+  La moyenne des cinq deltas vaut `-1,2` point : la candidate est rejetée.
+- [Résultat] Le benchmark comparable médian sur 50 parties contre v002 passe de `9,3700 s` et
+  `16 938` actions pour v002 à `14,0246 s` et `16 780` actions pour la candidate ; le coût
+  d'inférence augmente également. Aucun gain de runtime n'est revendiqué.
+- [Supprimé] Ne pas promouvoir ni reprendre le biais global par type d'action : il corrige
+  potentiellement v008, mais régresse les références Random, v007 et v002.
+
+## Suites issues d'exp-00053
+
+- [À privilégier] Mesurer les décisions changées par type d'action et par phase, puis tester au
+  plus une correction bornée sur les catégories réellement responsables de la régression, avec un
+  budget explicite de dérive et comparaison directe à v002 avant toute validation complète.
+- [À étudier] Réutiliser l'architecture sans biais comme contrôle et comparer un résidu conditionné
+  par phase uniquement si l'analyse montre que le biais global mélange des phases incompatibles.
+- [À supprimer] Toute nouvelle variation de biais global, toute sélection sur v008 seul, et toute
+  conclusion fondée sur le gain contre v001 ou sur le nombre d'actions seul.
