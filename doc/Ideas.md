@@ -100,3 +100,25 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 
 Toute nouvelle idée doit préciser l'axe choisi (architecture/représentation ou training), une
 hypothèse falsifiable, la référence v002, les métriques attendues et la condition de rejet.
+
+## Expérience exp-00050 — rejetée
+
+- [Terminé] Tester une variation d’architecture `semantic_identity_v3` depuis v002 : conserver le
+  contexte global des actions de v002 et ajouter un résidu sémantique linéaire sur les embeddings de
+  cartes, initialisé à l’identité. Le dataset a été régénéré avec v008 et v007, séparé par `game_id`.
+- [Résultat] La validation officielle de 100 parties par adversaire donne Random `-3,0` points,
+  v007 `-3,0`, v008 `+5,0` et v002 neural `-12,0`. Le benchmark comparable médian passe de `14,2108 s`
+  à `14,3520 s` (`-0,99 %` de débit) et de `17 073` à `16 667` actions.
+- [Supprimé] Ne pas promouvoir la candidate : le gain contre la garde v008 ne compense pas les
+  régressions Random, v007 et surtout v002. Le résidu sémantique est une variation effective, mais
+  son transfert partiel ne suffit pas à préserver la politique active.
+
+## Suites issues d'exp-00050
+
+- [À privilégier] Mesurer avant entraînement la dérive de politique induite par le résidu identité,
+  puis tester une version gelant ce résidu pendant le premier passage ou limitant explicitement sa
+  norme ; comparer d’abord directement à v002 avant la validation complète.
+- [À étudier] Évaluer séparément l’effet de la représentation sur les erreurs `play_card` par carte
+  et sur `recruit_mercenary`, avec un budget de décisions modifiées et un holdout par phase/action.
+- [À supprimer] Toute promotion d’une représentation qui améliore seulement v008 ou la précision
+  offline sans non-régression contre Random, v007 et v002.
