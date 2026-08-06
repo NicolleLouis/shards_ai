@@ -288,6 +288,31 @@ refuser toute conclusion fondée sur une amélioration contre v008 ou v002 neura
 - [À supprimer] Toute nouvelle conclusion de force fondée sur l'accuracy offline ou un panel court
   positif contre les heuristiques ; V4 n'a encore aucune preuve de promotion.
 
+## Expérience exp-00081 — structured_semantic_v4 — rejetée
+
+- [Terminé] Correction bornée des fallbacks à 1 000 décisions : entraînement V4 from-scratch par
+  imitation sur le dataset canonique normalisé, avec budget pré-déclaré de 10 000 décisions et
+  profil/checkpoint explicitement marqués `structured_semantic_v4`.
+- [Résultat] Le screening batché de 20 parties améliore v007 de `+15` points et v002 neural de
+  `+10`, mais régresse Random de `-20` et v008 de `-10`; moyenne pondérée `-2,5` points. La garde
+  v008 et la gate de qualité échouent, V2 reste active.
+- [Résultat] Le holdout offline atteint `81,01 %` top-1 sur 10 000 décisions, mais ce signal ne
+  compense pas les régressions en partie.
+- [Résultat] Contre v008, runtime v002 `2,0566 s` contre V4 `2,2286 s` sur 20 parties, avec
+  `6 357` contre `6 833` actions et `1,1631 s` contre `1,2195 s` d'inférence.
+- [Supprimé] Ne pas prolonger cette recette seule : 10 000 décisions réduisent le sous-entraînement
+  des fallbacks, mais ne corrigent pas la régression Random/v008.
+
+## Nouvelles idées après exp-00081
+
+- [À privilégier] Construire un holdout V4 indépendant par `game_id`, puis tester une capacité ou
+  un curriculum pré-déclaré ciblant `gain_mastery`/`recruit_mercenary`, avec budget de dérive V2 et
+  panel complet conservés.
+- [À étudier] Réduire le coût de l'encodeur structuré par profilage ciblé avant tout budget V4 plus
+  long; cette optimisation ne doit pas être confondue avec une preuve de qualité.
+- [À conserver] Initialisation nulle V4, dataset hashé, checkpoint mutable unique et validation
+  batchée par lots de 20.
+
 ## Pistes abandonnées
 
 - [À supprimer] Pondération globale `play_card`, conservation globale des logits, mélange DAgGER divergent ou calibration globale sans attribution causale.
