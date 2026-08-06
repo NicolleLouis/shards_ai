@@ -104,7 +104,8 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 | exp-00064 | Rejetée | Imitation conservatrice depuis v002 (1e-5, 10 000 décisions) : v007 +8, mais Random -4, v008 -3 et v002 -14 ; runtime +5,0 %. |
 | exp-00065 | Rejetée | Conservation de politique par logits centrés v002 : Random +5 et v008 +10 au screening, mais v007 -20, v002 -10 et runtime médian +37,5 %. |
 | exp-00066 | Analyse terminée | La difficulté de v002 augmente avec la compétition de l’ensemble légal : accuracy v007 64,7 %, erreurs confiantes 20,7 %, et dérive d’argmax v001/v002 7,7 % ; le signal reste surtout PLAY/gain_mastery et cartes. |
-| exp-00067 | Rejetée | Continuation PPO courte depuis v002 avec horizon GAE v002, sans shaping v003 : aucun checkpoint candidat sauvegardé dans l’environnement ; le contrôle v002/v002 est neutre et la recette doit être reprise seulement avec une collecte instrumentée. |
+| exp-00067 | Rejetée | Continuation PPO courte depuis v002 avec horizon GAE v002, sans shaping v003 : aucun checkpoint candidat sauvegardé dans l'environnement ; le contrôle v002/v002 est neutre et la recette doit être reprise seulement avec une collecte instrumentée. |
+| exp-00069 | Rejetée | Reprise PPO instrumentée depuis v002 : le processus est encore arrêté avant le premier checkpoint, donc aucune force apprise n'est mesurable ; le contrôle v002/v002 reste neutre en qualité et plus lent au second passage. |
 
 ## Expérience exp-00065 — rejetée
 
@@ -207,6 +208,31 @@ hypothèse falsifiable, la référence v002, les métriques attendues et la cond
   respecter les identifiants et l'état observable ; mesurer d'abord son taux réel de réutilisation.
 - [À supprimer] Toute modification de pooling qui change les trajectoires ou toute cache active en
   entraînement sans stratégie explicite d'invalidation.
+
+## Expérience exp-00069 — PPO — rejetée
+
+- [Terminé] Reprendre l'idée PPO de `exp-00067` avec une correction opérationnelle : profil dédié
+  initialisé directement depuis `configs/neural_profiles/v002.pt`, Adam réinitialisé, `gamma=0,995`,
+  `gae_lambda=0,95`, sans shaping, 512 parties prévues et quatre rollouts de 128.
+- [Résultat] Deux tentatives, dont un smoke test d'une partie, sont arrêtées silencieusement avant
+  le premier rollout sauvegardé ; aucun checkpoint candidat n'est produit. Ce n'est donc pas une
+  mesure de qualité PPO et aucune promotion n'est possible.
+- [Résultat] Le contrôle v002 contre v002 sur 50 parties garde `16 825` actions et `8 472`
+  décisions identiques ; les temps observés sont `15,0173 s` puis `19,6409 s`, sans gain de force.
+- [Supprimé] Ne pas considérer ce PPO comme un échec algorithmique : la collecte n'a pas atteint
+  l'optimisation. Ne pas relancer une longue collecte dans cet environnement sans diagnostic du
+  terminateur et checkpoint externe après chaque rollout.
+
+## Suites après exp-00069
+
+- [À privilégier] Exécuter un rollout PPO instrumenté dans un environnement qui conserve les
+  processus et les sorties, avec checkpoint atomique externe après chaque rollout et reprise testée
+  sur un smoke test avant toute campagne de 512 parties.
+- [À étudier] Réduire temporairement le rollout à 1 partie et isoler collecte, optimisation et
+  écriture du checkpoint pour identifier l'étape qui provoque l'arrêt ; reprendre ensuite exactement
+  la recette `exp-00069` depuis v002.
+- [À conserver] Le protocole de qualité doit toujours mesurer Random, v007, v008 et v002, avec
+  validation batchée dès que le panel dépasse 20 parties et un benchmark runtime comparable.
 
 
 ## Décisions issues de la campagne exp-00050 à exp-00055
