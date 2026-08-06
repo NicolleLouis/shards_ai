@@ -31,6 +31,7 @@ complets, les métriques et les commandes sont conservés dans `doc/Experiments/
 | exp-00040 | Rejetée | La bonne accuracy holdout et le gain contre Random ne compensent pas la régression v007 ni le ralentissement de 13,57 %. |
 | exp-00041 | Rejetée | Une marge teacher élevée seule ne garantit pas une meilleure politique en partie. |
 | exp-00045 | Rejetée | La correction ciblée de `recruit_mercenary` améliore v001 mais régresse v007, v008 et v002, avec un ralentissement médian de 61,3 %. |
+| exp-00046 | Rejetée | La distillation locale ancrée sur v002 hors états mercenaires réduit le temps de partie, mais régresse Random, v007 et v002 sur la validation longue. |
 
 Les expériences antérieures sont également disponibles dans `doc/Experiments/`, mais ne doivent pas
 être reprises à l’identique sans nouvelle hypothèse ou nouveau protocole.
@@ -146,3 +147,26 @@ ci-dessus et détaillée dans son rapport d’expérience.
   états mercenaires ciblés, avec une ablation sans surpondération et un budget de changements borné.
 - [À étudier] Mesurer séparément le coût d'inférence de la candidate et le nombre d'actions avant de
   poursuivre une piste qualité; toute candidate doit rester comparable à v002 sur le benchmark.
+
+## Expérience exp-00046 — rejetée
+
+- [Terminé] Tester une distillation locale depuis v002 avec une pénalité MSE (`0,25`) sur les
+  sorties v002 pour les décisions non ciblées ; les états offrant simultanément `buy_card` et
+  `recruit_mercenary` restent entraînés sans surpondération.
+- [Résultat] Sur 100 parties par adversaire, Random `-4` points, v007 `-7`, v008 `+4` et v002
+  `-9` ; la moyenne des trois gardes demandées est `-2,33` points. Le benchmark comparable de 50
+  parties passe de `46,4307 s` à `39,1018 s`, mais avec `18 636` actions contre `17 247`, donc ce
+  gain de temps ne constitue pas un gain de force.
+- [Supprimé] Ne pas promouvoir v010 ni reprendre cet ancrage global ; conserver l'idée d'un
+  ancrage conditionnel seulement après attribution des décisions changées et un budget explicite
+  de dérive par catégorie.
+
+## Suites issues d'exp-00046
+
+- [À privilégier] Construire une distillation réellement locale sur les états mercenaires ciblés,
+  avec pénalité v002 sur toutes les alternatives légales non ciblées dans le même état, puis
+  mesurer les décisions changées par action avant la validation longue.
+- [À mesurer] Séparer le temps d'inférence par décision du nombre total d'actions ; le benchmark
+  v010 est plus rapide mais suit des trajectoires plus longues.
+- [À garder] Rejeter toute candidate qui régresse v002, Random ou v007, même si elle améliore v008
+  et l'accuracy holdout.
