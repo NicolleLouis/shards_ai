@@ -122,3 +122,28 @@ hypothèse falsifiable, la référence v002, les métriques attendues et la cond
   et sur `recruit_mercenary`, avec un budget de décisions modifiées et un holdout par phase/action.
 - [À supprimer] Toute promotion d’une représentation qui améliore seulement v008 ou la précision
   offline sans non-régression contre Random, v007 et v002.
+
+## Expérience exp-00051 — rejetée
+
+- [Terminé] Tester une correction bornée de `semantic_identity_v3` : conserver le scorer contextuel
+  de v002, ajouter un résidu linéaire sémantique initialisé à zéro et limiter sa contribution à
+  `0,1`, avec conversion explicite des poids v002 et Adam réinitialisé.
+- [Résultat] Le panel officiel de 100 parties par adversaire donne Random `-10,0` points, v007
+  `-1,0`, v008 `+0,0` et v002 neural `-7,0`. Le gain contre v001 (`+11,0`) ne constitue pas une
+  preuve de force contre les références actives.
+- [Résultat] Le benchmark comparable médian sur 50 parties contre v002 passe de `14,2984 s` et
+  `17 073` actions pour v002 à `10,7607 s` et `17 013` actions pour la candidate ; cette mesure
+  candidate est très variable entre répétitions et ne compense pas la régression de qualité.
+- [Supprimé] Ne pas promouvoir le résidu borné, ni reprendre une variation de représentation sans
+  corriger la dérive de politique observée contre Random et v002.
+
+## Suites issues d'exp-00051
+
+- [À privilégier] Avant tout nouvel entraînement, mesurer la dérive décisionnelle de la candidate
+  par phase et type d’action sur un holdout indépendant ; isoler les décisions changées plutôt que
+  modifier encore l’amplitude du résidu.
+- [À étudier] Tester une régularisation explicite des logits ou une contrainte de conservation de
+  l’action v002 sur les états hors slices ciblées, avec budget de décisions modifiées et validation
+  complète contre Random, v007, v008 et v002.
+- [À supprimer] Les résidus bornés ou gains de runtime acceptés malgré une forte baisse contre
+  Random/v002 ; ne pas utiliser v001 seul comme critère de sélection.
