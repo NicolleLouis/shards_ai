@@ -95,6 +95,7 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 | exp-00054 | Analyse terminée | 15 711 décisions : erreurs v007 concentrées en PLAY, cartes rares sous-couvertes. |
 | exp-00055 | Rejetée | Interaction phase×action : gains v007/v008/v002, mais Random régresse et moyenne -0,2 point. |
 | exp-00056 | Rejetée | Le résidu phase×action avec base v002 gelée protège v002, mais régresse Random et v007 ; runtime légèrement supérieur. |
+| exp-00058 | Rejetée | Mélange DAgGER v002/v008 sur les états divergents : v002 et Random protégés au screening, mais aucune hausse moyenne et runtime/inférence en hausse. |
 
 ## Pistes écartées
 
@@ -237,6 +238,29 @@ Ordre des expériences :
   le professeur heuristique.
 - [À conserver] Le protocole de collecte stratégiquement divergent est informatif, mais tout
   nouveau candidat doit être comparé à v002, Random, v007 et v008 avec le même panel complet.
+
+## Expérience exp-00058 — rejetée
+
+- [Terminé] Collecter les états visités par v002 contre v007, v008 et v002, puis mélanger
+  déterministement les labels v008 et v002 sur les phases en divergence stratégique. Cette correction
+  teste directement l'hypothèse que exp-00057 a trop déplacé la politique vers le professeur v008.
+- [Résultat] Sur 20 parties par adversaire, Random et v002 sont à delta `0,00`, v007 à `0,00` et
+  v008 à `+0,05`; la moyenne des cinq références est `-0,01` à cause de v001 `-0,10`. Le screening
+  ne montre donc pas de gain moyen suffisant et ne justifie pas une promotion.
+- [Résultat] Le benchmark v002-v002 sur 50 parties passe de `22,3853 s` à `24,7165 s`, avec
+  `17 661` contre `17 663` actions et `8,8046 s` contre `9,7489 s` d'inférence.
+- [Supprimé] Ne pas promouvoir ce mélange ni reprendre DAgGER divergent avec la même proportion
+  sans un holdout plus large et une attribution explicite des décisions modifiées.
+
+## Suites issues d'exp-00058
+
+- [À privilégier] Conserver le mélange v002/v008 comme contrôle, mais apprendre séparément les poids
+  de mélange par phase/action sur un holdout par `game_id`, avec budget d'argmax modifiés fixé avant
+  entraînement.
+- [À étudier] Tester une petite fraction v008 uniquement sur les couples PLAY/cartes dont le gain
+  v007 est confirmé, en protégeant Random et v002 par conservation de l'action v002 hors slice.
+- [À supprimer] Toute conclusion fondée sur v008 seul, sur le screening de 20 parties seul, ou sur
+  le runtime ; l'échec d'exp-00058 impose une validation complète avant toute nouvelle candidate.
 
 Critères de succès : gain reproductible sur une ou plusieurs slices ciblées, absence de régression
 robuste contre Random, v002, v007 et v008, et dérive d'argmax v002 dans le budget fixé. Critères de
