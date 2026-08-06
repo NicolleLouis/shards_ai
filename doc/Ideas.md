@@ -102,6 +102,28 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 | exp-00062 | Rejetée | Biais scalaires gelés sur cinq cartes PLAY v007 : politique identique à v002 sur le panel et aucune amélioration de force ; coût médian +9,7 %. |
 | exp-00063 | Rejetée | DAgGER on-policy priorisé sur quatre catégories : v008 +5 et v002 neural +2, mais Random -5, v007 -1 et runtime +3,6 %. |
 | exp-00064 | Rejetée | Imitation conservatrice depuis v002 (1e-5, 10 000 décisions) : v007 +8, mais Random -4, v008 -3 et v002 -14 ; runtime +5,0 %. |
+| exp-00065 | Rejetée | Conservation de politique par logits centrés v002 : Random +5 et v008 +10 au screening, mais v007 -20, v002 -10 et runtime médian +37,5 %. |
+
+## Expérience exp-00065 — rejetée
+
+- [Terminé] Tester une pénalité de conservation des scores centrés de v002 pendant une imitation
+  mixte v007/v008, depuis `configs/neural_profiles/v002.pt`, avec 10 000 décisions et Adam réinitialisé.
+- [Résultat] Le screening de 20 parties donne Random `+5`, v007 `-20`, v008 `+10`, neural:v002
+  `-10` et neural:v001 `+10` points ; la moyenne est négative, donc aucune promotion.
+- [Résultat] Le benchmark médian comparable passe de `11,3577 s` à `15,6114 s`, avec `238`
+  actions supplémentaires et une inférence de `4,5361 s` à `6,2102 s`.
+- [Supprimé] Ne pas reprendre une conservation globale qui exécute un forward v002 à chaque
+  décision ; elle ne protège pas v007/v002 et son coût est incompatible avec une candidate qualité.
+
+## Suites après exp-00065
+
+- [À privilégier] Revenir à l'attribution holdout par `game_id` et mesurer un budget d'argmax
+  modifié avant tout nouvel objectif ; la conservation doit être appliquée seulement à une slice
+  causalement confirmée.
+- [À étudier] Si une slice est confirmée, pré-calculer ou embarquer la protection sans second
+  forward en production, puis refaire le panel complet contre Random, v007, v008 et v002.
+- [À supprimer] Toute conservation globale, toute amélioration v008 seule et toute candidate dont
+  le coût comparable augmente sans gain moyen robuste.
 
 ## Pistes écartées
 
