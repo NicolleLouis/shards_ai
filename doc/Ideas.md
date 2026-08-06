@@ -21,30 +21,30 @@ référence importante, malgré des gains isolés contre v001 ou v008. `exp-0004
 faiblesses sont liées à des catégories d'actions/cartes et que certaines erreurs PLAY sont
 confiantes.
 
-Conclusion : le catalogue ne doit plus privilégier une nouvelle variation locale de la même recette.
-La prochaine campagne doit tester une hypothèse de rupture, tout en conservant un protocole de
-comparaison contre v002.
+Les expériences `exp-00050`, `exp-00051`, `exp-00053` et `exp-00055` ont testé quatre variations
+de représentation ; elles ont toutes été rejetées pour régression ou moyenne insuffisante malgré
+des gains isolés. `exp-00052` a amélioré le duel direct contre v002 mais a régressé v007/v008.
+`exp-00054` confirme que les erreurs v007 sont surtout en PLAY et souvent confiantes, sans fournir
+de preuve causale de force en partie.
+
+Conclusion : v002 reste la référence active. Une prochaine mise à jour doit mesurer la dérive de
+politique sur un holdout indépendant avant de modifier encore l'architecture ou l'objectif.
 
 ## Priorité immédiate : changer d'espace de solution
 
-### 1. À privilégier — architecture ou représentation
+### 1. À privilégier — diagnostic de dérive puis correction ciblée
 
-Tester une seule modification structurelle susceptible de traiter les erreurs par phase, action ou
-carte que les pertes locales n'ont pas corrigées. Les options candidates sont, par exemple :
+Construire d'abord un holdout indépendant par partie, stratifié par phase et type d'action, avec
+ECE, Brier, reliability bins et un budget explicite de décisions modifiées par rapport à v002.
+Après attribution, tester au plus une correction bornée sur les slices responsables, notamment
+PLAY/action-card v007 et `recruit_mercenary`.
 
-- une tête ou un encodeur conditionné par phase/type d'action ;
-- une représentation des cartes combinant identité et information sémantique ;
-- une dimension d'embedding ou de contexte différente, mesurée explicitement ;
-- une représentation/pooling des actions légales qui conserve leur contexte sans fuite d'information.
+Hypothèse falsifiable : une correction bornée sur des états attribués améliore la slice ciblée sans
+dépasser le budget de dérive et sans régresser v002, Random, v007 ou v008 sur le panel complet.
 
-Hypothèse falsifiable : une modification structurelle bornée améliore les slices holdout ciblées
-(`play_card`, `banish_card`, `recruit_mercenary`) sans dégrader la moyenne contre v002, Random et
-v007, avec un coût d'inférence mesuré.
-
-Protocole minimal : conserver v002, le même split par partie, un contrôle sans changement, une seule
-variable d'architecture, puis mesurer qualité globale, slices ciblées, décisions changées, nombre
-d'actions, mémoire et temps d'inférence. Ne pas commencer par plusieurs dimensions ou plusieurs
-têtes à la fois.
+Protocole minimal : holdout par `game_id` non utilisé pour l'entraînement, contrôle v002, décisions
+changées par phase/type/carte, puis validation complète et benchmark comparable. Ne pas sélectionner
+sur l'accuracy offline, v008 seul ou le nombre d'actions.
 
 ### 2. À privilégier — changer le type d'entraînement
 
@@ -60,11 +60,11 @@ Garde-fous : profiler d'abord la collecte si PPO est retenu, séparer les budget
 validation, conserver un holdout non utilisé pour choisir les mises à jour et refuser toute conclusion
 fondée sur une amélioration contre v008 seul.
 
-### 3. À conserver comme diagnostic préparatoire
+### 3. À conserver comme diagnostics préparatoires
 
-- Étendre le holdout de `exp-00049` par phase et type d'action ; mesurer ECE, Brier et reliability bins.
-- Séparer les erreurs de type d'action des erreurs de carte pour `crystal`, `moine_du_portail`,
-  `ojas`, `recruit_mercenary` et `banish_card`.
+- Étendre l'analyse de `exp-00054` avec un holdout par partie et des intervalles d'incertitude.
+- Séparer les erreurs de type d'action des erreurs de carte, en ciblant PLAY/action-card v007 et
+  `recruit_mercenary`; garder les cartes rares comme slices diagnostiques tant que la couverture est faible.
 - Attribuer les décisions modifiées et fixer un budget de dérive avant tout nouvel entraînement.
 - Utiliser `doc/Architecture/069-protocole-analyse-informative.md` pour éviter les analyses redondantes
   et exiger une question de connaissance nouvelle.
@@ -88,11 +88,17 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 | exp-00047 | Rejetée | Ancrage dans les états achat/recrutement : régressions et trajectoires plus longues. |
 | exp-00048 | Rejetée | Ranking-only : v008 protégé, mais régressions Random, v007 et v002. |
 | exp-00049 | Analyse terminée | Holdout indépendant : faiblesses par action/carte et erreurs PLAY souvent confiantes. |
+| exp-00050 | Rejetée | Résidu sémantique identité : régressions Random, v007 et v002 malgré v008 en hausse. |
+| exp-00051 | Rejetée | Résidu sémantique borné : forte régression Random et v002 ; runtime variable. |
+| exp-00052 | Rejetée | KL globale : gain contre v002 neural, mais régressions v007 et v008. |
+| exp-00053 | Rejetée | Biais global par type d'action : régressions v007, v002 et coût d'inférence accru. |
+| exp-00054 | Analyse terminée | 15 711 décisions : erreurs v007 concentrées en PLAY, cartes rares sous-couvertes. |
+| exp-00055 | Rejetée | Interaction phase×action : gains v007/v008/v002, mais Random régresse et moyenne -0,2 point. |
 
 ## Pistes écartées
 
-- Reprendre à l'identique une distillation locale ou globale, une loss ranking-only ou une simple
-  surpondération de `recruit_mercenary`.
+- Reprendre à l'identique une distillation locale ou globale, une loss ranking-only, une simple
+  surpondération de `recruit_mercenary`, un résidu sémantique ou un biais global phase/action.
 - Promouvoir sur la base d'un gain contre v001 ou v008 seul.
 - Utiliser une accuracy holdout sans validation en partie.
 - Reprendre un PPO court ou interrompu sans profilage de collecte et budget complet.
@@ -101,146 +107,92 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 Toute nouvelle idée doit préciser l'axe choisi (architecture/représentation ou training), une
 hypothèse falsifiable, la référence v002, les métriques attendues et la condition de rejet.
 
-## Expérience exp-00050 — rejetée
 
-- [Terminé] Tester une variation d’architecture `semantic_identity_v3` depuis v002 : conserver le
-  contexte global des actions de v002 et ajouter un résidu sémantique linéaire sur les embeddings de
-  cartes, initialisé à l’identité. Le dataset a été régénéré avec v008 et v007, séparé par `game_id`.
-- [Résultat] La validation officielle de 100 parties par adversaire donne Random `-3,0` points,
-  v007 `-3,0`, v008 `+5,0` et v002 neural `-12,0`. Le benchmark comparable médian passe de `14,2108 s`
-  à `14,3520 s` (`-0,99 %` de débit) et de `17 073` à `16 667` actions.
-- [Supprimé] Ne pas promouvoir la candidate : le gain contre la garde v008 ne compense pas les
-  régressions Random, v007 et surtout v002. Le résidu sémantique est une variation effective, mais
-  son transfert partiel ne suffit pas à préserver la politique active.
+## Décisions issues de la campagne exp-00050 à exp-00055
 
-## Suites issues d'exp-00050
+- [Terminé] Les cinq candidates qualité ont été rejetées ; v002 reste la référence active et aucun
+  checkpoint n'a été promu.
+- [Conservé] L'analyse exp-00054 justifie un holdout indépendant stratifié par partie, phase et
+  type d'action, avec ECE/Brier, intervalles d'incertitude et budget de décisions modifiées.
+- [À privilégier] Mesurer la dérive par phase/type/carte, puis tester au plus une correction bornée
+  sur les slices PLAY/action-card v007 ou `recruit_mercenary`, avec validation complète contre v002,
+  Random, v007 et v008.
+- [À étudier] Relancer la famille du résidu sémantique avec un entraînement plus long et des
+  évaluations intermédiaires, en donnant la priorité à `exp-00050` et en traitant `exp-00051` comme
+  variante conditionnelle, seulement après mesure de la dérive.
+- [À étudier] Pousser `exp-00055` : son interaction phase×action a obtenu v007 `+2` points, v008
+  `+3` et v002 `+1`, mais Random `-2` et une moyenne de `-0,2` point ; le signal doit être reproduit
+  et attribué avant toute nouvelle variation.
+- [À supprimer] Toute promotion fondée sur v008, v001, l'accuracy offline, le nombre d'actions ou
+  le runtime seul ; les résidus sémantiques, biais globaux et interaction phase×action testés sont
+  déjà invalidés dans leurs protocoles respectifs.
 
-- [À privilégier] Mesurer avant entraînement la dérive de politique induite par le résidu identité,
-  puis tester une version gelant ce résidu pendant le premier passage ou limitant explicitement sa
-  norme ; comparer d’abord directement à v002 avant la validation complète.
-- [À étudier] Évaluer séparément l’effet de la représentation sur les erreurs `play_card` par carte
-  et sur `recruit_mercenary`, avec un budget de décisions modifiées et un holdout par phase/action.
-- [À supprimer] Toute promotion d’une représentation qui améliore seulement v008 ou la précision
-  offline sans non-régression contre Random, v007 et v002.
+### Relance contrôlée des résidus sémantiques (`exp-00050` / `exp-00051`)
 
-## Expérience exp-00051 — rejetée
+Hypothèse : le résidu sémantique d'exp-00050 possède un signal card-sensitive réel mais n'a pas
+encore appris une politique stable après une seule époque ; des évaluations intermédiaires peuvent
+identifier une époque où les slices ciblées progressent sans dépasser le budget de dérive de v002.
+La variante bornée d'exp-00051 est une comparaison secondaire, car elle n'a conservé aucun gain
+contre v008 et a régressé Random de `10` points et v002 de `7` points.
 
-- [Terminé] Tester une correction bornée de `semantic_identity_v3` : conserver le scorer contextuel
-  de v002, ajouter un résidu linéaire sémantique initialisé à zéro et limiter sa contribution à
-  `0,1`, avec conversion explicite des poids v002 et Adam réinitialisé.
-- [Résultat] Le panel officiel de 100 parties par adversaire donne Random `-10,0` points, v007
-  `-1,0`, v008 `+0,0` et v002 neural `-7,0`. Le gain contre v001 (`+11,0`) ne constitue pas une
-  preuve de force contre les références actives.
-- [Résultat] Le benchmark comparable médian sur 50 parties contre v002 passe de `14,2984 s` et
-  `17 073` actions pour v002 à `10,7607 s` et `17 013` actions pour la candidate ; cette mesure
-  candidate est très variable entre répétitions et ne compense pas la régression de qualité.
-- [Supprimé] Ne pas promouvoir le résidu borné, ni reprendre une variation de représentation sans
-  corriger la dérive de politique observée contre Random et v002.
+Protocole requis :
 
-## Suites issues d'exp-00051
+- repartir de `configs/neural_profiles/v002.pt` pour chaque variante, sans reprendre le checkpoint
+  final d'une tentative précédente ; conserver le dataset et le split `game_id` comparables ;
+- entraîner exp-00050 sur plusieurs paliers courts, par exemple `1`, `2` et `4` époques, en
+  sauvegardant une candidate temporaire à chaque palier ; tester exp-00051 seulement avec la même
+  grille si exp-00050 montre un palier prometteur ou si l'effet de la borne doit être isolé ;
+- mesurer à chaque palier la validation complète contre v002, Random, v007 et v008, ainsi que les
+  décisions modifiées par phase, type d'action et carte sur un holdout indépendant ;
+- mesurer séparément le runtime, le nombre d'actions et le coût d'inférence ; aucun de ces signaux
+  ne peut compenser une régression de qualité ;
+- conserver un budget explicite de décisions dont l'argmax peut diverger de v002, avec attribution
+  des changements aux slices PLAY/action-card et `recruit_mercenary` avant toute promotion.
 
-- [À privilégier] Avant tout nouvel entraînement, mesurer la dérive décisionnelle de la candidate
-  par phase et type d’action sur un holdout indépendant ; isoler les décisions changées plutôt que
-  modifier encore l’amplitude du résidu.
-- [À étudier] Tester une régularisation explicite des logits ou une contrainte de conservation de
-  l’action v002 sur les états hors slices ciblées, avec budget de décisions modifiées et validation
-  complète contre Random, v007, v008 et v002.
-- [À supprimer] Les résidus bornés ou gains de runtime acceptés malgré une forte baisse contre
-  Random/v002 ; ne pas utiliser v001 seul comme critère de sélection.
+Critères de poursuite : un palier doit améliorer une slice ciblée ou le panel qualité sans régresser
+Random, v002, v007 ou la garde v008, et sans dérive non attribuée. Critères d'arrêt : toute nouvelle
+régression sur Random ou v002 sans gain ciblé reproductible, absence de progrès entre deux paliers,
+ou runtime significativement dégradé. La relance ne doit produire qu'une candidate temporaire ; le
+checkpoint mutable canonique reste `artifacts/neural_training/checkpoint.pt` et aucune version n'est
+promue avant la gate complète.
 
-## Expérience exp-00052 — rejetée
+### Suite prioritaire de l'interaction phase×action (`exp-00055`)
 
-- [Terminé] Tester une imitation depuis v002 avec une régularisation KL de `0,5` vers la politique
-  active v002 sur chaque état et chaque action légale. Cette correction concrète des dérives des
-  résidus d'exp-00050/00051 conserve le même scorer `global_candidate_context`, utilise Adam réinitialisé,
-  un taux d'apprentissage réduit à `1e-4` et un split par `game_id`.
-- [Résultat] Sur 100 parties par adversaire, Random progresse de `+1,0` point, mais v007 régresse de
-  `-1,0` et la garde v008 de `-3,0` ; le panel direct contre v002 donne `+17,0` points mais ne
-  compense pas les références heuristiques actives. Le benchmark comparable passe de `9,2263 s`
-  et `16 739` actions à `9,1367 s` et `16 544` actions sur 50 parties.
-- [Supprimé] Ne pas promouvoir cette régularisation globale : elle réduit le coût mesuré mais ne
-  démontre pas une force supérieure contre v007 et v008.
+Constat : `exp-00055` est la candidate la plus proche d'une amélioration parmi les variations
+phase/action testées, mais sa validation de `100` parties par adversaire reste insuffisante pour
+conclure. La candidate a été entraînée depuis v002 avec `phase_action_interaction_v1`, Adam réinitialisé,
+un taux d'apprentissage de `1e-4`, et seulement `2 000` enregistrements sur un dataset de `20 115`.
+Le résultat peut donc refléter un compromis prometteur mais aussi une variance de panel ou une dérive
+partielle de la politique v002.
 
-## Suites issues d'exp-00052
+Hypothèse : l'interaction phase×action améliore certaines décisions PLAY et les matchups v007/v008,
+mais la mise à jour de base ou quelques couples phase/action introduisent la régression Random. Une
+reproduction contrôlée et une attribution des décisions doivent permettre de conserver le signal
+utile sans perdre la non-régression Random/v002.
 
-- [À privilégier] Mesurer les décisions effectivement changées par la pénalité KL, par phase et type
-  d'action, avant de retenter une contrainte de conservation ; conditionner éventuellement la KL aux
-  états hors slices ciblées tout en conservant un budget explicite de dérive.
-- [À étudier] Tester une température ou une cible de distillation calibrée sur les logits v002, avec
-  une validation holdout indépendante des états changés ; ne pas confondre la KL avec une garantie de
-  conservation de l'argmax.
-- [À supprimer] Toute nouvelle imitation globale avec seulement un taux d'apprentissage différent,
-  ou toute promotion fondée sur le gain contre v002 neural seul.
+Ordre des expériences :
 
-## Expérience exp-00053 — rejetée
+- [Reproduction] Rejouer exactement la recette `exp-00055` avec le même dataset, split `game_id`,
+  seed et checkpoint v002 ; vérifier la provenance et le contenu réel de la candidate avant de
+  comparer les scores.
+- [Robustesse] Répéter ensuite avec plusieurs seeds et un panel plus large ou plusieurs panels
+  indépendants. Conserver les résultats par adversaire et leurs intervalles d'incertitude ; ne pas
+  agréger des protocoles différents ni transformer `+1` ou `-2` points en effet établi.
+- [Sous-entraînement] Produire des candidates intermédiaires après environ `2 000`, `5 000`,
+  `10 000` puis la totalité des enregistrements, avec le même panel de validation à chaque palier.
+  Arrêter la trajectoire si Random ou v002 se dégrade sans gain ciblé reproductible.
+- [Attribution] Comparer chaque candidate à v002 sur un holdout indépendant : décisions modifiées
+  par phase, type d'action et carte, avec attention aux slices PLAY et aux couples responsables de
+  la hausse v007/v008. Mesurer aussi le taux de conservation de l'argmax v002.
+- [Isolation] Tester une variante qui gèle tous les poids de v002 et n'entraîne que le biais
+  phase×action. Cette variante doit déterminer si le signal vient de l'interaction ajoutée plutôt
+  que d'une dérive générale du scorer.
+- [Ciblage] Si la régression Random est localisée, limiter le biais aux couples attribués et protéger
+  explicitement les autres états par conservation de l'action ou des logits v002. Ne pas élargir la
+  correction à toutes les phases sans preuve issue de l'analyse.
 
-- [Terminé] Tester une architecture `global_context_action_type_bias_v1` depuis v002 : conserver
-  le scorer contextuel et ajouter un biais scalaire par type d'action, initialisé à zéro. Le dataset
-  a été régénéré avec v008 comme teacher, les matchups v008/v007, séparé par `game_id`.
-- [Résultat] La validation officielle de 100 parties par adversaire donne, contre la référence
-  v002, Random `-2,0` points, v007 `-8,0`, v008 `+1,0`, neural v002 `-6,0` et neural v001 `+9,0`.
-  La moyenne des cinq deltas vaut `-1,2` point : la candidate est rejetée.
-- [Résultat] Le benchmark comparable médian sur 50 parties contre v002 passe de `9,3700 s` et
-  `16 938` actions pour v002 à `14,0246 s` et `16 780` actions pour la candidate ; le coût
-  d'inférence augmente également. Aucun gain de runtime n'est revendiqué.
-- [Supprimé] Ne pas promouvoir ni reprendre le biais global par type d'action : il corrige
-  potentiellement v008, mais régresse les références Random, v007 et v002.
-
-## Suites issues d'exp-00053
-
-- [À privilégier] Mesurer les décisions changées par type d'action et par phase, puis tester au
-  plus une correction bornée sur les catégories réellement responsables de la régression, avec un
-  budget explicite de dérive et comparaison directe à v002 avant toute validation complète.
-- [À étudier] Réutiliser l'architecture sans biais comme contrôle et comparer un résidu conditionné
-  par phase uniquement si l'analyse montre que le biais global mélange des phases incompatibles.
-- [À supprimer] Toute nouvelle variation de biais global, toute sélection sur v008 seul, et toute
-  conclusion fondée sur le gain contre v001 ou sur le nombre d'actions seul.
-
-## Expérience exp-00054 — analyse terminée
-
-- [Terminé] Diagnostiquer v002 sur `15 711` états visibles visités contre v007, v008 et Random,
-  avec couverture phase/action/carte, loss, accuracy, confiance, désaccord v001/v002 et états
-  représentatifs masqués. Aucun checkpoint n'a été modifié.
-- [Résultat] L'accord v002 est de `75,35 %` avec v007 et `87,86 %` avec v008. Les erreurs v007
-  sont concentrées en PLAY (`72,4 %`) et souvent confiantes (`11,97 %` globalement ; `blaster`
-  `88,5 %`), tandis que v008 laisse surtout faibles `buy_card`, `recruit_mercenary` et
-  `gain_mastery`.
-- [Résultat] Le dataset est PLAY-heavy (`71,8 %`) et les cartes rares restent sous-couvertes ;
-  les scores ne justifient pas une nouvelle pondération immédiate.
-- [Conservé] Le rapport durable est `doc/Experiments/exp-00054.md` et le résultat machine est
-  `result.json`.
-
-## Suites issues d'exp-00054
-
-- [À privilégier] Construire un holdout indépendant par partie, stratifié phase/action, avec ECE,
-  Brier, reliability bins et intervalles d'incertitude avant toute nouvelle mise à jour.
-- [À étudier] Tester séparément une correction bornée des slices PLAY/action/carte v007 et de
-  `recruit_mercenary`, avec un budget explicite de décisions modifiées par rapport à v002.
-- [À étudier] Augmenter la couverture des cartes rares avant de leur appliquer une pondération.
-- [À supprimer] Toute sélection fondée sur l'accuracy offline, v008 seul ou les logits bruts
-  inter-version ; ne pas reprendre une loss globale sans attribution de dérive.
-
-## Expérience exp-00055 — rejetée
-
-- [Terminé] Tester une architecture `phase_action_interaction_v1` depuis v002 : ajouter un biais
-  scalaire phase×type d'action initialisé à zéro au scorer contextuel, sur un dataset masqué v008
-  contre Random/v007 séparé par `game_id`. La famille est `architecture`; la nouveauté est de rendre
-  explicite l'interaction phase/action sans reprendre le biais global par type d'exp-00053.
-- [Résultat] La validation complète de 100 parties par adversaire donne Random `-2,0` points,
-  v007 `+2,0`, v008 `+3,0` et v002 neural `+1,0`; la régression v001 est `-5,0`. La moyenne des
-  cinq deltas est `-0,2` point : la candidate est rejetée malgré les gains sur v007/v008/v002.
-- [Résultat] Le benchmark comparable médian sur 50 parties contre v002 passe de `9,6103 s` et
-  `16 883` actions à `9,5426 s` et `17 029` actions, soit un débit de `5,2028` à `5,2397` parties/s.
-  Le petit gain de temps ne compense pas la non-régression Random manquée.
-- [Supprimé] Ne pas promouvoir cette candidate ni reprendre un biais phase×action sans une nouvelle
-  hypothèse et une correction concrète de la dérive Random.
-
-## Suites issues d'exp-00055
-
-- [À privilégier] Analyser la dérive de la candidate par phase/type d'action et conserver uniquement
-  les couples responsables des gains v007/v008 si une prochaine expérience protège explicitement
-  Random et v002.
-- [À étudier] Tester un budget de décisions modifiées ou un gel sélectif des poids v002 hors slices
-  PLAY confirmées, avec le même panel complet et le même benchmark runtime.
-- [À supprimer] Toute promotion fondée sur les seuls gains v007/v008/v002, l'augmentation d'actions
-  ou le gain de débit.
+Critères de succès : gain reproductible sur une ou plusieurs slices ciblées, absence de régression
+robuste contre Random, v002, v007 et v008, et dérive d'argmax v002 dans le budget fixé. Critères de
+rejet : échec de reproduction, régression Random persistante, gain limité à v007/v008, ou amélioration
+qui disparaît avec un panel indépendant. Le runtime, le débit et le nombre d'actions restent des
+métriques secondaires et ne peuvent pas compenser un échec de qualité.
