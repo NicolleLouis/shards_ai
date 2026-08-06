@@ -195,3 +195,27 @@ hypothèse falsifiable, la référence v002, les métriques attendues et la cond
   par phase uniquement si l'analyse montre que le biais global mélange des phases incompatibles.
 - [À supprimer] Toute nouvelle variation de biais global, toute sélection sur v008 seul, et toute
   conclusion fondée sur le gain contre v001 ou sur le nombre d'actions seul.
+
+## Expérience exp-00054 — analyse terminée
+
+- [Terminé] Diagnostiquer v002 sur `15 711` états visibles visités contre v007, v008 et Random,
+  avec couverture phase/action/carte, loss, accuracy, confiance, désaccord v001/v002 et états
+  représentatifs masqués. Aucun checkpoint n'a été modifié.
+- [Résultat] L'accord v002 est de `75,35 %` avec v007 et `87,86 %` avec v008. Les erreurs v007
+  sont concentrées en PLAY (`72,4 %`) et souvent confiantes (`11,97 %` globalement ; `blaster`
+  `88,5 %`), tandis que v008 laisse surtout faibles `buy_card`, `recruit_mercenary` et
+  `gain_mastery`.
+- [Résultat] Le dataset est PLAY-heavy (`71,8 %`) et les cartes rares restent sous-couvertes ;
+  les scores ne justifient pas une nouvelle pondération immédiate.
+- [Conservé] Le rapport durable est `doc/Experiments/exp-00054.md` et le résultat machine est
+  `result.json`.
+
+## Suites issues d'exp-00054
+
+- [À privilégier] Construire un holdout indépendant par partie, stratifié phase/action, avec ECE,
+  Brier, reliability bins et intervalles d'incertitude avant toute nouvelle mise à jour.
+- [À étudier] Tester séparément une correction bornée des slices PLAY/action/carte v007 et de
+  `recruit_mercenary`, avec un budget explicite de décisions modifiées par rapport à v002.
+- [À étudier] Augmenter la couverture des cartes rares avant de leur appliquer une pondération.
+- [À supprimer] Toute sélection fondée sur l'accuracy offline, v008 seul ou les logits bruts
+  inter-version ; ne pas reprendre une loss globale sans attribution de dérive.
