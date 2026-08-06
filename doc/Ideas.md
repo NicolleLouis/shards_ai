@@ -99,6 +99,7 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 | exp-00059 | Rejetée | Pondération ciblée `play_card` depuis v002 : +4 points contre v002, mais v007 -5, v008 -1 et runtime médian +45,4 %. |
 | exp-00060 | Rejetée | Pondération PLAY conservatrice (1,10, 1 000 décisions) : Random +2 et v002 +4, mais v007/v008 -8 et runtime +3,7 %. |
 | exp-00061 | Analyse terminée | Holdout diagnostique masqué de 13 816 décisions : dérive v007 concentrée en PLAY/cartes, erreurs souvent confiantes, calibration ECE v007 0,171 et v008 0,027 ; aucune candidate. |
+| exp-00062 | Rejetée | Biais scalaires gelés sur cinq cartes PLAY v007 : politique identique à v002 sur le panel et aucune amélioration de force ; coût médian +9,7 %. |
 
 ## Pistes écartées
 
@@ -338,6 +339,32 @@ Ordre des expériences :
   sélectionner sur le duel v002 seul ; mesurer également le coût d'inférence à chaque palier.
 - [À supprimer] Toute pondération globale ou par type d'action qui ne protège pas simultanément
   Random, v007, v008 et v002 sur le panel complet.
+
+## Expérience exp-00062 — rejetée
+
+- [Terminé] Tester une architecture `play_card_slice_bias_v1` depuis v002 : scorer contextuel
+  entièrement gelé, cinq biais scalaires initialisés à zéro pour `PLAY × {blaster, infinity_shard,
+  legionnaire_korvus, chevalier_le_shai, li_hin_la_brisee}`, entraînés sur 3 000 décisions d'un
+  dataset v008/v007 de 30 062 décisions. Cette correction est nouvelle par sa surface de mise à
+  jour explicitement bornée et son absence de dérive hors slice.
+- [Résultat] La validation batchée complète de 100 parties par adversaire donne delta `0,00` contre
+  Random, v007, v008 et v002 ; la candidate est rejetée car elle ne produit aucun gain de force.
+  Les biais appris restent faibles (`0,0051`, `0,0014`, `0,0043`, `0,0027`, `-0,0015`) et n'ont
+  changé aucune décision du panel de validation.
+- [Résultat] Le benchmark comparable v002-v002 sur 50 parties médianes passe de `13,6957 s` à
+  `15,0277 s`, avec `17 218` actions identiques et une inférence médiane de `5,365 s` à `6,092 s`.
+- [Supprimé] Ne pas promouvoir cette correction ni élargir les cinq cartes sans un holdout mieux
+  couvert et une preuve qu'une décision changeable est effectivement attribuée à la slice.
+
+## Nouvelles idées après exp-00062
+
+- [À privilégier] Construire le holdout équilibré par `game_id` demandé par exp-00061, avec comptage
+  préalable des décisions `PLAY × carte` et intervalles par carte avant tout nouvel entraînement.
+- [À étudier] Si une carte dispose d'une couverture suffisante, tester un seul biais borné avec un
+  budget d'argmax modifiés non nul fixé à l'avance ; arrêter si l'entraînement reste sous le seuil
+  de changement ou si la candidate ne bat pas v002 sans régresser Random/v007/v008.
+- [À conserver] La protection stricte hors slice est un contrôle causal utile, mais son surcoût
+  d'inférence doit être supprimé ou justifié avant toute future candidate.
 
 Critères de succès : gain reproductible sur une ou plusieurs slices ciblées, absence de régression
 robuste contre Random, v002, v007 et v008, et dérive d'argmax v002 dans le budget fixé. Critères de
