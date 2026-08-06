@@ -377,3 +377,22 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
   `game_id`, en conservant le panel neural et la validation batchée.
 - [À supprimer] Toute sélection fondée sur le top-1 holdout ou sur les seuls gains v007/v008 lorsque
   v002 régresse.
+
+## Expérience exp-00085 — structured_semantic_v4 capacité réduite — rejetée
+
+- [Terminé] Tester `semantic_token_hidden_dim=32` (4 têtes), from-scratch par imitation, avec le
+  dataset canonique hashé et le panel batché ; `training_initial_checkpoint` reste `null`.
+- [Résultat] Le smoke-training de 1 000 décisions donne `75,8 %` top-1, mais le panel donne
+  Random `+15`, v007 `-35`, v008 `0`, v002 `-20` et v003 `-25` points. La candidate est rejetée.
+- [Résultat] Benchmark comparable contre v008 : v002 `2,2935 s` contre V4 `1,9998 s`, mais le
+  gain de runtime ne compense pas la perte de force.
+- [Limite] Le budget prévu de 10 000 décisions n'a pas produit de checkpoint ; ce résultat est un
+  diagnostic borné et ne valide ni n'invalide définitivement une V4 entraînée complètement.
+
+## Nouvelles idées après exp-00085
+
+- [À privilégier] Reprendre l'entraînement V4 par micro-lots atomiques avec budget complet, puis
+  appliquer le même panel long.
+- [À étudier] Curriculum phase/action prédéclaré sur le split `game_id`, avec dérive d'argmax V2
+  mesurée avant sélection.
+- [À supprimer] Toute promotion fondée sur le gain Random, le top-1 offline ou le runtime seul.
