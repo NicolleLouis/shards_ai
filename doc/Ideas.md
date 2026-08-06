@@ -396,3 +396,22 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
 - [À étudier] Curriculum phase/action prédéclaré sur le split `game_id`, avec dérive d'argmax V2
   mesurée avant sélection.
 - [À supprimer] Toute promotion fondée sur le gain Random, le top-1 offline ou le runtime seul.
+
+## Expérience exp-00086 — index des vocabulaires d'inférence — rejetée
+
+- [Terminé] Tester une optimisation purement runtime du scorer neural actif : remplacer les
+  recherches linéaires des vocabulaires d'action, phase et cible par des index préconstruits.
+- [Résultat] Les trajectoires sont identiques sur 100 parties, mais la médiane passe de `17,3474 s`
+  à `17,5153 s` sur le même checkpoint V2, seed et benchmark ; gain de débit `-0,96 %`.
+- [Supprimé] Le patch candidat a été retiré ; aucune modification de code ne reste issue de cette
+  expérience. La gate performance est rejetée et la campagne s'arrête sur cette passe plus lente.
+
+## Nouvelles idées après exp-00086
+
+- [À privilégier] Reprofiler le coût d'inférence avec une séparation explicite représentation,
+  encodage d'état et score avant toute nouvelle micro-optimisation, en conservant le benchmark
+  neural V2 contre V2 et trois répétitions médianes.
+- [À étudier] Tester uniquement une réduction d'allocations démontrée par ce profil, sans cache
+  supplémentaire, changement de modèle, moteur, heuristique ou masque d'information.
+- [À supprimer] Les index de vocabulaires seuls : ils ont été mesurés et ralentissent le workload
+  contrôlé de `0,96 %`.
