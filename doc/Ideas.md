@@ -104,6 +104,7 @@ pas devenir une nouvelle série d'analyses descriptives sans décision associée
 | exp-00064 | Rejetée | Imitation conservatrice depuis v002 (1e-5, 10 000 décisions) : v007 +8, mais Random -4, v008 -3 et v002 -14 ; runtime +5,0 %. |
 | exp-00065 | Rejetée | Conservation de politique par logits centrés v002 : Random +5 et v008 +10 au screening, mais v007 -20, v002 -10 et runtime médian +37,5 %. |
 | exp-00066 | Analyse terminée | La difficulté de v002 augmente avec la compétition de l’ensemble légal : accuracy v007 64,7 %, erreurs confiantes 20,7 %, et dérive d’argmax v001/v002 7,7 % ; le signal reste surtout PLAY/gain_mastery et cartes. |
+| exp-00067 | Rejetée | Continuation PPO courte depuis v002 avec horizon GAE v002, sans shaping v003 : aucun checkpoint candidat sauvegardé dans l’environnement ; le contrôle v002/v002 est neutre et la recette doit être reprise seulement avec une collecte instrumentée. |
 
 ## Expérience exp-00065 — rejetée
 
@@ -162,6 +163,30 @@ hypothèse falsifiable, la référence v002, les métriques attendues et la cond
   `gain_mastery`/PLAY et les ensembles de 3-4 actions, avec argmax v002 conservé ailleurs.
 - [À supprimer] Toute calibration globale fondée sur la confiance moyenne : les états à 1 action
   gonflent artificiellement l'accuracy, et les logits inter-version ne sont pas comparables.
+
+## Expérience exp-00067 — rejetée
+
+- [Terminé] Tester une continuation PPO bornée depuis les poids v002, avec `gamma=0,995`,
+  `gae_lambda=0,95`, sans le reward shaping de v003, deux époques d'optimisation et un budget de
+  2 048 parties ; la proposition est nouvelle par la correction simultanée de l'horizon et du
+  shaping, sans initialisation v001.
+- [Résultat] Les paliers 2 048 puis 256 parties n'ont pas produit de checkpoint avant l'arrêt du
+  processus dans cet environnement. Le contrôle batché v002 contre v002 sur 20 parties donne
+  `0,00` contre Random, v007 et v008 ; aucune force nouvelle n'est démontrée.
+- [Résultat] Le benchmark comparable v002 contre v002 reste à `17 527` actions, avec `14,6337 s`
+  pour la baseline et `14,6008 s` pour la candidate de contrôle ; cette différence ne constitue
+  pas un gain de qualité ni une candidate distincte.
+- [Supprimé] Ne pas reprendre cette recette sans diagnostiquer la disparition du processus et
+  sauvegarder chaque palier ; v002 reste la référence active.
+
+## Suites après exp-00067
+
+- [À privilégier] Instrumenter la collecte PPO avec une sauvegarde/checkpoint après chaque rollout
+  et un progress file, puis reprendre uniquement depuis le dernier palier v002 vérifié.
+- [À étudier] Comparer séparément `gamma=0,995` sans shaping et `gamma=1` avec shaping désactivé,
+  avec le même nombre de parties et une validation complète batchée ; ne pas confondre absence de
+  checkpoint avec absence d'effet de l'objectif.
+- [À conserver] Le contrôle v002/v002 et les métriques de runtime restent la référence comparable.
 
 
 ## Décisions issues de la campagne exp-00050 à exp-00055
