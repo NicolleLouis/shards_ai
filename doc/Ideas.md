@@ -486,3 +486,24 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
   holdout par `game_id`; ne pas réintroduire une pondération ciblée seule.
 - [À supprimer] Toute promotion fondée sur le top-1 holdout, la neutralité V008 ou le runtime
   seul; la régression V007/V3 reste bloquante.
+
+## Expérience exp-00090 — structured_semantic_v4 20k — échec technique
+
+- [Terminé] Régénérer un dataset comparable de `20 115` décisions avec les labels v008 et un
+  matchup v007, puis tenter un entraînement V4 from-scratch avec un budget déclaré de `20 000`.
+- [Résultat] L'entraînement a été interrompu avec le code `130` avant d'écrire ses métriques ou un
+  checkpoint entraîné. Le checkpoint utilisé ensuite pour le contrôle diagnostique est une copie
+  du V4 actif `v003`, pas le résultat de cet entraînement ; il ne constitue donc pas une candidate.
+- [Résultat] Le contrôle paired donne `0,00` de delta contre Random, v007, v008, v002 et v003,
+  avec des trajectoires identiques. Le runtime v003/V4 est `2,9770 s` contre `3,0014 s`, sur
+  `6 295` actions dans les deux cas ; cette mesure ne prouve aucune force nouvelle.
+- [Conservé] Dataset hashé : `0d0014f4c3554c00d266ea9ef0dc21f27e7e79f045697574eb077f40211c4c84`.
+
+## Nouvelles idées après exp-00090
+
+- [À privilégier] Ajouter une écriture de checkpoint/métriques par micro-lot au script d'imitation,
+  puis reprendre exactement ce dataset avec un budget de 20k.
+- [À étudier] Mesurer la dérive d'argmax V4 par phase et cardinalité légale dès le premier
+  micro-lot vérifié.
+- [À supprimer] Toute conclusion de qualité tirée du contrôle v003 identique ou d'un screening de
+  20 parties sans checkpoint effectivement entraîné.
