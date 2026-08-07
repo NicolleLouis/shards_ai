@@ -507,3 +507,39 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
   micro-lot vérifié.
 - [À supprimer] Toute conclusion de qualité tirée du contrôle v003 identique ou d'un screening de
   20 parties sans checkpoint effectivement entraîné.
+
+## Expérience exp-00091 — diagnostic de dérive V3/V2 — terminée
+
+- [Terminé] Comparer V3 actif à son parent V2 sur 72 parties et `11 754` décisions réellement
+  visitées par V3, avec observations masquées, mêmes ensembles d'actions légales, phases, cartes,
+  cardinalité légale, confiance intra-ensemble et états représentatifs. Les trajectoires incluent
+  V007, V008 et Random comme adversaires visibles ; aucun label heuristique fondé sur une information
+  cachée n'a été utilisé comme vérité terrain.
+- [Résultat] V3 diverge de l'argmax V2 dans `1 959/11 754` décisions (`16,67 %`) ; la dérive est
+  `20,39 %` en PLAY, `9,73 %` en BUY et `2,11 %` en ATTACK. La cross-entropy V3 vers l'argmax V2
+  est `0,8041` en PLAY contre `0,1003` en ATTACK.
+- [Résultat] Les slices les plus faibles sont `activate_champion` (`54,64 %`, 732 décisions),
+  `play_card` (`75,73 %`, 5 574), `buy_card` (`86,66 %`, 922) et `recruit_mercenary` (`0 %`,
+  71). La dérive est `40,18 %` avec 7 actions légales et `33,16 %` avec 8 ; les ensembles de
+  1–2 actions sont presque entièrement stables.
+- [Résultat] `235` désaccords étaient confiants à au moins `0,8` (`11,996 %` de tous les
+  désaccords), notamment des choix PLAY de cartes visibles. Les cartes très couvertes `drone_kiln`
+  (`30,85 %`, 590) et `initie_de_l_ordre` (`32,80 %`, 503) sont plus problématiques que `crystal`
+  (`97,70 %`, 1 866), mais les cartes sous 30 occurrences restent exploratoires.
+- [Limite] Ce diagnostic mesure la dérive de politique et non une causalité de gain/perte. Les
+  métriques V3/V2 ne comparent pas les logits bruts entre architectures ; elles utilisent uniquement
+  des probabilités normalisées dans chaque ensemble légal. Les couvertures recruitment et certaines
+  cartes rares ne permettent pas encore une correction ciblée.
+- [Suite] Construire un holdout `game_id` indépendant, équilibré par phase, action, carte et taille
+  d'ensemble légal, puis fixer un budget de dérive V3 avant de tester une correction bornée PLAY /
+  carte ou `activate_champion`. Ne pas entraîner à partir de ce diagnostic seul.
+
+## Nouvelles idées après exp-00091
+
+- [À privilégier] Mesurer la dérive V3/V2 sur un holdout indépendant à couverture minimale prédéclarée,
+  avec intervalles par slice et budget d'argmax avant toute sélection.
+- [À étudier] Ajouter une collecte visible ciblée de `recruit_mercenary`, `activate_champion` et des
+  cartes `drone_kiln`/`initie_de_l_ordre`, sans pondérer ni modifier le checkpoint avant d'avoir atteint
+  le seuil de couverture.
+- [À conserver] Comparaison intra-ensemble des probabilités et exclusion des logits bruts
+  inter-architectures ; aucune modification moteur, heuristique, masque ou checkpoint.
