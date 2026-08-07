@@ -1,129 +1,66 @@
 {
-  "experiment_id": "exp-00084",
-  "experiment_kind": "quality",
-  "experiment_family": "data",
-  "status": "rejected",
-  "hypothesis": "A structured_semantic_v4 model trained from scratch with an explicit game_id holdout and a bounded 10000-decision imitation budget can improve playing strength over v002 without regressing Random, v007, or the protected v008 guard.",
-  "selected_idea": {
-    "idea": "Materialize an independent game_id holdout before changing the V4 objective again.",
-    "reason": "exp-00080 through exp-00083 showed that offline and short heuristic gains were not enough; this experiment separates training and validation provenance while keeping the architecture transition and objective otherwise stable."
-  },
-  "novelty": "Data-family correction: explicit game_id holdout files and reproducible provenance for structured_semantic_v4, with no engine, heuristic, information-mask, or V2-checkpoint changes.",
-  "dataset": "artifacts/imitation_dataset/exp00084-v4-train.jsonl",
-  "dataset_sha256": "8aca90d400c8725c30bc1264f63ef4e282959d6e0e8c657238f9310058014cca",
-  "dataset_records": 100000,
-  "teacher_profile": "v008",
-  "training_recipe": {
-    "method": "imitation",
-    "architecture": "structured_semantic_v4",
-    "epochs": 1,
-    "max_records": 10000,
-    "max_validation_records": 10000,
-    "learning_rate": 0.001,
-    "seed": 84084,
-    "split": "train",
-    "split_seed": 84085,
-    "holdout_dataset": "artifacts/imitation_dataset/exp00084-v4-holdout.jsonl",
-    "holdout_sha256": "de0d880c1faed4f1017807338c4cfe255f2c64f405d65fde5395de7f95e427",
-    "holdout_records": 123848,
-    "torch_threads": 1,
-    "training_initial_checkpoint": null,
-    "model": {
-      "semantic_token_hidden_dim": 64,
-      "semantic_attention_heads": 4
-    }
-  },
-  "candidate_profile": "configs/neural_training_profiles/candidates/exp00084-structured-semantic-v4-holdout.yaml",
-  "candidate_checkpoint": "artifacts/neural_training/checkpoint.pt",
-  "metrics": {
-    "architecture_transition": "v002 independent_action to structured_semantic_v4",
-    "training_initial_checkpoint": null,
-    "holdout": {
-      "records": 10000,
-      "top1_accuracy": 0.8389,
-      "mean_loss": 0.3245378994569284,
-      "pairwise_accuracy": 0.9129571131005753
-    },
-    "tests": {
-      "command": "poetry run pytest -q",
-      "passed": 311,
-      "duration_seconds": 11.34
-    }
-  },
+  "experiment_id": "exp-00099",
+  "experiment_family": "performance",
+  "experiment_kind": "performance",
+  "hypothesis": "Caching already-computed action encodings during inference reduces repeated small forwards and temporary allocations for recurring ActionRepresentation values without changing game trajectories or training behavior.",
+  "selected_idea": "Profile the remaining V3 inference path after exp-00068's embedding cache, then cache final action encodings only in inference mode.",
+  "novelty": "Distinct from exp-00068's card-embedding cache and exp-00086's rejected vocabulary indexes; this pass targets the profiled encode_actions hot path.",
+  "status": "accepted",
   "performance": {
-    "protocol": {
-      "games": 20,
-      "opponent": "v008",
-      "seed": 84090,
-      "torch_threads": 1,
-      "comparable_workload": true
-    },
     "baseline": {
-      "checkpoint": "configs/neural_profiles/v002.pt",
-      "elapsed_seconds": 1.8541571559617296,
-      "neural_inference_seconds": 1.0733433574205264,
-      "neural_decisions": 2837,
-      "total_actions": 5805
+      "checkpoint": "configs/neural_profiles/v003.pt",
+      "games": 50,
+      "seed_range": "0..49",
+      "repetitions": 3,
+      "torch_threads": 1,
+      "elapsed_seconds": 8.033122875262052,
+      "throughput_games_per_second": 6.22422945302812,
+      "neural_inference_seconds": 3.0230626666452736,
+      "neural_decisions": 8684,
+      "total_actions": 17396,
+      "repetition_elapsed_seconds": [
+        7.898264529940207,
+        8.033122875262052,
+        8.108158771065064
+      ]
     },
     "candidate": {
-      "checkpoint": "artifacts/neural_training/checkpoint.pt",
-      "elapsed_seconds": 1.9445010139606893,
-      "neural_inference_seconds": 1.1032069848733954,
-      "neural_decisions": 3113,
-      "total_actions": 6265
+      "checkpoint": "configs/neural_profiles/v003.pt",
+      "games": 50,
+      "seed_range": "0..49",
+      "repetitions": 3,
+      "torch_threads": 1,
+      "elapsed_seconds": 6.903356286115013,
+      "throughput_games_per_second": 7.2428537551461645,
+      "neural_inference_seconds": 2.4664592589251697,
+      "neural_decisions": 8684,
+      "total_actions": 17396,
+      "repetition_elapsed_seconds": [
+        6.847561878908891,
+        6.903356286115013,
+        7.0298691702773795
+      ]
+    },
+    "elapsed_delta_seconds": -1.129766589147039,
+    "relative_elapsed_change": -0.1406263800824444,
+    "relative_throughput_change": 0.16370898709827103,
+    "relative_inference_change": -0.1841669205566725,
+    "gate": {
+      "accepted": true,
+      "threshold": 0.02,
+      "criterion": "median elapsed_seconds reduction"
     }
   },
-  "validation": {
-    "protocol": "validate_neural_profile_batched.py --games 20 --batch-games 20 --progress-output; paired candidate/reference with active v002",
-    "games_per_opponent": 20,
-    "seed": 84090,
-    "reference_profile": "v002",
-    "results": {
-      "random": {
-        "candidate_win_rate": 0.85,
-        "reference_win_rate": 0.85,
-        "delta_win_rate": 0.0,
-        "games": 20
-      },
-      "v007": {
-        "candidate_win_rate": 0.4,
-        "reference_win_rate": 0.35,
-        "delta_win_rate": 0.05,
-        "games": 20
-      },
-      "v008": {
-        "candidate_win_rate": 0.2,
-        "reference_win_rate": 0.15,
-        "delta_win_rate": 0.05,
-        "games": 20,
-        "protected_heuristic_guard": true
-      },
-      "neural:v002": {
-        "candidate_win_rate": 0.45,
-        "reference_win_rate": 0.70,
-        "delta_win_rate": -0.25,
-        "games": 20
-      },
-      "neural:v001": {
-        "candidate_win_rate": 0.40,
-        "reference_win_rate": 0.65,
-        "delta_win_rate": -0.25,
-        "games": 20
-      }
-    },
-    "weighted_mean_delta_win_rate": 0.00625,
-    "short_screening_only": true,
-    "final_gate_run": false
-  },
   "analysis": {
-    "result": "The explicit holdout was reproducible and the candidate improved the two heuristic opponents in this short panel, but it lost 25 percentage points against both neural references. The positive weighted short-screen result is therefore not evidence of promotion, especially because v002 is the active neural reference.",
-    "causal_interpretation": "The experiment isolates data split/provenance from the prior V4 fallbacks, but does not establish that the representation is strong: the candidate still has a neural-reference regression and a 4.87 percent slower comparable runtime.",
-    "decision": "reject",
-    "next_step": "Measure V4/V2 argmax drift and calibration by phase, action type, and legal-action cardinality on the independent holdout before selecting a bounded capacity or curriculum change."
-  },
-  "future_ideas": [
-    "Compare argmax drift and ECE/Brier by phase, action type, and legal-action cardinality with a predeclared drift budget.",
-    "Test a reduced-capacity V4 or phase/action curriculum on the same game_id split and full reference panel.",
-    "Do not promote from holdout top-1 or gains against v007/v008 when v002 regresses."
-  ]
+    "attribution": "The candidate changes only the inference scorer by caching immutable action encodings; the checkpoint, seed range, players, limits, Torch thread count, decisions, actions, and per-game trajectory records are unchanged.",
+    "profile_finding": "encode_actions was called 2025 times over five representative games and consumed 0.233 seconds cumulative; it was the targeted remaining inference allocation/forward path.",
+    "change": "Added an inference-only per-scorer cache keyed by ActionRepresentation. Missing representations are encoded in the original batch and reused afterward; training remains uncached.",
+    "quality_validation": "not run and not used as evidence",
+    "trajectory_comparison": "identical",
+    "tests": "311 passed; git diff --check passed",
+    "next_steps": [
+      "Profile observation pooling and state encoding with the action cache retained.",
+      "Measure action-cache reuse by action type before another runtime change."
+    ]
+  }
 }

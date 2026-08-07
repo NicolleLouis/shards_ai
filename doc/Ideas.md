@@ -708,3 +708,26 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
 - [À étudier] Comparer l'argmax V4/v003 sur un holdout indépendant par phase/action/cardinalité.
 - [À supprimer] Toute acceptation issue du panel de 4 parties, d'un gain v007/v003 isolé ou du
   runtime seul.
+
+## Expérience exp-00099 — cache des encodages d'actions en inférence — acceptée
+
+- [Terminé] Profiler le chemin V3 puis mettre en cache, uniquement sous `torch.inference_mode()`,
+  les encodages déjà calculés pour une même `ActionRepresentation`, sans changer les poids, le
+  moteur, les heuristiques, le masque d'information ou le chemin d'entraînement.
+- [Hypothèse] La réutilisation des encodages d'actions récurrentes réduira les allocations et les
+  petits forwards répétés pendant les décisions neural, à trajectoire identique.
+- [Résultat] Sur 50 parties V3 contre V3, seeds `0..49`, un thread PyTorch et trois répétitions,
+  le temps médian passe de `8,0331 s` à `6,9034 s` (`-14,06 %`) et le débit de `6,2242` à
+  `7,2429` parties/s. Les `8 684` décisions, `17 396` actions et résultats par partie sont
+  identiques ; la gate performance seule accepte.
+- [Conservation] Le cache d'embeddings de `exp-00068` reste distinct : cette expérience cache
+  l'encodage final des actions et complète le profilage du chemin d'inférence.
+
+## Nouvelles idées après exp-00099
+
+- [À privilégier] Reprofiler le coût restant de pooling d'observation et d'encodage d'état avec le
+  cache d'actions actif, puis ne tester qu'une optimisation dont le gain est mesurable séparément.
+- [À étudier] Mesurer le taux de réutilisation du cache d'actions par type d'action et par matchup
+  avant toute invalidation ou cache supplémentaire.
+- [À supprimer] Toute conclusion de qualité ou modification de l'objectif, du dataset ou de
+  l'architecture dans la suite de cette expérience performance.

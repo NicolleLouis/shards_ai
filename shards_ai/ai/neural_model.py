@@ -127,6 +127,10 @@ class NeuralActionScorer(nn.Module):
         # every observation.  Training keeps the uncached path because its
         # parameters change after every optimizer step.
         self._inference_card_embedding_cache: dict[str | None, Tensor] = {}
+        # Action encodings depend only on the immutable representation and the
+        # frozen scorer weights.  Reuse the batched result for representations
+        # encountered again during evaluation; training keeps the original path.
+        self._inference_action_encoding_cache: dict[ActionRepresentation, Tensor] = {}
 
     def forward(self, observation: NeuralObservation, actions: Sequence[ActionRepresentation]) -> Tensor:
         return self.scores_for_actions(observation, actions)
@@ -178,6 +182,31 @@ class NeuralActionScorer(nn.Module):
         return self.state_encoder(torch.cat((*pools, scalars, context)).unsqueeze(0))
 
     def encode_actions(
+        self,
+        actions: Sequence[ActionRepresentation],
+        *,
+        embedding_lookup: dict[str | None, Tensor] | None = None,
+    ) -> Tensor:
+        if not self.training and not torch.is_grad_enabled():
+            unique_actions = list(dict.fromkeys(actions))
+            missing_actions = [
+                action for action in unique_actions
+                if action not in self._inference_action_encoding_cache
+            ]
+            if missing_actions:
+                computed = self._encode_actions_uncached(
+                    missing_actions,
+                    embedding_lookup=embedding_lookup,
+                )
+                self._inference_action_encoding_cache.update(
+                    zip(missing_actions, computed.unbind())
+                )
+            return torch.stack(
+                [self._inference_action_encoding_cache[action] for action in actions]
+            )
+        return self._encode_actions_uncached(actions, embedding_lookup=embedding_lookup)
+
+    def _encode_actions_uncached(
         self,
         actions: Sequence[ActionRepresentation],
         *,

@@ -66,6 +66,11 @@ décisions ; ce cache n'est pas utilisé pendant l'entraînement. Le script d'en
 utilise par défaut un thread PyTorch (`--torch-threads`) adapté aux petits forwards successifs ;
 ce paramètre reste configurable pour les autres machines et workloads.
 
+En évaluation sous `torch.inference_mode()`, les représentations d'actions déjà encodées sont
+également conservées par scorer et réutilisées lorsque la même représentation réapparaît. Ce cache
+est désactivé pendant l'entraînement ; il ne modifie ni les poids, ni les sorties initiales, ni le
+contrat des actions légales.
+
 Le `NeuralPlayer` charge un checkpoint, reçoit uniquement `NeuralObservation` via `GameRunner`,
 représente les actions légales depuis les zones publiques, puis choisit le meilleur score sous
 `torch.inference_mode()`. Les égalités sont départagées par un `GameRandom` injectable. Le benchmark
