@@ -564,3 +564,30 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
   OOM et coût CPU, puis reprendre exactement le dataset et le holdout 20k.
 - [À supprimer] Toute validation de V4 issue d'un fallback 1k ou d'un gain contre Random sans
   non-régression v008 et v003.
+
+## Expérience exp-00093 — structured_semantic_v4 watchdog — rejetée
+
+- [Terminé] Régénérer un dataset comparable V4 avec v008 comme enseignant et v007 comme matchup,
+  hacher les fichiers, vérifier un smoke checkpoint de 1 000 décisions, puis tenter le budget train
+  disponible avec holdout séparé et profil/checkpoint V4 cohérents.
+- [Résultat] Dataset : 24 044 décisions brutes, 10 519 train, 1 975 holdout ; train SHA-256
+  `325d4685bc126ae0ff53175439ff456fbc0c0118a4ddd44af3727a7bfb2fc700`. Le smoke V4 produit un
+  checkpoint et atteint `75,4 %` top-1 holdout, mais le run complet disparaît avant métriques et
+  sauvegarde finale ; aucune preuve de budget complet n'est retenue.
+- [Résultat] Le panel batché de diagnostic donne Random `-5`, v007 `-15`, v008 `0`, v003 `+15` et
+  v002 `+40` points. La garde v008 est neutre mais la moyenne pondérée est négative (`-0,9375`
+  point) : aucune promotion.
+- [Résultat] Benchmark comparable contre v008 : v003 `3,3575 s` contre V4 `2,9341 s`, avec
+  `6 409` contre `5 666` actions et `1,8807 s` contre `1,6811 s` d'inférence. Le coût inférieur
+  est secondaire et ne compense pas la régression contre Random/v007.
+- [Supprimé] Ne pas interpréter le smoke top-1, le gain v002/v003 ou le runtime comme preuve de
+  force ; ne pas relancer la même recette sans expliquer l'arrêt silencieux du budget complet.
+
+## Nouvelles idées après exp-00093
+
+- [À privilégier] Corriger l'arrêt silencieux du training et ajouter un checkpoint/métrique atomique
+  par micro-lot réellement repris, puis comparer les mêmes paliers 1k/10k/complet sur le holdout.
+- [À étudier] Mesurer avant sélection la dérive V4/v003 par phase, action et cardinalité légale,
+  avec un budget d'argmax pré-déclaré et une couverture minimale.
+- [À conserver] Dataset hashé, initialisation V4 from-scratch, v008 comme garde protégée, v003 comme
+  référence active, validation paired batchée et séparation stricte qualité/runtime.
