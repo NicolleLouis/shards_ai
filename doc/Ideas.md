@@ -543,3 +543,24 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
   le seuil de couverture.
 - [À conserver] Comparaison intra-ensemble des probabilités et exclusion des logits bruts
   inter-architectures ; aucune modification moteur, heuristique, masque ou checkpoint.
+
+## Expérience exp-00092 — structured_semantic_v4 20k atomic resume — rejetée
+
+- [Terminé] Tester la correction de reprise par lots vérifiables de 10 000 décisions, avec un budget
+  déclaré de 20 000, V4 from-scratch, dataset canonique hashé et profil/checkpoint cohérents.
+- [Échec technique] Le premier lot 10k n'a produit ni métriques ni checkpoint dans l'environnement ;
+  un contrôle explicite de 1k a été exécuté uniquement pour obtenir un candidat diagnostique.
+- [Résultat] Le contrôle donne Random `+10`, v007 `0`, v008 `-20` et neural v003 `-20` points sur
+  20 parties. La candidate est rejetée ; le screening n'est pas une gate finale.
+- [Résultat] Runtime comparable v003/V4 : `2,04264 s` / `2,26902 s`, avec `6 148` / `6 957`
+  actions et `1,14735 s` / `1,27893 s` d'inférence.
+- [Supprimé] Ne pas interpréter les `75,4 %` top-1 du contrôle 1k comme une preuve de force.
+
+## Nouvelles idées après exp-00092
+
+- [À privilégier] Diagnostiquer la disparition silencieuse du processus d'entraînement et vérifier
+  une écriture de checkpoint après chaque micro-lot effectivement traité avant une nouvelle qualité V4.
+- [À étudier] Utiliser un watchdog et un journal de progression monotone pour distinguer interruption,
+  OOM et coût CPU, puis reprendre exactement le dataset et le holdout 20k.
+- [À supprimer] Toute validation de V4 issue d'un fallback 1k ou d'un gain contre Random sans
+  non-régression v008 et v003.
