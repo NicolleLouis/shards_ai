@@ -642,3 +642,23 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
   `game_id` et le même budget, avec sélection sur holdout indépendant avant la gate longue.
 - [À supprimer] Les réductions de capacité sélectionnées sur le seul runtime ou le top-1 ; exp-00095
   montre qu'elles peuvent améliorer Random/v007 tout en régressant la garde v008.
+
+## Expérience exp-00096 — diagnostic de dérive V3/V2 — terminée
+
+- [Terminé] Holdout séparé de 90 parties et 15 193 décisions visibles contre `v007`, `v008` et
+  `Random`, avec loss/accuracy vers l'argmax `v002`, couverture phase/action/carte/cardinalité,
+  comparaison de confiance et états représentatifs masqués.
+- [Résultat] La dérive `v003/v002` est de 14,28–16,74 % selon l'adversaire ; elle se concentre en
+  `play_card`, `activate_champion` et dans les ensembles de 4–8 actions. `infinity_shard` reste
+  instable, tandis que `drone_kiln` et `initie_de_l_ordre` sont plus stables sur ce protocole.
+- [Limite] Le diagnostic mesure une dérive de politique, pas une causalité de win-rate ; il ne
+  justifie ni entraînement ni promotion.
+
+## Nouvelles idées après exp-00096
+
+- [À privilégier] Tester une correction bornée sur une seule slice `play_card`/carte ou
+  `activate_champion`, avec budget d'argmax V3/V2 fixé avant sélection et holdout `game_id` séparé.
+- [À étudier] Augmenter la couverture visible de `recruit_mercenary`, `choose_pending_decision` et
+  des cartes rares avant toute pondération ; conserver des intervalles par slice.
+- [À supprimer] Toute nouvelle analyse globale sans ventilation par cardinalité légale et sans
+  séparation des trajectoires adversaires ; elle répéterait exp-00091.
