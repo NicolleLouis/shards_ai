@@ -662,3 +662,29 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
   des cartes rares avant toute pondération ; conserver des intervalles par slice.
 - [À supprimer] Toute nouvelle analyse globale sans ventilation par cardinalité légale et sans
   séparation des trajectoires adversaires ; elle répéterait exp-00091.
+
+## Expérience exp-00097 — correction V4 ciblée depuis v003 — rejetée
+
+- [Terminé] Tester une correction bornée et conservatrice sur `play_card` et `activate_champion`,
+  slices où exp-00096 mesure la dérive V3/V2, en partant du checkpoint actif v003 et en gardant le
+  même dataset normalisé, split `game_id` et panel de validation.
+- [Hypothèse] Un faible surpoids `1,25` sur ces deux actions réduit la dérive locale sans déplacer
+  la politique hors slice ni régresser la garde v008, Random ou v007.
+- [Garde] Budget d'entraînement borné à 1 000 décisions après mesure du coût V4, learning rate `0,0003`, budget de dérive
+  d'argmax fixé à 5 % sur le holdout ; aucune modification du moteur, des heuristiques ou du masque.
+- [Résultat] La candidate améliore v007 de `+4` points et v002 de `+1`, mais régresse Random de
+  `-3`, v003 de `-7` et la garde v008 de `-6` points sur 100 parties par adversaire ; moyenne
+  pondérée `-2,75` points. Aucune promotion.
+- [Résultat] Le benchmark comparable contre v008 donne v003 `2,0054 s` contre candidate
+  `2,0749 s`, avec `6427` contre `6527` actions et `1,1481 s` contre `1,1867 s` d'inférence.
+- [Conclusion] Le ciblage des slices diagnostiquées ne suffit pas avec 1 000 décisions et déplace
+  encore la politique hors garde v008 ; ne pas réutiliser ce poids.
+
+## Nouvelles idées après exp-00097
+
+- [À privilégier] Matérialiser un holdout indépendant centré sur les slices `play_card` et
+  `activate_champion`, puis mesurer la dérive d'argmax avant toute nouvelle mise à jour de poids.
+- [À étudier] Tester une correction exacte par masque de décision ou une conservation de politique
+  hors slice, avec budget de changements fixé avant entraînement et plusieurs seeds.
+- [À supprimer] Les pondérations globales ou les budgets de 1 000 décisions sélectionnés sur un
+  gain v007 isolé ; exp-00097 régresse encore v008 et la référence active.
