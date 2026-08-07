@@ -618,3 +618,27 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
   décisions V4 au dataset avant sélection.
 - [À supprimer] Les recettes V4 d'imitation from-scratch non diagnostiquées et tout fallback 1k ;
   un top-1 holdout élevé ne compense pas les régressions en partie.
+
+## Expérience exp-00095 — structured_semantic_v4 capacité réduite — rejetée
+
+- [Terminé] Tester une correction concrète de la dérive V4 : réduire `semantic_token_hidden_dim`
+  de `64` à `32`, conserver quatre têtes, le dataset canonique hashé, l'initialisation from-scratch,
+  le budget de 10 000 décisions et la validation batchée longue.
+- [Résultat] La validation stream atteint `81,84 %` top-1 ; cette métrique descriptive ne compense pas la
+  force en partie. Contre v003 : Random `+4`, v007 `+2`, v008 `-2`, v003 `+1` et v002 `+6` points
+  sur 100 parties par adversaire. La garde protégée v008 échoue, donc aucune promotion.
+- [Résultat] Runtime comparable contre v008 : v003 `2,0623 s` / `6429` actions contre V4
+  `1,9250 s` / `6073` actions sur les mêmes 20 seeds ; ce gain est secondaire et corrélé à moins
+  d'actions, avec une inférence `1,1593 s` contre `1,0671 s`.
+- [Conservation] L'architecture V4, le dataset canonique, le protocole batché et la réduction de
+  capacité restent des éléments mesurés ; le checkpoint candidat n'est pas promu.
+
+## Nouvelles idées après exp-00095
+
+- [À privilégier] Diagnostiquer les décisions V4/v003 qui changent sur un holdout indépendant par phase, action
+  et cardinalité légale, puis tester une correction bornée avec budget d'argmax avant toute nouvelle
+  imitation from-scratch.
+- [À étudier] Comparer la capacité réduite et la capacité complète sur exactement le même split
+  `game_id` et le même budget, avec sélection sur holdout indépendant avant la gate longue.
+- [À supprimer] Les réductions de capacité sélectionnées sur le seul runtime ou le top-1 ; exp-00095
+  montre qu'elles peuvent améliorer Random/v007 tout en régressant la garde v008.
