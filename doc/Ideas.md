@@ -688,3 +688,23 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
   hors slice, avec budget de changements fixé avant entraînement et plusieurs seeds.
 - [À supprimer] Les pondérations globales ou les budgets de 1 000 décisions sélectionnés sur un
   gain v007 isolé ; exp-00097 régresse encore v008 et la référence active.
+
+## Expérience exp-00098 — structured_semantic_v4 imitation resumable — rejetée
+
+- [Terminé] Dataset V4 v008 régénéré avec matchups Random/v007, puis entraînement from-scratch
+  repris par offset avec checkpoint atomique tous les 400 enregistrements et état Adam conservé.
+- [Résultat] Dataset : `100116` décisions, `659` parties, zéro erreur, SHA-256
+  `b37de3834f9036b340e0da0140f65b47771259644470352c472c58f28621f4ad`; `20000` décisions ont
+  été entraînées. Le checkpoint charge bien comme `structured_semantic_v4`.
+- [Résultat] Panel paired diagnostic de 4 parties : Random `-25`, v007 `+25`, v008 `0`, v003
+  `+25` et v002 `0` points. Il est trop court pour une gate et la baisse Random rejette la candidate.
+- [Résultat] Runtime v003/V4 contre v008 : `0,6570 s` / `0,6169 s`, `1219` / `1101` actions et
+  `0,3967` / `0,3327 s` d'inférence ; le runtime inférieur est confondu avec moins de décisions.
+
+## Nouvelles idées après exp-00098
+
+- [À privilégier] Rejouer cette même candidate sur un hôte permettant le panel complet de 100/200
+  parties par adversaire avec `batch_games=20`, sans changer la recette après sélection.
+- [À étudier] Comparer l'argmax V4/v003 sur un holdout indépendant par phase/action/cardinalité.
+- [À supprimer] Toute acceptation issue du panel de 4 parties, d'un gain v007/v003 isolé ou du
+  runtime seul.
