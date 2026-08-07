@@ -591,3 +591,30 @@ et le nombre d'actions restent des métriques secondaires et ne peuvent pas comp
   avec un budget d'argmax pré-déclaré et une couverture minimale.
 - [À conserver] Dataset hashé, initialisation V4 from-scratch, v008 comme garde protégée, v003 comme
   référence active, validation paired batchée et séparation stricte qualité/runtime.
+
+## Expérience exp-00094 — structured_semantic_v4 20k micro-lots — rejetée
+
+- [Terminé] Corriger l'arrêt silencieux des expériences 90–93 par des checkpoints atomiques après
+  chaque micro-lot, puis entraîner V4 from-scratch sur le dataset régénéré et hashé avec split
+  `game_id`, sans fallback de sélection à 1k.
+- [Résultat] Le dataset contient `22 036` décisions (`3a5e7b...266d5`), sans erreur ; le run a
+  traité `17 890` décisions du split train et a produit des checkpoints monotones jusqu'au palier
+  final avant ses métriques holdout (`84,75 %` top-1).
+- [Résultat] La validation batchée longue (`100` parties/opposant) régresse contre la référence
+  active v003 : Random `-14`, v007 `-27`, v008 `-11`, neural v003 `-30` et neural v002 `-25`
+  points. La garde v008 et la moyenne pondérée échouent ; aucune promotion.
+- [Résultat] Runtime comparable contre v008 : v003 `2,1824 s` contre V4 `2,2547 s`, avec
+  `6 700` contre `6 909` actions et `1,2666 s` contre `1,2376 s` d'inférence. Le coût global
+  légèrement supérieur et la régression de force excluent toute optimisation secondaire.
+- [Conservé] La reprise atomique par micro-lots est validée techniquement et doit être réutilisée
+  pour les futures campagnes longues ; elle ne constitue pas une amélioration de qualité.
+
+## Nouvelles idées après exp-00094
+
+- [À privilégier] Diagnostiquer la forte dérive V4/v003 sur le holdout par phase, action et
+  cardinalité légale avant de modifier encore l'objectif ou la capacité.
+- [À étudier] Tester un curriculum ou une capacité réduite uniquement avec le même mécanisme de
+  reprise atomique, un holdout indépendant et une gate longue ; comparer aussi la couverture des
+  décisions V4 au dataset avant sélection.
+- [À supprimer] Les recettes V4 d'imitation from-scratch non diagnostiquées et tout fallback 1k ;
+  un top-1 holdout élevé ne compense pas les régressions en partie.
