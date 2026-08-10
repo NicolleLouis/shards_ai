@@ -97,7 +97,7 @@ def test_ppo_update_rejects_an_empty_rollout():
 
 def test_collect_rollout_records_one_terminal_transition_per_episode_reproducibly():
     profile = replace(
-        load_training_profile("configs/neural_training_profiles/candidates/v002.yaml"),
+        load_training_profile("tests/fixtures/neural_training_ppo_profile.yaml"),
         max_turns=10,
         max_actions=100,
     )
@@ -121,7 +121,7 @@ def test_collect_rollout_records_one_terminal_transition_per_episode_reproducibl
 
 def test_parallel_rollout_preserves_sequential_game_order_and_actions():
     profile = replace(
-        load_training_profile("configs/neural_training_profiles/candidates/v002.yaml"),
+        load_training_profile("tests/fixtures/neural_training_ppo_profile.yaml"),
         max_turns=10,
         max_actions=100,
     )
@@ -142,7 +142,7 @@ def test_parallel_rollout_preserves_sequential_game_order_and_actions():
 
 
 def test_collect_rollout_rejects_non_positive_worker_count():
-    profile = load_training_profile("configs/neural_training_profiles/candidates/v002.yaml")
+    profile = load_training_profile("tests/fixtures/neural_training_ppo_profile.yaml")
     model = NeuralActorCritic(NeuralModelConfig(card_embedding_dim=16, state_hidden_dim=32, action_hidden_dim=16))
 
     with pytest.raises(ValueError, match="workers must be positive"):
@@ -281,7 +281,7 @@ def test_ppo_update_reports_reference_kl_when_reference_policy_is_provided():
 
 def test_greedy_evaluation_returns_a_score_for_each_opponent():
     profile = replace(
-        load_training_profile("configs/neural_training_profiles/candidates/v002.yaml"),
+        load_training_profile("tests/fixtures/neural_training_ppo_profile.yaml"),
         evaluation_games=1,
         max_turns=10,
         max_actions=1000,

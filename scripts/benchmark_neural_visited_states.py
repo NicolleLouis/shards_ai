@@ -78,6 +78,7 @@ def main() -> None:
             order = sorted(range(len(scores)), key=lambda index: (-scores[index], index))
             neural_index = list(legal_actions).index(neural_action)
             heuristic_index = list(legal_actions).index(heuristic_action)
+            heuristic_representation = representations[heuristic_index]
             rank = order.index(heuristic_index) + 1
             heuristic_score = counterfactual_heuristic.score_action(before, heuristic_action)
             regret = heuristic_score - counterfactual_heuristic.score_action(before, neural_action)
@@ -87,6 +88,9 @@ def main() -> None:
                 phase=observation.phase,
                 neural_action_type=neural_type,
                 heuristic_action_type=heuristic_type,
+                legal_action_count=len(legal_actions),
+                neural_card_id=representations[neural_index].card_definition_id,
+                heuristic_card_id=heuristic_representation.card_definition_id,
                 top1=neural_action == heuristic_action,
                 rank=rank,
                 regret=regret,

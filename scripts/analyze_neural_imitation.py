@@ -30,7 +30,7 @@ def main() -> None:
         help="Default non_train evaluates validation and test only.",
     )
     parser.add_argument("--split-seed", type=int, default=0)
-    parser.add_argument("--game-id-prefix", help="Optional prefix filter, useful to isolate DAgGER records.")
+    parser.add_argument("--game-id-prefix", help="Optional prefix filter for a selected dataset subset.")
     parser.add_argument("--max-records", type=int)
     parser.add_argument("--progress-every", type=int, default=100_000)
     parser.add_argument("--torch-threads", type=int, default=1)

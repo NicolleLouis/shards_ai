@@ -1,0 +1,27 @@
+schema_version: 1
+profile_id: exp00101-v005-fusion-control
+parent_profile_id: v003
+method: imitation
+dataset: artifacts/imitation_dataset/v008_vs_random_v007_normalized_100k.jsonl
+output: artifacts/neural_training/checkpoint.pt
+seed: 50100
+split_seed: 50101
+epochs: 1
+learning_rate: 0.001
+torch_threads: 1
+max_records: 10000
+max_validation_records: 10000
+model:
+  card_fusion_id_scale: 1.0
+  card_fusion_semantic_scale: 1.0
+  card_fusion_normalization: l2
+  card_fusion_normalization_epsilon: 1.0e-8
+metadata:
+  objective: structured_semantic_v5_fusion_experiment
+  architecture: structured_semantic_v5_fusion_experiment
+  experiment_step: A
+  experiment_role: control
+  compare_to: exp00102-v005-fusion-without-identity
+  evaluation_split: game_id_holdout
+  training_initialization: from_scratch
+  training_protocol: atomic_micro_batch_resume

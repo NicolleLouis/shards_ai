@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Roadmap.md",
+                "file": "Architecture/073-ablation-ponderation-voies-cartes.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Roadmap"
+              "title": "073-ablation-ponderation-voies-cartes"
             }
           }
         ]
@@ -41,7 +41,9 @@
               "type": "file-explorer",
               "state": {
                 "sortOrder": "alphabetical",
-                "autoReveal": false
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
               },
               "icon": "lucide-folder-closed",
               "title": "Files"
@@ -182,28 +184,33 @@
   },
   "active": "659b86805782863b",
   "lastOpenFiles": [
-    "Architecture/016-evaluation-interphase-gain-mastery.md",
-    "Current state/Game engine.md",
+    "regles-shards-of-infinity-base.md",
     "Current state/Random player.md",
-    "Current state/Heuristic player.md",
+    "Current state/Game engine.md",
+    "Current state/Artifacts and scripts.md",
     "Current state/Analysis.md",
+    "Current state/Heuristic player.md",
+    "Architecture/023-seuil-achat-explicite.md",
+    "Architecture/019-score-net-bannissement-et-skip.md",
     "Architecture/012-optimisation-robuste-coefficients-heuristique.md",
+    "Architecture/009-joueur-heuristique-pondere.md",
+    "Architecture/054-entrainement-imitation-pondere.md",
+    "Architecture/057-apprentissage-cible-mercenaires.md",
+    "Architecture/073-ablation-ponderation-voies-cartes.md",
+    "Architecture/001-architecture-moteur-duel-v0.md",
+    "Architecture/002-joueur-random.md",
+    "Ideas.md",
+    "Roadmap.md",
+    "Architecture/016-evaluation-interphase-gain-mastery.md",
     "Architecture/010-optimisation-coefficients-heuristique.md",
     "Architecture/008-mercenaires.md",
     "Architecture/005-cartes-factions-et-mecaniques.md",
     "Architecture/003-deck-central-riviere-achats.md",
-    "Architecture/001-architecture-moteur-duel-v0.md",
-    "Architecture/002-joueur-random.md",
-    "regles-shards-of-infinity-base.md",
-    "Roadmap.md",
     "Architecture/011-recompenses-et-avantages-d-etat-heuristique.md",
     "Architecture/006-analyse-statistique-des-parties.md",
     "Architecture/004-maitrise-et-effets-conditionnels.md",
     "Architecture/007-champions-board-et-assignation-des-degats.md",
-    "Architecture/009-joueur-heuristique-pondere.md",
     "Architecture/007-champions-board-et-assignation-des-degats.md~",
-    "Architecture/architecture-moteur-duel-v0.md",
-    "Architecture/joueur-random.md",
     "Current state",
     "Architecture"
   ]

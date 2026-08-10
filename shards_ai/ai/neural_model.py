@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Iterable, Mapping, Sequence
 
 import torch
@@ -28,6 +28,12 @@ ACTION_TYPES = (
 TARGET_TYPES = ("", "opponent", "champion", "card", "other")
 PHASE_TYPES = ("", "play", "buy", "combat", "pending", "end")
 CARD_ID_UNK = "<UNK>"
+OBSERVATION_FEATURE_SETS = ("baseline", "zone_cardinality_v1", "deck_state_v1")
+_ZONE_CARDINALITY_BOUNDS = (100, 100, 20, 100, 100, 100, 20)
+_DECK_STATE_FACTIONS = ("maquis", "spectra", "homodeus", "order")
+_DECK_STATE_FACTION_BOUND = 100
+_STATE_CONTEXT_SIZE = 2
+_TACTICAL_ACTION_FEATURE_SIZE = 7
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +49,11 @@ class NeuralModelConfig:
     candidate_context_dim: int = 32
     semantic_token_hidden_dim: int = 64
     semantic_attention_heads: int = 4
+    card_fusion_id_scale: float = 1.0
+    card_fusion_semantic_scale: float = 1.0
+    card_fusion_normalization: str = "l2"
+    card_fusion_normalization_epsilon: float = 1e-8
+    observation_feature_set: str = "baseline"
 
 
 def _card_feature_size() -> int:
@@ -67,6 +78,11 @@ class NeuralActionScorer(nn.Module):
     ) -> None:
         super().__init__()
         self.config = config or NeuralModelConfig()
+        if self.config.observation_feature_set not in OBSERVATION_FEATURE_SETS:
+            raise ValueError(
+                "Unsupported observation_feature_set: "
+                f"{self.config.observation_feature_set!r}"
+            )
         self.card_catalog = card_catalog or CARD_CATALOG
         self.card_ids = tuple(sorted(self.card_catalog))
         self.card_to_index = {card_id: index for index, card_id in enumerate(self.card_ids)}
@@ -87,14 +103,20 @@ class NeuralActionScorer(nn.Module):
         self.target_embedding = nn.Embedding(len(TARGET_TYPES), 8)
         scalar_action_size = 5
         self.action_encoder = nn.Sequential(
-            nn.Linear(self.config.card_embedding_dim + self.config.action_hidden_dim + 12 + 8 + scalar_action_size,
+            nn.Linear(self.config.card_embedding_dim + self.config.action_hidden_dim + 12 + 8 + scalar_action_size
+                      + self._action_feature_size(),
                       self.config.action_hidden_dim),
             nn.ReLU(),
         )
         # Eleven pooled card groups: active visible/count zones, opponent public
         # aggregates/champions, central deck, and river. Scalars carry resources
         # and masks; the river slot remains available through the action encoder.
-        state_input_size = 4 + 4 + 4 + self.config.card_embedding_dim * 11 + 2
+        state_input_size = (
+            self.config.card_embedding_dim * 11
+            + self._base_state_scalar_size()
+            + self._observation_feature_size()
+            + 2
+        )
         self.state_encoder = nn.Sequential(
             nn.Linear(state_input_size, self.config.state_hidden_dim),
             nn.ReLU(),
@@ -142,7 +164,7 @@ class NeuralActionScorer(nn.Module):
         card_ids.extend(action.card_definition_id for action in actions)
         embedding_lookup = self._embedding_lookup(card_ids)
         state = self.encode_observation(observation, embedding_lookup=embedding_lookup)
-        action = self.encode_actions(actions, embedding_lookup=embedding_lookup)
+        action = self.encode_actions(actions, observation=observation, embedding_lookup=embedding_lookup)
         state_batch = state.expand(len(actions), -1)
         return self.scorer(torch.cat((state_batch, action), dim=1)).squeeze(1)
 
@@ -168,26 +190,87 @@ class NeuralActionScorer(nn.Module):
             self._pool_counts(observation.central_deck_counts, embedding_lookup),
             self._pool_cards((item.card for item in observation.river if item.card is not None), embedding_lookup),
         )
-        scalars = torch.tensor(
-            [active.health / 100, active.mastery / 100, active.gems / 10, active.power / 20,
-             opponent.health / 100, opponent.mastery / 100, *[float(value) for value in active.played_faction_mask],
-             len(opponent.champions) / 10, len(active.champions) / 10],
-            dtype=torch.float32,
-            device=self.device,
-        )
+        scalars = self._state_scalars(observation)
         context = torch.tensor(
             [self._index(PHASE_TYPES, observation.phase) / max(1, len(PHASE_TYPES) - 1),
              observation.turn_number / 1000], dtype=torch.float32, device=self.device,
         )
         return self.state_encoder(torch.cat((*pools, scalars, context)).unsqueeze(0))
 
+    @staticmethod
+    def _base_state_scalar_size() -> int:
+        return 12
+
+    def _observation_feature_size(self) -> int:
+        if self.config.observation_feature_set == "zone_cardinality_v1":
+            return len(_ZONE_CARDINALITY_BOUNDS)
+        if self.config.observation_feature_set == "deck_state_v1":
+            return len(_ZONE_CARDINALITY_BOUNDS) + len(_DECK_STATE_FACTIONS)
+        return 0
+
+    def _state_scalars(self, observation: NeuralObservation) -> Tensor:
+        active = observation.active_player
+        opponent = observation.opponent
+        values = [
+            active.health / 100,
+            active.mastery / 100,
+            active.gems / 10,
+            active.power / 20,
+            opponent.health / 100,
+            opponent.mastery / 100,
+            *[float(value) for value in active.played_faction_mask],
+            len(opponent.champions) / 10,
+            len(active.champions) / 10,
+        ]
+        if self.config.observation_feature_set in {"zone_cardinality_v1", "deck_state_v1"}:
+            values.extend(self._zone_cardinality_values(observation))
+        if self.config.observation_feature_set == "deck_state_v1":
+            values.extend(self._faction_count_values(active.owned_card_counts))
+        return torch.tensor(values, dtype=torch.float32, device=self.device)
+
+    def _action_feature_size(self) -> int:
+        return 0
+
+    @staticmethod
+    def _zone_cardinality_values(observation: NeuralObservation) -> tuple[float, ...]:
+        active = observation.active_player
+        opponent = observation.opponent
+        counts = (
+            sum(count for _card_id, count in active.draw_pile_counts),
+            sum(count for _card_id, count in active.discard_counts),
+            len(active.champions),
+            sum(count for _card_id, count in active.owned_card_counts),
+            sum(count for _card_id, count in opponent.owned_card_counts),
+            sum(count for _card_id, count in opponent.discard_counts),
+            len(opponent.champions),
+        )
+        return tuple(
+            min(max(count, 0), bound) / bound
+            for count, bound in zip(counts, _ZONE_CARDINALITY_BOUNDS)
+        )
+
+    def _faction_count_values(self, counts: Iterable[tuple[str, int]]) -> tuple[float, ...]:
+        faction_counts = dict.fromkeys(_DECK_STATE_FACTIONS, 0)
+        for card_id, count in counts:
+            definition = self.card_catalog.get(card_id)
+            faction = getattr(getattr(definition, "faction", None), "value", None)
+            if faction in faction_counts:
+                faction_counts[faction] += count
+        return tuple(
+            min(max(faction_counts[faction], 0), _DECK_STATE_FACTION_BOUND)
+            / _DECK_STATE_FACTION_BOUND
+            for faction in _DECK_STATE_FACTIONS
+        )
+
     def encode_actions(
         self,
         actions: Sequence[ActionRepresentation],
         *,
+        observation: NeuralObservation | None = None,
         embedding_lookup: dict[str | None, Tensor] | None = None,
     ) -> Tensor:
-        if not self.training and not torch.is_grad_enabled():
+        has_context = observation is not None and self._action_feature_size() > 0
+        if not has_context and not self.training and not torch.is_grad_enabled():
             unique_actions = list(dict.fromkeys(actions))
             missing_actions = [
                 action for action in unique_actions
@@ -196,6 +279,7 @@ class NeuralActionScorer(nn.Module):
             if missing_actions:
                 computed = self._encode_actions_uncached(
                     missing_actions,
+                    observation=observation,
                     embedding_lookup=embedding_lookup,
                 )
                 self._inference_action_encoding_cache.update(
@@ -204,12 +288,15 @@ class NeuralActionScorer(nn.Module):
             return torch.stack(
                 [self._inference_action_encoding_cache[action] for action in actions]
             )
-        return self._encode_actions_uncached(actions, embedding_lookup=embedding_lookup)
+        return self._encode_actions_uncached(
+            actions, observation=observation, embedding_lookup=embedding_lookup
+        )
 
     def _encode_actions_uncached(
         self,
         actions: Sequence[ActionRepresentation],
         *,
+        observation: NeuralObservation | None = None,
         embedding_lookup: dict[str | None, Tensor] | None = None,
     ) -> Tensor:
         embedding_lookup = embedding_lookup or self._embedding_lookup(action.card_definition_id for action in actions)
@@ -232,7 +319,19 @@ class NeuralActionScorer(nn.Module):
              float(action.card_instance_id is not None)]
             for action in actions
         ], dtype=torch.float32, device=self.device)
-        return self.action_encoder(torch.cat((card, action_type, phase, target, scalars), dim=1))
+        tactical = self._action_features(observation, actions)
+        return self.action_encoder(torch.cat((card, action_type, phase, target, scalars, tactical), dim=1))
+
+    def _action_features(
+        self,
+        observation: NeuralObservation | None,
+        actions: Sequence[ActionRepresentation],
+    ) -> Tensor:
+        return torch.zeros(
+            (len(actions), self._action_feature_size()),
+            dtype=self.card_id_embedding.weight.dtype,
+            device=self.device,
+        )
 
     @property
     def device(self) -> torch.device:
@@ -367,7 +466,7 @@ class ContextualNeuralActionScorer(NeuralActionScorer):
         card_ids.extend(action.card_definition_id for action in actions)
         embedding_lookup = self._embedding_lookup(card_ids)
         state = self.encode_observation(observation, embedding_lookup=embedding_lookup)
-        action = self.encode_actions(actions, embedding_lookup=embedding_lookup)
+        action = self.encode_actions(actions, observation=observation, embedding_lookup=embedding_lookup)
         context = self.candidate_context_encoder(action.mean(dim=0, keepdim=True))
         state_batch = state.expand(len(actions), -1)
         context_batch = context.expand(len(actions), -1)
@@ -380,11 +479,95 @@ class SemanticIdentityNeuralActionScorer(NeuralActionScorer):
     architecture = "semantic_identity_v3"
 
 
+def migrate_v004_checkpoint_to_deck_state(
+    checkpoint: Mapping[str, object],
+) -> dict[str, object]:
+    """Expand a V004 checkpoint with the combined deck-state features."""
+    source_config = NeuralModelConfig(**checkpoint["model_config"])
+    if source_config.observation_feature_set != "baseline":
+        raise ValueError("Migration source must use the baseline observation feature set")
+    source_architecture = str(checkpoint.get("architecture", "independent_action"))
+    if source_architecture != "structured_semantic_v5_fusion_experiment":
+        raise ValueError("Migration source must be the V004 structured semantic architecture")
+
+    target_config = replace(source_config, observation_feature_set="deck_state_v1")
+    extra_features = len(_ZONE_CARDINALITY_BOUNDS) + len(_DECK_STATE_FACTIONS)
+    migrated = dict(checkpoint)
+    migrated["model_config"] = asdict(target_config)
+    migrated["architecture"] = "structured_semantic_v5_deck_state_v1"
+    migrated["migration"] = {
+        "source_architecture": source_architecture,
+        "source_observation_feature_set": source_config.observation_feature_set,
+        "target_observation_feature_set": target_config.observation_feature_set,
+        "zero_initialized_state_features": extra_features,
+    }
+
+    for state_key in ("model_state_dict", "actor_critic_state_dict"):
+        state = checkpoint.get(state_key)
+        if not isinstance(state, Mapping):
+            continue
+        expanded_state = dict(state)
+        for key, value in state.items():
+            if not key.endswith("state_encoder.0.weight"):
+                continue
+            if not isinstance(value, torch.Tensor) or value.ndim != 2:
+                raise ValueError(f"Unexpected state encoder weight for migration: {key}")
+            prefix_size = value.shape[1] - _STATE_CONTEXT_SIZE
+            if prefix_size <= 0:
+                raise ValueError(f"Invalid state encoder input size for migration: {key}")
+            expanded = value.new_zeros(value.shape[0], value.shape[1] + extra_features)
+            expanded[:, :prefix_size] = value[:, :prefix_size]
+            expanded[:, prefix_size + extra_features:] = value[:, prefix_size:]
+            expanded_state[key] = expanded
+        migrated[state_key] = expanded_state
+    return migrated
+
+
+def migrate_v005_deck_state_checkpoint_to_tactical(
+    checkpoint: Mapping[str, object],
+) -> dict[str, object]:
+    """Expand a V005 deck-state checkpoint with tactical action features."""
+    source_config = NeuralModelConfig(**checkpoint["model_config"])
+    if source_config.observation_feature_set != "deck_state_v1":
+        raise ValueError("Migration source must use the deck_state_v1 observation feature set")
+    source_architecture = str(checkpoint.get("architecture", "independent_action"))
+    if source_architecture != "structured_semantic_v5_deck_state_v1":
+        raise ValueError("Migration source must be the V005 deck-state architecture")
+
+    migrated = dict(checkpoint)
+    migrated["architecture"] = "structured_semantic_v6_tactical_action_v1"
+    migrated["migration"] = {
+        "source_architecture": source_architecture,
+        "target_architecture": migrated["architecture"],
+        "zero_initialized_action_features": _TACTICAL_ACTION_FEATURE_SIZE,
+    }
+    for state_key in ("model_state_dict", "actor_critic_state_dict"):
+        state = checkpoint.get(state_key)
+        if not isinstance(state, Mapping):
+            continue
+        expanded_state = dict(state)
+        for key, value in state.items():
+            if not key.endswith("action_encoder.0.weight"):
+                continue
+            if not isinstance(value, torch.Tensor) or value.ndim != 2:
+                raise ValueError(f"Unexpected action encoder weight for migration: {key}")
+            expanded = value.new_zeros(
+                value.shape[0], value.shape[1] + _TACTICAL_ACTION_FEATURE_SIZE
+            )
+            expanded[:, :value.shape[1]] = value
+            expanded_state[key] = expanded
+        migrated[state_key] = expanded_state
+    return migrated
+
+
 SUPPORTED_ARCHITECTURES = (
     NeuralActionScorer.architecture,
     ContextualNeuralActionScorer.architecture,
     SemanticIdentityNeuralActionScorer.architecture,
     "structured_semantic_v4",
+    "structured_semantic_v5_fusion_experiment",
+    "structured_semantic_v5_deck_state_v1",
+    "structured_semantic_v6_tactical_action_v1",
 )
 
 
@@ -405,6 +588,18 @@ def build_neural_scorer(
         from .structured_v004 import StructuredSemanticV4Scorer
 
         return StructuredSemanticV4Scorer(config, card_catalog=card_catalog)
+    if architecture == "structured_semantic_v5_fusion_experiment":
+        from .structured_v005 import StructuredSemanticV5FusionScorer
+
+        return StructuredSemanticV5FusionScorer(config, card_catalog=card_catalog)
+    if architecture == "structured_semantic_v5_deck_state_v1":
+        from .structured_v005 import StructuredSemanticV5DeckStateScorer
+
+        return StructuredSemanticV5DeckStateScorer(config, card_catalog=card_catalog)
+    if architecture == "structured_semantic_v6_tactical_action_v1":
+        from .structured_v006 import StructuredSemanticV6TacticalActionScorer
+
+        return StructuredSemanticV6TacticalActionScorer(config, card_catalog=card_catalog)
     try:
         model_class = classes[architecture]
     except KeyError as error:

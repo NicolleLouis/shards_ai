@@ -8,7 +8,7 @@ from .state import GameState, PendingDecision, PlayerState
 
 
 CardCounts = tuple[tuple[str, int], ...]
-OBSERVATION_SCHEMA_VERSION = 2
+OBSERVATION_SCHEMA_VERSION = 3
 PLAYABLE_FACTIONS: tuple[Faction, ...] = (
     Faction.MAQUIS,
     Faction.SPECTRA,
@@ -60,6 +60,7 @@ class NeuralActivePlayerObservation:
     champions: tuple[NeuralCardObservation, ...]
     owned_card_counts: CardCounts
     played_faction_mask: tuple[bool, bool, bool, bool]
+    played_champion_faction_mask: tuple[bool, bool, bool, bool] = (False, False, False, False)
     # Public active-player discard cards, sorted for deterministic serialization.
     # ``discard_counts`` remains the compact aggregate consumed by the model.
     discard: tuple[NeuralCardObservation, ...] = ()
@@ -133,6 +134,7 @@ def _active_player_observation(player: PlayerState) -> NeuralActivePlayerObserva
         ),
         owned_card_counts=_card_counts(_owned_cards(player)),
         played_faction_mask=_played_faction_mask(player),
+        played_champion_faction_mask=_played_champion_faction_mask(player),
         discard=tuple(
             sorted(
                 (_card_observation(card) for card in player.discard_pile),
@@ -201,6 +203,17 @@ def _played_faction_mask(player: PlayerState) -> tuple[bool, bool, bool, bool]:
         if card_id in cards_by_instance_id
     }
     return tuple(faction in played_factions for faction in PLAYABLE_FACTIONS)  # type: ignore[return-value]
+
+
+def _played_champion_faction_mask(player: PlayerState) -> tuple[bool, bool, bool, bool]:
+    played_champion_factions = {
+        card.definition.faction
+        for card in player.champions
+        if card.instance_id in player.played_card_ids_this_turn
+    }
+    return tuple(
+        faction in played_champion_factions for faction in PLAYABLE_FACTIONS
+    )  # type: ignore[return-value]
 
 
 def _pending_observation(

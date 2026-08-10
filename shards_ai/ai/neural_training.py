@@ -70,6 +70,29 @@ def is_targeted_mercenary_record(record: dict) -> bool:
     return bool(buy_cards & recruited_cards)
 
 
+def matches_imitation_slice(
+    record: dict,
+    *,
+    action_types: frozenset[str] = frozenset(),
+    min_legal_actions: int | None = None,
+    max_legal_actions: int | None = None,
+) -> bool:
+    """Return whether a record belongs to an explicitly bounded training slice."""
+    action_type_candidates = {
+        record.get("chosen_action", {}).get("action_type"),
+        record.get("teacher_action_type"),
+        record.get("neural_action_type"),
+    }
+    legal_action_count = len(record.get("action_representations", ()))
+    if action_types and not action_type_candidates.intersection(action_types):
+        return False
+    if min_legal_actions is not None and legal_action_count < min_legal_actions:
+        return False
+    if max_legal_actions is not None and legal_action_count > max_legal_actions:
+        return False
+    return True
+
+
 def pairwise_ranking_loss(predicted: Tensor, teacher_scores: Tensor) -> Tensor:
     """Make higher-scored heuristic actions more likely than lower-scored ones."""
     if predicted.numel() < 2:
@@ -132,7 +155,7 @@ def train_epoch(
         observation = observation_from_dict(record["observation"])
         actions = [ActionRepresentation(**value) for value in record["action_representations"]]
         predicted = model(observation, actions)
-        teacher = torch.tensor(record["heuristic_scores"], dtype=torch.float32, device=predicted.device)
+        teacher = _teacher_scores_tensor(record, len(actions), predicted.device)
         loss = combined_imitation_loss(predicted, teacher, record.get("chosen_action_index"))
         weight = record_weight(record) if record_weight is not None else 1.0
         if weight <= 0:
@@ -168,7 +191,7 @@ def evaluate_epoch(
         observation = observation_from_dict(record["observation"])
         actions = [ActionRepresentation(**value) for value in record["action_representations"]]
         predicted = model(observation, actions)
-        teacher = torch.tensor(record["heuristic_scores"], dtype=torch.float32, device=predicted.device)
+        teacher = _teacher_scores_tensor(record, len(actions), predicted.device)
         total_loss += float(combined_imitation_loss(predicted, teacher, record.get("chosen_action_index")))
         chosen_index = record.get("chosen_action_index")
         if chosen_index is not None and 0 <= chosen_index < len(actions):
@@ -215,6 +238,16 @@ def seed_training(seed: int, *, torch_threads: int | None = None) -> None:
         torch.set_num_threads(torch_threads)
 
 
+def _teacher_scores_tensor(record: dict, action_count: int, device: torch.device) -> Tensor:
+    """Return neutral ranking targets when a player has no score function (for example Random)."""
+    values = record.get("teacher_scores", record.get("heuristic_scores"))
+    if values is None:
+        return torch.zeros(action_count, dtype=torch.float32, device=device)
+    if len(values) != action_count:
+        raise ValueError("heuristic_scores must have one value per action representation")
+    return torch.tensor(values, dtype=torch.float32, device=device)
+
+
 def observation_from_dict(value: dict) -> NeuralObservation:
     def card(item: dict) -> NeuralCardObservation:
         return NeuralCardObservation(**item)
@@ -234,7 +267,9 @@ def observation_from_dict(value: dict) -> NeuralObservation:
             hand=tuple(card(item) for item in active["hand"]),
             draw_pile_counts=counts(active["draw_pile_counts"]), discard_counts=counts(active["discard_counts"]),
             play_zone=tuple(card(item) for item in active["play_zone"]), champions=tuple(card(item) for item in active["champions"]),
-            owned_card_counts=counts(active["owned_card_counts"]), played_faction_mask=tuple(active["played_faction_mask"]),
+            owned_card_counts=counts(active["owned_card_counts"]),
+            played_faction_mask=tuple(active["played_faction_mask"]),
+            played_champion_faction_mask=tuple(active.get("played_champion_faction_mask", (False, False, False, False))),
             discard=tuple(card(item) for item in active.get("discard", ())),
         ),
         opponent=NeuralOpponentObservation(

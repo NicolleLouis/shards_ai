@@ -227,7 +227,8 @@ exposent leurs PV imprimés ; le moteur ne stocke pas de dégâts partiels sur u
 Les comptages sont des tuples triés de `(card_definition_id, quantity)`. Le masque
 `played_faction_mask` contient quatre booléens pour les factions jouables (`maquis`, `spectra`,
 `homodeus`, `order`) et ignore `neutral`. Il est calculé à partir des cartes jouées pendant le tour
-courant uniquement.
+courant uniquement. `played_champion_faction_mask` contient le même type de masque, mais uniquement
+pour les champions joués pendant le tour courant ; un champion seulement activé n'y contribue pas.
 
 ## Limites d'exécution
 

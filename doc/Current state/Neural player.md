@@ -16,10 +16,9 @@ enregistrent l'identifiant du profil, son fingerprint et celui de la configurati
 checkpoints promus sont versionnés sous `configs/neural_profiles/` et ne sont plus entraînés ; les
 datasets et rapports restent sous `artifacts/` et ne doivent pas être versionnés dans Git.
 
-Le profil stable actif est `v002`, issu du fine-tuning d'imitation sur l'historique et les deux
-cycles DAgGER avec l'architecture `global_candidate_context`. Il est conservé dans
-`configs/neural_profiles/v002.pt`; les prochaines recherches ciblent des améliorations hors DAgGER,
-car les cycles DAgGER n'ont pas débloqué la faiblesse principale contre v008.
+Le profil stable actif est `v004`, issu de l'expérience V5 `structured_semantic_v5_fusion_experiment`
+et entraîné depuis `v003`. Il est conservé dans `configs/neural_profiles/v004.pt`; `v003` et `v002`
+restent des références historiques protégées.
 
 ## Modèle
 
@@ -31,6 +30,21 @@ score action-conditionnel pour chaque action. Il ne génère aucune action et ne
 Les dimensions sont configurables via `NeuralModelConfig`. Le modèle fonctionne sur CPU et peut
 être déplacé sur un autre device PyTorch. L'inférence de production devra utiliser `torch.no_grad()`
 et mettre en cache les tenseurs préparés si les mesures de latence le justifient.
+
+Un feature set expérimental opt-in `zone_cardinality_v1` est disponible dans `NeuralModelConfig`. Il
+ajoute sept scalaires de cardinalité pour les zones de recyclage et les champions du joueur actif,
+son total possédé et les zones publiques agrégées de l'adversaire. Les tailles de la main, de la
+zone de jeu, de la rivière et du deck central ne sont pas ajoutées comme scalaires. La valeur par
+défaut `baseline` conserve la dimension et le comportement des architectures historiques ; le
+feature set expérimental nécessite un entraînement compatible et n'est pas utilisé par le profil
+actif tant qu'il n'a pas passé la validation.
+
+Une architecture expérimentale V5, `structured_semantic_v5_fusion_experiment`, est disponible via
+`StructuredSemanticV5FusionScorer`. Elle réutilise l'encodeur sémantique structuré V4, mais isole
+la fusion des voies identité et sémantique avec une normalisation L2 et des scales configurables.
+L'ablation `without_identity` a été testée puis rejetée dans `exp-00101` ; son support a été retiré.
+`StructuredSemanticV4Scorer` et ses checkpoints restent inchangés. Le profil actif V5 utilise une
+normalisation L2 par voie avec `card_fusion_id_scale=0.5` et `card_fusion_semantic_scale=1.5`.
 
 ## Entraînement
 
@@ -95,46 +109,43 @@ Le rapport inclut également, pour chaque adversaire, neuf graphiques SVG par mu
 (`×1`, `×2`, `×3`) : moyenne NeuralPlayer, moyenne adverse et delta des copies moyennes. Les cartes
 de chaque groupe sont triées par moyenne décroissante, ou par valeur absolue du delta décroissante.
 
-Le self-play n'est pas encore implémenté. Le `Makefile` expose
-`make neural-rl-train` et `make neural-rl-train-resume`, qui utilisent le profil candidat indiqué
-par `NEURAL_RL_PROFILE` et le checkpoint mutable unique `NEURAL_CHECKPOINT`. Le training RL est
-budgété en nombre de parties (`total_games`) ; les `optimization_epochs` sont des passes sur les
-transitions du rollout. Les checkpoints stables sous `configs/neural_profiles/` ne sont jamais
-entraînés. `configs/neural_profiles/active.yaml` désigne le profil stable chargé par défaut
-lorsqu'un `NeuralPlayer` est construit sans checkpoint explicite. La collecte des parties accepte
-`--workers` via `NEURAL_RL_WORKERS`, avec une valeur par défaut de `1` ; seul le rollout est
-parallélisé, tandis que l'update PPO et l'écriture du checkpoint restent séquentiels. Le profil PPO
-v002 conserve une régularisation KL vers v001, une entropie réduite et un mélange `20 % Random /
-30 % v007 / 50 % v008`. Une évaluation gloutonne périodique contre les trois adversaires permet de
-restaurer le meilleur état dans le checkpoint mutable unique. Le score de sélection est pondéré par
-ce mélange ; une baisse d'une victoire est tolérée contre Random et v007 pour éviter de rejeter une
-progression contre v008, mais aucune baisse n'est tolérée contre v008. La validation finale reste
-stricte avant promotion. Le résultat détaillé du meilleur état est conservé dans le checkpoint pour
-rendre les reprises cohérentes. Chaque évaluation périodique utilise 64 parties par adversaire, soit
-192 parties, tandis que la validation finale doit rester plus large.
+`benchmarks/benchmark_neural_panel.py`, appelé par `make neural-benchmark-panel`, applique la même
+instrumentation à un panel fixe composé de Random, Heuristic v007, Heuristic v008 et des profils
+neural v001, v002, v003 et v004. Il joue un nombre égal de parties contre chaque adversaire, conserve
+chaque partie dans `artifacts/neural_benchmark/neural_panel.json` et produit le rapport autonome
+`artifacts/neural_benchmark/neural_panel.html`. Le profil testé est v004 par défaut et peut être
+remplacé par `NEURAL_PANEL_CHECKPOINT` pour analyser le checkpoint mutable ou une autre version.
 
-Le profil expérimental `configs/neural_training_profiles/candidates/v003.yaml` active un reward
-shaping de deckbuilding basé sur une table fixe de 48 valeurs dérivées de l'acquisition v008.
-Le potentiel est la moyenne des valeurs des cartes propres connues dans la pioche, la main, la
-défausse, la zone de jeu et les champions. Un delta borné et pondéré par `beta` est ajouté seulement
-aux transitions d'achat, de recrutement, de maîtrise, de bannissement et de fin de phase ; la
-récompense terminale `+1/-1` reste présente. Le réseau ne reçoit pas ces zones supplémentaires :
-elles servent uniquement au calcul de la reward dans le collecteur PPO.
+Le self-play n'est pas encore implémenté. Les anciennes cibles Makefile PPO et DAgGER ont été
+retirées car elles pointaient vers des recettes candidates historiques. Les nouveaux entraînements
+sont orchestrés comme des expériences candidates avec `v003` comme parent explicite. Le checkpoint
+mutable reste `artifacts/neural_training/checkpoint.pt`; les checkpoints stables sous
+`configs/neural_profiles/` ne sont jamais entraînés en place. Les pointeurs actifs désignent
+actuellement `v004` et son architecture `structured_semantic_v5_fusion_experiment`.
 
 `scripts/validate_neural_profile.py` compare un candidat au dernier profil neural actif sur les mêmes seeds,
-contre `RandomPlayer`, `v007`, `v008` et au plus les deux derniers profils neural dont les
+contre `RandomPlayer`, `v007`, `v008` et les quatre derniers profils neural dont les
 checkpoints existent. Il imprime les résultats par adversaire avec deux décimales et les comptes
-victoires/parties. Le défaut Makefile est de 100 parties par adversaire ; un panel d'au moins 200
+victoires/parties. Chaque profil neural pèse `1/4`, soit un poids total de `1` pour le groupe neural.
+Le défaut Makefile est de 100 parties par adversaire ; un panel d'au moins 200
 parties est recommandé pour une promotion finale. Le script propose de ne promouvoir le candidat
-que par rapport au profil neural actif courant (v002 actuellement) ; `v008` reste l'adversaire
+que par rapport au profil neural actif courant (`v004` actuellement) ; `v008` reste l'adversaire
 heuristique protégé et ne constitue pas la référence neural remplacée à chaque promotion.
-que si son taux de victoire contre V008 ne baisse pas et que la moyenne arithmétique des deltas de
-tous les adversaires est strictement positive. Chaque adversaire compte une fois, indépendamment
+La promotion est autorisée si la moyenne pondérée des deltas de tous les adversaires est strictement
+positive, y compris lorsqu'elle contient une baisse contre v008. Chaque adversaire compte une fois, indépendamment
 du nombre de parties jouées ; les résultats sont d'abord agrégés par adversaire. Les résultats de
 catégories éventuelles sont conservés mais ne modifient pas cette gate. Cette validation
 peut être exécutée hors de Codex ; le résultat doit alors être conservé ou fourni avant promotion.
 Une promotion crée le prochain
 profil versionné et met à jour `active.yaml` ; un rejet ne modifie aucun profil.
+
+Pour les campagnes d'entraînement longues, le profil actif et son checkpoint stable constituent le
+contrôle : il est inutile de réentraîner une copie du contrôle pour chaque seed candidate lorsque le
+dataset et le protocole de comparaison restent inchangés. Un contrôle séparé n'est nécessaire que
+si l'expérience change ces éléments au point de rendre le profil actif incomparable. Toute campagne
+multi-seed doit également prévoir une durée cumulée inférieure à 15 heures avant son lancement ; le
+nombre de seeds, d'epochs, de décisions d'entraînement ou de parties doit être réduit si cette
+estimation est dépassée.
 
 Le générateur d'imitation accepte aussi des matchups ciblés avec `--opponent-profile`. Les profils
 passés par `--profile` sont alors les seuls teachers enregistrés ; les adversaires servent uniquement
@@ -148,31 +159,7 @@ conserve aussi l'état actor-critic et de l'optimiseur pour la reprise. Le bench
 `--opponent-checkpoint`, ce qui permet de comparer deux versions historiques sans dépendre du
 profil actif.
 
-## Architecture expérimentale avec contexte global des actions
-
-Une architecture `global_candidate_context` est disponible pour l'imitation. Elle réutilise les
-encodeurs baseline, moyenne les embeddings des actions légales, injecte ce contexte global dans le
-score de chaque action et reste indépendante de l'ordre de la liste. Elle est chargée automatiquement
-par `NeuralPlayer` lorsque le checkpoint porte cette métadonnée. Le profil
-`configs/neural_training_profiles/candidates/v004.yaml` prépare ce réentraînement ; il n'est pas
-encore promu et le PPO n'utilise pas encore cette architecture.
-
-L'architecture expérimentale `semantic_identity_v3` est également disponible. Elle conserve le
-contrat action-conditionnel de la baseline mais configure séparément l'embedding d'identité de la
-carte, la couche sémantique et la représentation finale. Le profil
-`configs/neural_training_profiles/candidates/v003-embedding.yaml` utilise respectivement 24, 64 et
-64 dimensions, et enregistre les alternatives 16/24 et 48/64 dans sa recette. La résolution passe
-par `build_neural_scorer` dans tous les chemins d'inférence, d'imitation, de PPO et d'analyse ; les
-checkpoints V001 et V002 continuent donc d'utiliser leurs architectures historiques.
-
-Le support PPO contextualisé est préparé dans `NeuralActorCritic` et le profil candidat
-`configs/neural_training_profiles/candidates/v005.yaml`. L’actor et la référence KL chargent la
-même architecture depuis le checkpoint ; le critic reste dépendant de l’observation seule. Ce
-profil ne doit être lancé qu’après l’analyse offline par phase/action et un benchmark en parties du
-checkpoint v004. Il utilise toujours le checkpoint mutable canonique et ne crée pas de `best.pt`
-séparé.
-
-## Analyse offline de l’imitation
+## Analyse offline de l'imitation
 
 `scripts/analyze_neural_imitation.py` évalue un checkpoint sans entraînement sur les représentations
 d’actions sérialisées dans le dataset d’imitation. Il score toutes les actions légales avec
@@ -211,39 +198,6 @@ nombre de parties doit être un multiple de cinq; l'index de partie répartit le
 adversaires à parts égales. Le JSON conserve les résultats détaillés et le HTML
 les taux de victoire par intervention. Cette campagne mesure une ablation sur
 des trajectoires différentes, pas un effet causal isolé état par état.
-
-## Cycle DAgGER ciblé
-
-`scripts/collect_dagger_dataset.py` fait jouer le checkpoint mutable actuel
-contre une liste explicite d'adversaires v008, v007 et Neural. Pour chaque
-décision du Neural évalué, il conserve toutes les actions légales, les scores et
-le choix de v008, le choix Neural, le rang, le regret, la phase, la divergence
-et l'issue de la partie. Les décisions hors `PLAY` restent dans le dataset.
-
-Pour les phases `PLAY`, le collecteur rejoue v008 sur une copie de l'état de
-début de phase et compare l'état de fin avec la trajectoire réelle. Une
-différence d'action peut donc être marquée comme permutation équivalente ou
-divergence stratégique. Les sorties brutes et leurs manifests sont écrites
-sous `artifacts/imitation_dataset/`.
-
-`scripts/sample_dagger_dataset.py` construit ensuite un dataset de fine-tuning
-par réservoir pondéré et déterministe : 45 % d'ancien dataset, 35 % de nouveaux
-exemples `PLAY` et 20 % d'autres décisions on-policy. Il écrit aussi un holdout
-de validation historique et on-policy séparé. La cible `make neural-dagger-train`
-reprend explicitement les poids du checkpoint courant avec un learning rate
-réduit, une époque par défaut et un optimiseur réinitialisé.
-
-Le cycle `make neural-dagger2-collect` utilise le préfixe `dagger_2-` pour éviter les collisions
-de parties avec le premier cycle et refuse tout teacher différent de Heuristic V8. La cible
-`make neural-dagger2-sample` échantillonne uniquement les états on-policy du cycle 2 avec les
-pondérations par action `play_card=1.5`, `recruit_mercenary=3`, `assign_power=3` et
-`choose_pending_decision=2`; le choix Neural est conservé séparément et `chosen_action` reste
-le choix de V8. Enfin `make neural-dagger-merge` fusionne l'historique, DAgGER 1 et DAgGER 2,
-ajoute `dataset_source`/`dagger_stage` et refuse les lignes DAgGER qui ne portent pas les scores
-ou le label de Heuristic V8.
-La fusion prend le raw du cycle 1 comme source DAgGER, car `dagger_cycle_1_train.jsonl` est déjà
-un échantillon mélangé avec l'historique et ne doit pas être réutilisé comme un dataset on-policy
-exclusif.
 
 Le training d'imitation utilise l'implémentation CPU `foreach` d'Adam. Elle
 réduit le coût de dispatch des mises à jour effectuées à chaque décision sans

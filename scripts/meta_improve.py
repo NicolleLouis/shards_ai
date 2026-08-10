@@ -253,7 +253,7 @@ class Campaign:
             "seed": 104,
             "opponents": ["random", "v007", "v008"],
             "baseline_profile": "v008",
-            "acceptance_rule": "mean_opponent_v008_guard",
+            "acceptance_rule": "weighted_mean_opponent_gain",
         }
         validate_campaign_settings(settings)
         active_path = self.repo / "configs" / "neural_training_profiles" / "active.yaml"
@@ -628,7 +628,10 @@ class Campaign:
                 "performance.baseline and performance.candidate. "
                 "For a quality experiment, validation.results must contain delta_win_rate for "
                 "random, v007 and v008, measured against the active latest neural reference. "
-                "The v008 entry is the protected heuristic guard, not the neural reference. "
+                "The v008 entry is a weighted heuristic signal, not a hard guard or the neural reference. "
+                "The final gate weights Random at 0.25, v007 at 1, v008 at 1.5, and each of the "
+                "four current neural references at 0.25; the active parent is loaded from active.yaml "
+                f"and is currently {self.parent_profile}. "
                 f"For a candidate that keeps the active architecture, training must start from the latest active "
                 f"neural checkpoint, currently {self.parent_profile}; resetting Adam optimizer state is allowed. "
                 "For an architecture-transition candidate such as structured_semantic_v4, do not load the V2 "

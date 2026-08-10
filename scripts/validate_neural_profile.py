@@ -28,11 +28,12 @@ from shards_ai.game import Game, GameRandom, GameRunner, GameStatus, PlayerId
 
 
 QUALITY_OPPONENT_WEIGHTS = {
-    "random": 0.5,
+    "random": 0.25,
     "v007": 1.0,
-    "v008": 2.0,
+    "v008": 1.5,
 }
-NEURAL_GROUP_WEIGHT = 0.5
+NEURAL_REFERENCE_COUNT = 4
+NEURAL_PROFILE_WEIGHT = 1.0 / NEURAL_REFERENCE_COUNT
 
 
 def _play(
@@ -130,16 +131,17 @@ def acceptance_metrics(
 ) -> dict[str, object]:
     """Apply the quality gate once per opponent, never once per game.
 
-    V008 is a hard non-regression guard. The remaining condition is a strictly
-    positive weighted mean: Random has weight 0.5, v007 weight 1, v008 weight 2,
-    and all neural opponents are grouped into one batch with total weight 0.5.
-    Random is therefore a visible quality signal, not a hard non-regression guard.
+    The only quality condition is a strictly positive weighted mean: Random has
+    weight 0.25, v007 weight 1, v008 weight 1.5, and exactly four neural
+    opponents each have weight 1/4, for a neural-group total of 1. Every
+    opponent, including v008, is therefore a weighted quality signal rather
+    than a hard non-regression guard.
     """
     deltas = {opponent: float(item["delta_win_rate"]) for opponent, item in results.items()}
     if "v008" not in deltas:
         return {
             "accepted": False,
-            "reason": "missing_v008_guard",
+            "reason": "missing_v008_result",
             "mean_delta_win_rate": None,
             "deltas": deltas,
         }
@@ -155,30 +157,38 @@ def acceptance_metrics(
         weighted_sum += weight * delta
         total_weight += weight
         applied_weights[opponent] = weight
-    if neural_deltas:
-        neural_mean = sum(neural_deltas) / len(neural_deltas)
-        weighted_sum += NEURAL_GROUP_WEIGHT * neural_mean
-        total_weight += NEURAL_GROUP_WEIGHT
-        applied_weights["neural_group"] = NEURAL_GROUP_WEIGHT
+    if len(neural_deltas) != NEURAL_REFERENCE_COUNT:
+        return {
+            "accepted": False,
+            "reason": "missing_neural_references",
+            "mean_delta_win_rate": None,
+            "opponent_count": len(deltas),
+            "neural_reference_count": len(neural_deltas),
+            "required_neural_reference_count": NEURAL_REFERENCE_COUNT,
+            "deltas": deltas,
+            "opponent_weights": applied_weights,
+            "minimum_weighted_mean_delta": 0.0,
+        }
+    for opponent, delta in deltas.items():
+        if opponent.startswith("neural:"):
+            weighted_sum += NEURAL_PROFILE_WEIGHT * delta
+            total_weight += NEURAL_PROFILE_WEIGHT
+            applied_weights[opponent] = NEURAL_PROFILE_WEIGHT
     mean_delta = weighted_sum / total_weight
-    accepted = (
-        deltas["v008"] >= 0.0
-        and mean_delta > 0.0
-    )
+    accepted = mean_delta > 0.0
     return {
         "accepted": accepted,
-        "reason": "mean_opponent_gain" if accepted else "v008_guard_or_mean_gain_failed",
+        "reason": "weighted_mean_gain" if accepted else "weighted_mean_gain_failed",
         "mean_delta_win_rate": mean_delta,
         "opponent_count": len(deltas),
         "deltas": deltas,
         "opponent_weights": applied_weights,
-        "v008_floor": 0.0,
         "minimum_weighted_mean_delta": 0.0,
     }
 
 
 def acceptance_decision(results: dict[str, dict[str, object]]) -> bool:
-    """Apply the V008 guard and weighted opponent-level gain rule."""
+    """Apply the weighted opponent-level gain rule."""
     return bool(acceptance_metrics(results)["accepted"])
 
 
@@ -213,8 +223,13 @@ def _panel(args: argparse.Namespace, candidate_profile_id: str) -> tuple[list[st
         checkpoint = profile.resolve_path(profile.output)
         if checkpoint.exists():
             neural_profiles[profile.profile_id] = (path, profile, checkpoint)
-        if len(neural_profiles) == 2:
+        if len(neural_profiles) == NEURAL_REFERENCE_COUNT:
             break
+    if len(neural_profiles) != NEURAL_REFERENCE_COUNT:
+        raise ValueError(
+            f"quality validation requires {NEURAL_REFERENCE_COUNT} promoted neural references; "
+            f"found {len(neural_profiles)}"
+        )
     opponents = ["random", "v007", "v008", *(f"neural:{profile_id}" for profile_id in neural_profiles)]
     return opponents, heuristic_profiles, neural_profiles
 

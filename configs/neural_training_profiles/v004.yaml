@@ -1,0 +1,27 @@
+schema_version: 1
+profile_id: v004
+parent_profile_id: v003
+method: imitation
+dataset: artifacts/imitation_dataset/v008_vs_random_v007_normalized_100k.jsonl
+output: configs/neural_profiles/v004.pt
+seed: 50102
+split_seed: 50101
+epochs: 5
+learning_rate: 0.001
+torch_threads: 1
+max_records: 100000
+max_validation_records: 10000
+model:
+  card_fusion_id_scale: 0.5
+  card_fusion_semantic_scale: 1.5
+  card_fusion_normalization: l2
+  card_fusion_normalization_epsilon: 1.0e-08
+metadata:
+  objective: structured_semantic_v5_fusion_experiment
+  architecture: structured_semantic_v5_fusion_experiment
+  experiment_step: B
+  experiment_role: semantic_preference
+  compare_to: exp00101-v005-fusion-control
+  evaluation_split: game_id_holdout
+  training_initialization: from_scratch
+  training_protocol: atomic_micro_batch_resume

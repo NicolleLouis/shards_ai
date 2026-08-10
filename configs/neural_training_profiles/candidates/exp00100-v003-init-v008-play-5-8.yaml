@@ -1,0 +1,25 @@
+schema_version: 1
+profile_id: exp00100-v003-init-v008-play-5-8
+parent_profile_id: v003
+method: imitation
+dataset: artifacts/imitation_dataset/exp00100-v003-v008-dagger.jsonl
+output: artifacts/neural_training/checkpoint.pt
+initial_checkpoint: configs/neural_profiles/v003.pt
+seed: 100100
+split_seed: 100101
+epochs: 1
+learning_rate: 0.0001
+torch_threads: 1
+max_records: 10000
+max_validation_records: 20000
+model:
+  semantic_token_hidden_dim: 64
+  semantic_attention_heads: 4
+metadata:
+  objective: targeted_v008_imitation_from_v003
+  architecture: structured_semantic_v4
+  teacher_profile: v008
+  target_action: play_card
+  target_legal_actions_min: 5
+  target_legal_actions_max: 8
+  evaluation_split: game_id_holdout

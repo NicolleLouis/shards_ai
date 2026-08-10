@@ -16,7 +16,9 @@ from shards_ai.ai import (
     NeuralModelConfig, SUPPORTED_ARCHITECTURES, build_neural_scorer, evaluate_epoch, iter_jsonl_records,
     load_training_profile, seed_training, train_epoch,
 )
-from shards_ai.ai.neural_training import is_targeted_mercenary_record, split_for_game_id
+from shards_ai.ai.neural_training import (
+    is_targeted_mercenary_record, matches_imitation_slice, split_for_game_id,
+)
 from shards_ai.ai.neural_reporting import write_training_report
 
 
@@ -41,6 +43,11 @@ def main() -> None:
     parser.add_argument("--dataset", type=Path)
     parser.add_argument("--validation-dataset", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--initialize-from",
+        type=Path,
+        help="Load model weights from a parent checkpoint and start with a fresh optimizer.",
+    )
     parser.add_argument("--resume-from", type=Path)
     parser.add_argument(
         "--reset-optimizer",
@@ -72,6 +79,9 @@ def main() -> None:
         default=1.0,
         help="Additional loss weight for decisions offering BuyCard and RecruitMercenary for one mercenary.",
     )
+    parser.add_argument("--target-action", dest="target_actions", action="append")
+    parser.add_argument("--target-legal-actions-min", type=int)
+    parser.add_argument("--target-legal-actions-max", type=int)
     args = parser.parse_args()
 
     profile = load_training_profile(args.profile) if args.profile else None
@@ -84,6 +94,9 @@ def main() -> None:
             "strategic_actions": args.strategic_actions or (),
             "strategic_weight": args.strategic_weight,
             "targeted_mercenary_weight": args.targeted_mercenary_weight,
+            "target_actions": args.target_actions or (),
+            "target_legal_actions_min": args.target_legal_actions_min,
+            "target_legal_actions_max": args.target_legal_actions_max,
             "learning_rate": args.learning_rate or 1e-3, "split": args.split or "train",
             "split_seed": args.split_seed if args.split_seed is not None else 0,
             "max_records": args.max_records, "max_validation_records": args.max_validation_records or 10000,
@@ -95,10 +108,18 @@ def main() -> None:
         settings = {
             "dataset": args.dataset or profile.resolve_path(profile.dataset),
             "output": args.output or profile.resolve_path(profile.output),
-            "validation_dataset": args.validation_dataset,
+            "validation_dataset": (
+                args.validation_dataset
+                or profile.resolve_path(profile.validation_dataset)
+                if profile.validation_dataset
+                else args.validation_dataset
+            ),
             "strategic_actions": args.strategic_actions or (),
             "strategic_weight": args.strategic_weight,
             "targeted_mercenary_weight": args.targeted_mercenary_weight,
+            "target_actions": args.target_actions or (),
+            "target_legal_actions_min": args.target_legal_actions_min,
+            "target_legal_actions_max": args.target_legal_actions_max,
             "epochs": args.epochs if args.epochs is not None else profile.epochs,
             "learning_rate": args.learning_rate if args.learning_rate is not None else profile.learning_rate,
             "split": args.split or "train", "split_seed": args.split_seed if args.split_seed is not None else profile.split_seed,
@@ -122,21 +143,38 @@ def main() -> None:
         parser.error("--strategic-weight must be positive")
     if args.targeted_mercenary_weight <= 0:
         parser.error("--targeted-mercenary-weight must be positive")
+    if args.initialize_from is not None and args.resume_from is not None:
+        parser.error("--initialize-from and --resume-from are mutually exclusive")
+    if (args.target_legal_actions_min is not None and args.target_legal_actions_min <= 0) or (
+        args.target_legal_actions_max is not None and args.target_legal_actions_max <= 0
+    ):
+        parser.error("target legal-action bounds must be positive")
+    if (
+        args.target_legal_actions_min is not None
+        and args.target_legal_actions_max is not None
+        and args.target_legal_actions_min > args.target_legal_actions_max
+    ):
+        parser.error("target legal-action minimum cannot exceed maximum")
     if settings["epochs"] <= 0 or settings["learning_rate"] <= 0 or settings["torch_threads"] <= 0:
         parser.error("epochs, learning rate and torch threads must be positive")
 
     seed_training(settings["seed"], torch_threads=settings["torch_threads"])
+    initialize_from = args.initialize_from
+    if initialize_from is None and profile is not None and profile.initial_checkpoint:
+        initialize_from = profile.resolve_path(profile.initial_checkpoint)
     checkpoint = None
-    if args.resume_from is not None:
-        if not args.resume_from.exists():
-            raise FileNotFoundError(f"Checkpoint not found: {args.resume_from}")
-        checkpoint = torch.load(args.resume_from, map_location="cpu", weights_only=False)
+    is_initialization = initialize_from is not None
+    checkpoint_path = initialize_from or args.resume_from
+    if checkpoint_path is not None:
+        if not checkpoint_path.exists():
+            raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+        checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
         model_config = NeuralModelConfig(**checkpoint["model_config"])
         architecture = checkpoint.get("architecture", "independent_action")
     else:
         model_config = settings["model"]
         architecture = settings["architecture"]
-    if profile and checkpoint is not None and checkpoint.get("profile_id") not in (None, profile.profile_id):
+    if profile and checkpoint is not None and not is_initialization and checkpoint.get("profile_id") not in (None, profile.profile_id):
         raise ValueError(
             f"Checkpoint belongs to profile {checkpoint['profile_id']!r}, "
             f"cannot resume with {profile.profile_id!r}"
@@ -150,12 +188,12 @@ def main() -> None:
     # Adam's CPU foreach implementation reduces Python/dispatch overhead without
     # changing the batch size, record order, or loss definition.
     optimizer = torch.optim.Adam(model.parameters(), lr=settings["learning_rate"], foreach=True)
-    if checkpoint is not None and "optimizer_state_dict" in checkpoint and not args.reset_optimizer:
+    if checkpoint is not None and not is_initialization and "optimizer_state_dict" in checkpoint and not args.reset_optimizer:
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         for parameter_group in optimizer.param_groups:
             parameter_group["lr"] = settings["learning_rate"]
-    metrics = list(checkpoint.get("metrics", [])) if checkpoint is not None else []
-    first_epoch = int(checkpoint.get("epoch", len(metrics))) if checkpoint is not None else len(metrics)
+    metrics = list(checkpoint.get("metrics", [])) if checkpoint is not None and not is_initialization else []
+    first_epoch = int(checkpoint.get("epoch", len(metrics))) if checkpoint is not None and not is_initialization else 0
     metrics_output = args.metrics_output or output.with_suffix(".metrics.json")
     chart_output = args.chart_output or output.with_suffix(".svg")
 
@@ -166,7 +204,15 @@ def main() -> None:
                 yield record
 
     def records():
-        return records_for(settings["split"])
+        return (
+            record for record in records_for(settings["split"])
+            if matches_imitation_slice(
+                record,
+                action_types=frozenset(settings["target_actions"]),
+                min_legal_actions=settings["target_legal_actions_min"],
+                max_legal_actions=settings["target_legal_actions_max"],
+            )
+        )
 
     def validation_records():
         if validation_dataset is not None:
@@ -178,7 +224,10 @@ def main() -> None:
 
     def record_weight(record: dict) -> float:
         action_type = record.get("chosen_action", {}).get("action_type")
-        weight = args.strategic_weight if action_type in strategic_actions else 1.0
+        weight = float(record.get("sample_weight", 1.0))
+        if weight <= 0:
+            raise ValueError("sample_weight must be positive")
+        weight *= args.strategic_weight if action_type in strategic_actions else 1.0
         if is_targeted_mercenary_record(record):
             weight *= args.targeted_mercenary_weight
         return weight
@@ -189,7 +238,7 @@ def main() -> None:
             records(),
             optimizer,
             max_records=settings["max_records"],
-            record_weight=record_weight if strategic_actions else None,
+            record_weight=record_weight,
         )
         validation_result = evaluate_epoch(
             model,

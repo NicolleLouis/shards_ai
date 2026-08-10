@@ -52,6 +52,9 @@ class VisitedStateResult:
     by_phase: dict[str, VisitedMetrics] = field(default_factory=dict)
     by_neural_action_type: dict[str, VisitedMetrics] = field(default_factory=dict)
     by_heuristic_action_type: dict[str, VisitedMetrics] = field(default_factory=dict)
+    by_action_cardinality: dict[str, VisitedMetrics] = field(default_factory=dict)
+    by_neural_card: dict[str, VisitedMetrics] = field(default_factory=dict)
+    by_heuristic_card: dict[str, VisitedMetrics] = field(default_factory=dict)
     first_divergence_by_game: list[dict[str, object]] = field(default_factory=list)
     games: int = 0
 
@@ -65,6 +68,9 @@ class VisitedStateResult:
         rank: int,
         regret: float,
         heuristic_score: float,
+        legal_action_count: int = 0,
+        neural_card_id: str | None = None,
+        heuristic_card_id: str | None = None,
     ) -> None:
         values = {
             "top1": top1,
@@ -76,6 +82,14 @@ class VisitedStateResult:
         self.by_phase.setdefault(phase, VisitedMetrics()).add(**values)
         self.by_neural_action_type.setdefault(neural_action_type, VisitedMetrics()).add(**values)
         self.by_heuristic_action_type.setdefault(heuristic_action_type, VisitedMetrics()).add(**values)
+        action_cardinality = f"{neural_action_type} | {legal_action_count} actions légales"
+        self.by_action_cardinality.setdefault(action_cardinality, VisitedMetrics()).add(**values)
+        if neural_card_id is not None:
+            neural_key = f"{neural_action_type} | {neural_card_id}"
+            self.by_neural_card.setdefault(neural_key, VisitedMetrics()).add(**values)
+        if heuristic_card_id is not None:
+            heuristic_key = f"{heuristic_action_type} | {heuristic_card_id}"
+            self.by_heuristic_card.setdefault(heuristic_key, VisitedMetrics()).add(**values)
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -87,6 +101,15 @@ class VisitedStateResult:
             },
             "by_heuristic_action_type": {
                 key: value.as_dict() for key, value in sorted(self.by_heuristic_action_type.items())
+            },
+            "by_action_cardinality": {
+                key: value.as_dict() for key, value in sorted(self.by_action_cardinality.items())
+            },
+            "by_neural_card": {
+                key: value.as_dict() for key, value in sorted(self.by_neural_card.items())
+            },
+            "by_heuristic_card": {
+                key: value.as_dict() for key, value in sorted(self.by_heuristic_card.items())
             },
             "first_divergence_by_game": self.first_divergence_by_game,
         }
@@ -115,6 +138,9 @@ def render_html(result: VisitedStateResult, *, metadata: dict | None = None) -> 
         ("Par phase", result.by_phase),
         ("Par type d’action Neural", result.by_neural_action_type),
         ("Par action choisie par v008", result.by_heuristic_action_type),
+        ("Par action et cardinalité légale", result.by_action_cardinality),
+        ("Par carte choisie par Neural", result.by_neural_card),
+        ("Par carte choisie par v008", result.by_heuristic_card),
     ]
     tables = "".join(_table(title, groups) for title, groups in sections)
     divergences = "".join(

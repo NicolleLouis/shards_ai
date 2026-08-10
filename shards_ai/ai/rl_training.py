@@ -121,7 +121,9 @@ class NeuralActorCritic(nn.Module):
         card_ids.extend(action.card_definition_id for action in actions)
         embedding_lookup = self.backbone._embedding_lookup(card_ids)
         state = self.backbone.encode_observation(observation, embedding_lookup=embedding_lookup)
-        action = self.backbone.encode_actions(actions, embedding_lookup=embedding_lookup)
+        action = self.backbone.encode_actions(
+            actions, observation=observation, embedding_lookup=embedding_lookup
+        )
         context = None
         if self.architecture == "global_candidate_context":
             context = self.backbone.candidate_context_encoder(action.mean(dim=0, keepdim=True))

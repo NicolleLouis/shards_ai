@@ -89,6 +89,34 @@ def test_played_faction_mask_has_four_playable_faction_positions() -> None:
     assert len(observation.active_player.played_faction_mask) == 4
 
 
+def test_played_champion_faction_mask_distinguishes_played_from_activated() -> None:
+    game = Game.new(seed=309)
+    played_champion = CardInstance("played-champion", card_definition("giga_adepte_de_la_source"))
+    activated_champion = CardInstance("activated-champion", card_definition("giga_adepte_de_la_source"))
+    game.active.champions = [played_champion, activated_champion]
+    game.active.played_card_ids_this_turn = {played_champion.instance_id}
+    game.active.activated_champion_ids = {activated_champion.instance_id}
+
+    observation = game.neural_observation_for(game.active_player)
+
+    assert observation.active_player.played_champion_faction_mask == (False, False, False, True)
+    assert observation.active_player.champions[0].activated is False
+    assert observation.active_player.champions[1].activated is True
+
+
+def test_played_champion_faction_mask_is_cleared_at_cleanup() -> None:
+    game = Game.new(seed=310)
+    champion = CardInstance("played-champion", card_definition("giga_adepte_de_la_source"))
+    game.active.champions = [champion]
+    game.active.played_card_ids_this_turn = {champion.instance_id}
+    game.apply(PassPlayPhase())
+    game.apply(StopBuying())
+    game.apply(AssignPower(0))
+
+    observation = game.neural_observation_for(game.active_player)
+    assert observation.active_player.played_champion_faction_mask == (False, False, False, False)
+
+
 def test_played_faction_mask_is_cleared_at_cleanup() -> None:
     game = Game.new(seed=306)
     game.active.played_card_ids_this_turn = {game.active.hand[0].instance_id}

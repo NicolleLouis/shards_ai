@@ -24,6 +24,7 @@ class NeuralTrainingProfile:
     profile_id: str
     dataset: str | None
     output: str
+    validation_dataset: str | None = None
     method: str = "imitation"
     parent_profile_id: str | None = None
     seed: int = 0
@@ -68,6 +69,7 @@ class NeuralTrainingProfile:
             "parent_profile_id": self.parent_profile_id,
             "method": self.method,
             "dataset": self.dataset,
+            "validation_dataset": self.validation_dataset,
             "output": self.output,
             "seed": self.seed,
             "split_seed": self.split_seed,
@@ -180,6 +182,7 @@ def load_training_profile(path: str | Path) -> NeuralTrainingProfile:
         parent_profile_id=parent,
         method=method,
         dataset=dataset,
+        validation_dataset=document.get("validation_dataset"),
         output=output,
         seed=document.get("seed", 0),
         split_seed=document.get("split_seed", 0),

@@ -30,6 +30,12 @@ from .imitation_dataset import (
     default_matchups,
     generate_dataset,
 )
+from .league_dataset import (
+    LeagueDatasetConfig,
+    LeagueDatasetResult,
+    LeaguePlayerSpec,
+    collect_league_dataset,
+)
 from .card_representation import (
     CARD_REPRESENTATION_SCHEMA_VERSION,
     CardSemanticRepresentation,
@@ -47,8 +53,12 @@ from .neural_model import (
     SemanticIdentityNeuralActionScorer,
     SUPPORTED_ARCHITECTURES,
     build_neural_scorer,
+    migrate_v004_checkpoint_to_deck_state,
+    migrate_v005_deck_state_checkpoint_to_tactical,
 )
 from .structured_v004 import StructuredSemanticCardEncoder, StructuredSemanticV4Scorer
+from .structured_v005 import StructuredSemanticV5DeckStateScorer, StructuredSemanticV5FusionScorer
+from .structured_v006 import StructuredSemanticV6TacticalActionScorer
 from .neural_player import NeuralPlayer
 from .hybrid_player import HybridPlayer, HybridPolicy
 from .neural_training_profiles import (
@@ -120,6 +130,10 @@ __all__ = [
     "MatchupSpec",
     "default_matchups",
     "generate_dataset",
+    "LeagueDatasetConfig",
+    "LeagueDatasetResult",
+    "LeaguePlayerSpec",
+    "collect_league_dataset",
     "OperationRepresentation",
     "clear_representation_cache",
     "representation_for_definition",
@@ -130,8 +144,13 @@ __all__ = [
     "SemanticIdentityNeuralActionScorer",
     "StructuredSemanticCardEncoder",
     "StructuredSemanticV4Scorer",
+    "StructuredSemanticV5FusionScorer",
+    "StructuredSemanticV5DeckStateScorer",
+    "StructuredSemanticV6TacticalActionScorer",
     "SUPPORTED_ARCHITECTURES",
     "build_neural_scorer",
+    "migrate_v004_checkpoint_to_deck_state",
+    "migrate_v005_deck_state_checkpoint_to_tactical",
     "NeuralModelConfig",
     "NeuralTrainingProfile",
     "NeuralProfile",

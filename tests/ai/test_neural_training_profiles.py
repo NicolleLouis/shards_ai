@@ -1,4 +1,5 @@
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 import yaml
@@ -35,6 +36,39 @@ def test_load_training_profile_and_fingerprint(tmp_path):
     assert profile.resolved_model_config() == replace(NeuralModelConfig(), state_hidden_dim=64)
     assert len(profile.fingerprint) == 64
     assert profile.resolve_path(profile.dataset).name == "data.jsonl"
+
+
+def test_v005_control_profile_loads_with_neutral_scales():
+    profile_dir = Path("configs/neural_training_profiles/candidates")
+    control = load_training_profile(profile_dir / "exp00101-v005-fusion-control.yaml")
+
+    assert control.metadata["architecture"] == "structured_semantic_v5_fusion_experiment"
+    assert control.resolved_model_config().card_fusion_id_scale == 1.0
+    assert control.resolved_model_config().card_fusion_semantic_scale == 1.0
+
+
+def test_imitation_slice_matches_action_and_legal_action_bounds():
+    from shards_ai.ai.neural_training import matches_imitation_slice
+
+    record = {
+        "chosen_action": {"action_type": "play_card"},
+        "action_representations": [{}, {}, {}, {}, {}],
+    }
+    assert matches_imitation_slice(
+        record, action_types=frozenset({"play_card"}), min_legal_actions=5, max_legal_actions=8
+    )
+    assert not matches_imitation_slice(
+        record, action_types=frozenset({"play_card"}), min_legal_actions=6, max_legal_actions=8
+    )
+    assert not matches_imitation_slice(
+        record, action_types=frozenset({"activate_champion"}), min_legal_actions=5, max_legal_actions=8
+    )
+
+    record["teacher_action_type"] = "play_card"
+    record["chosen_action"] = {"action_type": "activate_champion"}
+    assert matches_imitation_slice(
+        record, action_types=frozenset({"play_card"}), min_legal_actions=5, max_legal_actions=8
+    )
 
 
 def test_save_training_profile_round_trips(tmp_path):
@@ -75,6 +109,25 @@ def test_batched_validation_ranges_cover_games_without_overlap():
     assert batch_ranges(45, 20) == [(0, 20), (20, 40), (40, 45)]
 
 
+def test_quality_panel_includes_three_latest_neural_references():
+    from argparse import Namespace
+    from pathlib import Path
+
+    from scripts.validate_neural_profile import _panel
+
+    opponents, _heuristics, neural_profiles = _panel(
+        Namespace(
+            profile_dir=Path("configs/neural_training_profiles"),
+            profile_v007=Path("configs/heuristic_profiles/v007.yaml"),
+            profile_v008=Path("configs/heuristic_profiles/v008.yaml"),
+        ),
+        "exp-candidate",
+    )
+
+    assert opponents[-4:] == ["neural:v004", "neural:v003", "neural:v002", "neural:v001"]
+    assert set(neural_profiles) == {"v001", "v002", "v003", "v004"}
+
+
 def test_validation_rule_accepts_positive_mean_with_secondary_regressions():
     from scripts.validate_neural_profile import acceptance_decision
 
@@ -82,10 +135,15 @@ def test_validation_rule_accepts_positive_mean_with_secondary_regressions():
         "random": {"delta_win_rate": -0.02},
         "v007": {"delta_win_rate": -0.01},
         "v008": {"delta_win_rate": 0.06},
+        "neural:v001": {"delta_win_rate": 0.0},
+        "neural:v002": {"delta_win_rate": 0.0},
+        "neural:v003": {"delta_win_rate": 0.0},
+        "neural:v004": {"delta_win_rate": 0.0},
+        "neural:v004": {"delta_win_rate": 0.0},
     })
 
 
-def test_validation_rule_requires_v008_and_positive_mean_progress():
+def test_validation_rule_requires_complete_panel_and_positive_mean_progress():
     from scripts.validate_neural_profile import acceptance_decision
 
     assert not acceptance_decision({"random": {"delta_win_rate": 0.0}})
@@ -93,6 +151,10 @@ def test_validation_rule_requires_v008_and_positive_mean_progress():
         "random": {"delta_win_rate": 0.01},
         "v007": {"delta_win_rate": 0.0},
         "v008": {"delta_win_rate": 0.0},
+        "neural:v001": {"delta_win_rate": 0.0},
+        "neural:v002": {"delta_win_rate": 0.0},
+        "neural:v003": {"delta_win_rate": 0.0},
+        "neural:v004": {"delta_win_rate": 0.0},
     })
 
 
@@ -103,15 +165,40 @@ def test_validation_rule_allows_random_regression_when_weighted_mean_is_positive
         "random": {"delta_win_rate": -0.06},
         "v007": {"delta_win_rate": 0.03},
         "v008": {"delta_win_rate": 0.03},
+        "neural:v001": {"delta_win_rate": 0.0},
+        "neural:v002": {"delta_win_rate": 0.0},
+        "neural:v003": {"delta_win_rate": 0.0},
+        "neural:v004": {"delta_win_rate": 0.0},
     })
-    assert not acceptance_decision({
+    assert acceptance_decision({
         "random": {"delta_win_rate": 0.10},
         "v007": {"delta_win_rate": 0.10},
         "v008": {"delta_win_rate": -0.01},
+        "neural:v001": {"delta_win_rate": 0.0},
+        "neural:v002": {"delta_win_rate": 0.0},
+        "neural:v003": {"delta_win_rate": 0.0},
+        "neural:v004": {"delta_win_rate": 0.0},
     })
 
 
-def test_validation_rule_uses_configured_opponent_weights_and_neural_group():
+def test_validation_rule_allows_v008_regression_when_weighted_mean_is_positive():
+    from scripts.validate_neural_profile import acceptance_metrics
+
+    metrics = acceptance_metrics({
+        "random": {"delta_win_rate": 0.10},
+        "v007": {"delta_win_rate": 0.05},
+        "v008": {"delta_win_rate": -0.04},
+        "neural:v001": {"delta_win_rate": 0.01},
+        "neural:v002": {"delta_win_rate": 0.01},
+        "neural:v003": {"delta_win_rate": 0.01},
+        "neural:v004": {"delta_win_rate": 0.01},
+    })
+
+    assert metrics["accepted"]
+    assert metrics["mean_delta_win_rate"] > 0.0
+
+
+def test_validation_rule_uses_configured_opponent_weights_and_four_neural_references():
     from scripts.validate_neural_profile import acceptance_metrics
 
     metrics = acceptance_metrics(
@@ -119,13 +206,41 @@ def test_validation_rule_uses_configured_opponent_weights_and_neural_group():
             "random": {"delta_win_rate": -0.02},
             "v007": {"delta_win_rate": -0.02},
             "v008": {"delta_win_rate": 0.07},
+            "neural:v001": {"delta_win_rate": 0.00},
+            "neural:v002": {"delta_win_rate": 0.03},
+            "neural:v003": {"delta_win_rate": 0.06},
+            "neural:v004": {"delta_win_rate": 0.09},
         },
         {"buy": {"delta": 0.04, "weight": 1.0}, "play": {"delta": 0.03, "weight": 1.0}},
     )
 
     assert metrics["accepted"]
-    assert metrics["mean_delta_win_rate"] == pytest.approx(0.0314285714)
-    assert metrics["opponent_weights"] == {"random": 0.5, "v007": 1.0, "v008": 2.0}
+    assert metrics["mean_delta_win_rate"] == pytest.approx(0.0333333333)
+    assert metrics["opponent_weights"] == {
+        "random": 0.25,
+        "v007": 1.0,
+        "v008": 1.5,
+        "neural:v001": pytest.approx(0.25),
+        "neural:v002": pytest.approx(0.25),
+        "neural:v003": pytest.approx(0.25),
+        "neural:v004": pytest.approx(0.25),
+    }
+    assert sum(metrics["opponent_weights"][key] for key in metrics["opponent_weights"] if key.startswith("neural:")) == pytest.approx(1.0)
+
+
+def test_validation_rule_rejects_an_incomplete_neural_reference_panel():
+    from scripts.validate_neural_profile import acceptance_metrics
+
+    metrics = acceptance_metrics({
+        "random": {"delta_win_rate": 0.0},
+        "v007": {"delta_win_rate": 0.0},
+        "v008": {"delta_win_rate": 0.01},
+        "neural:v002": {"delta_win_rate": 0.10},
+        "neural:v003": {"delta_win_rate": 0.10},
+    })
+
+    assert not metrics["accepted"]
+    assert metrics["reason"] == "missing_neural_references"
 
 
 def test_validation_output_shows_precise_candidate_and_reference_rates():

@@ -1,0 +1,28 @@
+schema_version: 1
+profile_id: exp00106-v004-zone-cardinality
+parent_profile_id: v004
+method: imitation
+dataset: artifacts/imitation_dataset/v008_vs_random_v007_normalized_100k.jsonl
+output: artifacts/neural_training/checkpoint.pt
+seed: 50600
+split_seed: 50101
+epochs: 1
+learning_rate: 0.001
+torch_threads: 1
+max_records: 10000
+max_validation_records: 10000
+model:
+  card_fusion_id_scale: 0.5
+  card_fusion_semantic_scale: 1.5
+  card_fusion_normalization: l2
+  card_fusion_normalization_epsilon: 1.0e-8
+  observation_feature_set: zone_cardinality_v1
+metadata:
+  objective: zone_cardinality_observation_experiment
+  architecture: structured_semantic_v5_fusion_experiment
+  experiment_step: 1
+  experiment_role: zone_cardinality_candidate
+  compare_to: v004
+  evaluation_split: game_id_holdout
+  training_initialization: from_scratch
+  training_protocol: atomic_micro_batch_resume

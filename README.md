@@ -58,21 +58,27 @@ PYTHONPATH=. poetry run python scripts/benchmark_heuristic_report.py \
 ## Profils d'entraînement neural
 
 Les recettes d'entraînement sont versionnées sous `configs/neural_training_profiles/` et les
-checkpoints stables promus sous `configs/neural_profiles/`. Le profil PPO candidat est sélectionné
-par `NEURAL_RL_PROFILE` dans le `Makefile`.
+checkpoints stables promus sous `configs/neural_profiles/`. Les deux pointeurs `active.yaml`
+désignent actuellement `v004` (`structured_semantic_v5_fusion_experiment`, identité `0,5`, sémantique `1,5`).
 
 Il n'existe qu'un seul checkpoint de training mutable :
 `artifacts/neural_training/checkpoint.pt`. La variable `NEURAL_CHECKPOINT` est utilisée par les
-cibles neural du `Makefile` : entraînement, reprise, benchmark et validation. Les checkpoints sous
+cibles neural restantes du `Makefile` : benchmark et validation. Les checkpoints sous
 `configs/neural_profiles/` sont stables, ne sont plus entraînés et sont les seules versions
 conservées durablement. Les artefacts générés restent hors Git.
 
-Pour expérimenter une nouvelle recette, copier `configs/neural_training_profiles/v001.yaml` vers un
-nouvel identifiant, modifier `parent_profile_id` et les paramètres, puis lancer directement :
+La gate de qualité compare chaque candidat à Random, v007, v008 et aux quatre derniers profils
+neural promus. Le groupe neural pèse `1` au total, soit `1/4` par profil ; Random pèse `0,25`,
+v007 `1` et v008 `1,5` ; la décision repose
+uniquement sur une moyenne pondérée strictement positive, sans garde dure de non-régression v008.
+
+Pour expérimenter une nouvelle recette, créer un profil candidat temporaire avec
+`parent_profile_id: v003`, puis l'exécuter vers le checkpoint mutable :
 
 ```bash
 PYTHONPATH=. poetry run python scripts/train_neural_imitation.py \
-  --profile configs/neural_training_profiles/v002.yaml
+  --profile /tmp/neural_candidate.yaml \
+  --output artifacts/neural_training/checkpoint.pt
 ```
 
 Le checkpoint et les métriques enregistrent l'identifiant et l'empreinte de la configuration
@@ -99,55 +105,27 @@ une décision finale de promotion lorsque le coût d'exécution est acceptable. 
 `artifacts/neural_validation/` ou fournis explicitement avant promotion. La sortie affiche les
 taux avec deux décimales et conserve les comptes `victoires/parties`.
 
-Le script propose une règle stricte : le candidat doit progresser contre au moins un adversaire et
-ne baisser contre aucun. L'utilisateur peut toutefois effectuer cette validation et cette décision
+La décision repose sur une moyenne pondérée strictement positive contre le panel ; aucun adversaire
+isolé ne constitue une garde dure. L'utilisateur peut toutefois effectuer cette validation et cette décision
 hors de Codex lorsque le benchmark a déjà été exécuté ; la promotion manuelle doit alors conserver
 la preuve et mettre à jour les deux pointeurs `active.yaml`. En cas de rejet explicite, les profils
 ne sont pas modifiés.
 Le mode `--no-promote` permet de produire uniquement le rapport.
 
-## Entraînement RL du candidat v002
+Pour comparer un profil à un panel complet, `make neural-benchmark-panel` joue contre Random,
+Heuristic v007, Heuristic v008 et les checkpoints neural v001, v002, v003 et v004. Le défaut est de
+200 parties par adversaire, soit 1 400 parties, avec `configs/neural_profiles/v004.pt` comme profil
+testé. Le JSON détaillé et le rapport HTML sont écrits dans `artifacts/neural_benchmark/`.
+Les variables `NEURAL_PANEL_CHECKPOINT`, `NEURAL_PANEL_GAMES`, `NEURAL_PANEL_SEED`,
+`NEURAL_PANEL_OUTPUT` et `NEURAL_PANEL_HTML_OUTPUT` permettent de modifier la campagne.
 
-Le profil candidat `configs/neural_training_profiles/candidates/v002.yaml` configure un training
-PPO en parties réelles contre Random, v007 et v008. La récompense est uniquement terminale : `+1`
-pour une victoire, `-1` pour une défaite et `0` pour un nul. Aucun reward shaping n'est utilisé.
+## Entraînement neural
 
-Pour initialiser un run depuis le checkpoint stable v001 :
-
-```bash
-make neural-rl-train
-```
-
-Pour reprendre le checkpoint mutable unique :
-
-```bash
-make neural-rl-train-resume
-```
-
-Le budget principal est `total_games`. `games_per_update` contrôle le nombre de parties collectées
-avant un update PPO ; `optimization_epochs` contrôle le nombre de passes PPO sur ces transitions.
-Ce sont donc deux unités différentes. La collecte peut utiliser plusieurs workers avec
-`NEURAL_RL_WORKERS` (1 par défaut) ; l'update PPO et l'écriture du checkpoint restent séquentiels.
-Le profil v002 utilise aussi une régularisation KL vers v001, une entropie réduite et un mélange
-`20 % Random / 30 % v007 / 50 % v008`. Une évaluation gloutonne périodique conserve le meilleur
-état dans le checkpoint mutable unique. Un état n'est retenu que s'il ne régresse contre aucun des
-tandis qu'une tolérance d'une victoire est admise pendant la sélection périodique contre Random et
-v007. Aucune tolérance n'est admise contre v008 ; le score pondéré 20/30/50 sert ensuite à favoriser
-v008. La validation finale reste stricte avant promotion. Les paramètres peuvent être surchargés
-pour un smoke test. Le profil utilise 64 parties par adversaire pour chaque
-évaluation périodique, soit 192 parties par point de sélection ; la validation finale doit utiliser
-un panel encore plus large :
-
-```bash
-make neural-rl-train \
-  NEURAL_RL_TOTAL_GAMES=10 \
-  NEURAL_RL_GAMES_PER_UPDATE=2 \
-  NEURAL_RL_OPTIMIZATION_EPOCHS=1 \
-  NEURAL_RL_WORKERS=2
-```
-
-Le seul checkpoint de travail reste `artifacts/neural_training/checkpoint.pt`. La validation et la
-promotion v002 utilisent ensuite ce checkpoint vers `configs/neural_profiles/v002.pt`.
+Les anciennes cibles Makefile PPO et DAgGER ont été retirées : elles pointaient vers des recettes
+v001/v002/v003 obsolètes et pouvaient contourner le profil actif. Les entraînements doivent être
+orchestrés comme des expériences candidates avec `v003` comme parent explicite, le checkpoint
+mutable `artifacts/neural_training/checkpoint.pt`, puis une validation avant promotion. Les cibles
+Makefile restantes servent au benchmark, à l'analyse, à la validation et à `meta-improve`.
 
 Pour générer environ 100 000 décisions v008 uniquement, avec des parties contre Random et v007 :
 

@@ -1,0 +1,27 @@
+schema_version: 1
+profile_id: exp00107-league-flat-deck-state
+parent_profile_id: v004
+method: imitation
+dataset: artifacts/imitation_dataset/league_v1_120k/league_control_train.jsonl
+validation_dataset: artifacts/imitation_dataset/league_v1_120k/league_control_validation.jsonl
+output: artifacts/neural_training/checkpoint.pt
+seed: 50700
+split_seed: 50701
+epochs: 1
+learning_rate: 0.001
+torch_threads: 1
+max_records: 83200
+max_validation_records: 10000
+model:
+  card_fusion_id_scale: 0.5
+  card_fusion_semantic_scale: 1.5
+  card_fusion_normalization: l2
+  card_fusion_normalization_epsilon: 1.0e-8
+  observation_feature_set: deck_state_v1
+metadata:
+  objective: league_dataset_deck_state_screen
+  architecture: structured_semantic_v5_deck_state_v1
+  experiment_role: flat_control
+  compare_to: v004
+  evaluation_split: game_id_holdout
+  training_initialization: from_scratch
