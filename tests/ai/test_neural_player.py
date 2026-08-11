@@ -3,7 +3,14 @@ from __future__ import annotations
 import torch
 import pytest
 
-from shards_ai.ai import NeuralActionScorer, NeuralModelConfig, NeuralPlayer, RandomPlayer
+from shards_ai.ai import (
+    MacroNeuralPlayer,
+    NeuralActionScorer,
+    NeuralModelConfig,
+    NeuralPlayer,
+    RandomPlayer,
+    build_neural_player,
+)
 from shards_ai.game import Game, GameRandom, GameRunner, PlayerId
 from shards_ai.game.errors import InvalidGameStateError
 from shards_ai.game.cards import CardInstance
@@ -38,6 +45,23 @@ def test_neural_player_chooses_one_legal_action(tmp_path) -> None:
         game.legal_actions(),
     )
 
+    assert action in game.legal_actions()
+
+
+def test_active_macro_checkpoint_uses_macro_player_adapter() -> None:
+    game = Game.new(seed=923)
+    player = build_neural_player(
+        PlayerId.PLAYER_1,
+        game,
+        GameRandom(1),
+        checkpoint_path="configs/neural_profiles/v005.pt",
+    )
+
+    assert isinstance(player, MacroNeuralPlayer)
+    action = player.choose_action(
+        game.neural_observation_for(PlayerId.PLAYER_1),
+        game.legal_actions(),
+    )
     assert action in game.legal_actions()
 
 

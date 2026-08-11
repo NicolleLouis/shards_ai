@@ -23,6 +23,15 @@ class GameRandom:
     def random(self) -> float:
         return self._random.random()
 
+    def clone(self) -> "GameRandom":
+        """Copy this stream without deep-copying ``random.Random`` internals."""
+        cloned = object.__new__(GameRandom)
+        cloned.seed = self.seed
+        cloned._root_seed = self._root_seed
+        cloned._random = random.Random()
+        cloned._random.setstate(self._random.getstate())
+        return cloned
+
     def derive(self, label: str) -> "GameRandom":
         """Return a deterministic independent stream derived from this stream's seed."""
         material = f"{self._root_seed}:{label}".encode("utf-8")

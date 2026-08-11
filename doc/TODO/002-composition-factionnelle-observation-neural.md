@@ -2,8 +2,9 @@
 
 ## Statut
 
-À implémenter avec les cardinalités de l'expérience 1 dans un feature set unique. Aucun changement
-du moteur, des heuristiques ou du masque d'information n'est autorisé.
+Terminée côté implémentation et tests. La composition factionnelle est intégrée avec les
+cardinalités dans `deck_state_v1`. Le screening en partie et l'ablation causale restent différés
+conformément à l'architecture 081.
 
 ## Question
 

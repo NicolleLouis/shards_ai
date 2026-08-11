@@ -59,6 +59,7 @@ class GameRunner:
         self,
         transition_observer: Callable[[GameState, Action, GameState, PlayerId], None] | None = None,
         decision_observer: Callable[[GameState, Sequence[Action], Action, PlayerId], None] | None = None,
+        macro_decision_observer: Callable[[object, PlayerId], None] | None = None,
         *,
         observer_receives_detached_state: bool = True,
         players_receive_detached_observation: bool | None = None,
@@ -106,6 +107,12 @@ class GameRunner:
                 )
             if decision_observer is not None:
                 decision_observer(observation, legal_actions, action, player_id)
+            if macro_decision_observer is not None:
+                pop_macro_decision = getattr(player, "pop_last_macro_decision", None)
+                if pop_macro_decision is not None:
+                    macro_decision = pop_macro_decision()
+                    if macro_decision is not None:
+                        macro_decision_observer(macro_decision, player_id)
             if transition_observer is not None:
                 before = (
                     observer_before_state_factory(player_id)

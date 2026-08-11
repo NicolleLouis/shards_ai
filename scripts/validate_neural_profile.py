@@ -15,8 +15,8 @@ import yaml
 
 from shards_ai.ai import (
     HeuristicPlayer,
-    NeuralPlayer,
     RandomPlayer,
+    build_neural_player,
     load_active_training_profile,
     load_training_profile,
     next_training_profile_id,
@@ -49,13 +49,15 @@ def _play(
     game = Game.new(seed=seed, rng=root_rng.derive("engine"))
     candidate_id = PlayerId.PLAYER_1 if seed % 2 == 0 else PlayerId.PLAYER_2
     opponent_id = candidate_id.opponent
-    candidate = NeuralPlayer(candidate_id, None, root_rng.derive("candidate"), scorer=candidate_scorer)
+    candidate = build_neural_player(
+        candidate_id, game, root_rng.derive("candidate"), scorer=candidate_scorer,
+    )
     if opponent == "random":
         other = RandomPlayer(opponent_id, root_rng.derive("opponent"))
     elif opponent.startswith("neural:"):
-        other = NeuralPlayer(
+        other = build_neural_player(
             opponent_id,
-            None,
+            game,
             root_rng.derive("opponent"),
             scorer=neural_scorers[opponent.removeprefix("neural:")],
         )
@@ -266,7 +268,13 @@ def promote_candidate(args: argparse.Namespace, candidate_profile, active_profil
         promoted_weights_digest = checkpoint_weights_digest(promoted_checkpoint)
         if promoted_weights_digest != candidate_weights_digest:
             raise ValueError("Promoted checkpoint weights differ from the validated candidate")
-        NeuralPlayer.load_scorer(promoted_checkpoint)
+        validation_game = Game.new(seed=0, rng=GameRandom(0).derive("promotion-check"))
+        build_neural_player(
+            PlayerId.PLAYER_1,
+            validation_game,
+            GameRandom(0).derive("promotion-player"),
+            checkpoint_path=promoted_checkpoint,
+        )
     except Exception:
         temporary_checkpoint.unlink(missing_ok=True)
         promoted_checkpoint.unlink(missing_ok=True)

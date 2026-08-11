@@ -24,17 +24,18 @@ from typing import Callable
 
 import torch
 
-from shards_ai.ai import HeuristicPlayer, NeuralPlayer, RandomPlayer
+from shards_ai.ai import HeuristicPlayer, NeuralPlayer, RandomPlayer, build_neural_player
 from shards_ai.ai.heuristic_profiles import HeuristicProfile, load_profile
 from shards_ai.game import Game, GameRandom, GameRunner, GameStatus, PlayerId
 
 
-PLAYERS = ("Random", "Heuristic 7", "Heuristic 8", "Neuronal 1", "Neuronal 2", "Neuronal 3", "Neuronal 4")
+PLAYERS = ("Random", "Heuristic 7", "Heuristic 8", "Neuronal 1", "Neuronal 2", "Neuronal 3", "Neuronal 4", "Neuronal 5")
 DEFAULT_NEURAL_CHECKPOINTS = {
     "Neuronal 1": Path("configs/neural_profiles/v001.pt"),
     "Neuronal 2": Path("configs/neural_profiles/v002.pt"),
     "Neuronal 3": Path("configs/neural_profiles/v003.pt"),
     "Neuronal 4": Path("configs/neural_profiles/v004.pt"),
+    "Neuronal 5": Path("configs/neural_profiles/v005.pt"),
 }
 
 
@@ -73,8 +74,8 @@ def play_match(
         row_id = PlayerId.PLAYER_1 if index % 2 == 0 else PlayerId.PLAYER_2
         column_id = row_id.opponent
         players = {
-            row_id: make_player(row, row_id, root_rng.derive("row")),
-            column_id: make_player(column, column_id, root_rng.derive("column")),
+            row_id: make_player(row, row_id, root_rng.derive("row"), game),
+            column_id: make_player(column, column_id, root_rng.derive("column"), game),
         }
         state = GameRunner(game, players, max_actions=max_actions, max_turns=max_turns).run()
         if state.status is GameStatus.DRAW or state.winner is None:
@@ -90,7 +91,7 @@ def _build_factory(
     heuristic_profiles: dict[str, HeuristicProfile],
     neural_scorers: dict[str, object],
 ) -> Callable[[str, PlayerId, GameRandom], object]:
-    def make_player(name: str, player_id: PlayerId, rng: GameRandom) -> object:
+    def make_player(name: str, player_id: PlayerId, rng: GameRandom, current_game: Game) -> object:
         if name == "Random":
             return RandomPlayer(player_id, rng)
         if name == "Heuristic 7" or name == "Heuristic 8":
@@ -102,7 +103,12 @@ def _build_factory(
                 profile.constraint_weights,
             )
         if name.startswith("Neuronal "):
-            return NeuralPlayer(player_id, None, rng, scorer=neural_scorers[name])
+            return build_neural_player(
+                player_id,
+                current_game,
+                rng,
+                scorer=neural_scorers[name],
+            )
         raise ValueError(f"Unknown tournament player: {name}")
 
     return make_player

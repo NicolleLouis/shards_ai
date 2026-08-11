@@ -124,8 +124,8 @@ def test_quality_panel_includes_three_latest_neural_references():
         "exp-candidate",
     )
 
-    assert opponents[-4:] == ["neural:v004", "neural:v003", "neural:v002", "neural:v001"]
-    assert set(neural_profiles) == {"v001", "v002", "v003", "v004"}
+    assert opponents[-4:] == ["neural:v005", "neural:v004", "neural:v003", "neural:v002"]
+    assert set(neural_profiles) == {"v002", "v003", "v004", "v005"}
 
 
 def test_validation_rule_accepts_positive_mean_with_secondary_regressions():

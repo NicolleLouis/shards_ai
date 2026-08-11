@@ -1,4 +1,4 @@
-.PHONY: heuristic-benchmark-mix \
+.PHONY: heuristic-benchmark-mix neural-macro-dataset neural-macro-train \
 	neural-benchmark-mix neural-benchmark-panel neural-hybrid-benchmark neural-validate neural-validate-batched \
 	neural-imitation-analysis neural-visited-state-analysis meta-improve
 
@@ -23,7 +23,7 @@ NEURAL_MIX_GAMES ?= 2000
 NEURAL_MIX_SEED ?= 104
 NEURAL_MIX_OUTPUT ?= artifacts/neural_benchmark/neural_mix.json
 NEURAL_MIX_HTML_OUTPUT ?= artifacts/neural_benchmark/neural_mix.html
-NEURAL_PANEL_CHECKPOINT ?= configs/neural_profiles/v004.pt
+NEURAL_PANEL_CHECKPOINT ?= configs/neural_profiles/v005.pt
 NEURAL_PANEL_GAMES ?= 200
 NEURAL_PANEL_SEED ?= 104
 NEURAL_PANEL_OUTPUT ?= artifacts/neural_benchmark/neural_panel.json
@@ -33,6 +33,10 @@ NEURAL_HYBRID_SEED ?= 104
 NEURAL_HYBRID_OUTPUT ?= artifacts/neural_benchmark/neural_hybrids.json
 NEURAL_HYBRID_HTML_OUTPUT ?= artifacts/neural_benchmark/neural_hybrids.html
 NEURAL_IMITATION_DATASET ?= artifacts/imitation_dataset/v008_vs_random_v007_1m.jsonl
+NEURAL_MACRO_DATASET ?= artifacts/imitation_dataset/unified_v4_v8_vs_v7_v4.jsonl
+NEURAL_MACRO_DATASET_GAMES ?= 100
+NEURAL_MACRO_DATASET_SEED ?= 1411
+NEURAL_MACRO_TRAINING_PROFILE ?= configs/neural_training_profiles/candidates/exp00112-macro-v4-tactical-action.yaml
 NEURAL_IMITATION_ANALYSIS_OUTPUT ?= artifacts/analysis/neural_imitation_v008_1m.html
 NEURAL_IMITATION_ANALYSIS_JSON ?= artifacts/analysis/neural_imitation_v008_1m.json
 NEURAL_IMITATION_SPLIT ?= non_train
@@ -78,6 +82,17 @@ neural-imitation-analysis:
 		--output $(NEURAL_IMITATION_ANALYSIS_OUTPUT) \
 		--json-output $(NEURAL_IMITATION_ANALYSIS_JSON) \
 		--torch-threads $(NEURAL_TORCH_THREADS)
+
+neural-macro-dataset:
+	PYTHONPATH=. poetry run python scripts/generate_macro_imitation_dataset.py \
+		--output $(NEURAL_MACRO_DATASET) \
+		--games $(NEURAL_MACRO_DATASET_GAMES) \
+		--seed $(NEURAL_MACRO_DATASET_SEED)
+
+neural-macro-train:
+	PYTHONPATH=. poetry run python scripts/train_macro_imitation.py \
+		--profile $(NEURAL_MACRO_TRAINING_PROFILE) \
+		--output $(NEURAL_CHECKPOINT)
 
 neural-visited-state-analysis:
 	PYTHONPATH=. poetry run python scripts/benchmark_neural_visited_states.py \

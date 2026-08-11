@@ -16,9 +16,10 @@ enregistrent l'identifiant du profil, son fingerprint et celui de la configurati
 checkpoints promus sont versionnés sous `configs/neural_profiles/` et ne sont plus entraînés ; les
 datasets et rapports restent sous `artifacts/` et ne doivent pas être versionnés dans Git.
 
-Le profil stable actif est `v004`, issu de l'expérience V5 `structured_semantic_v5_fusion_experiment`
-et entraîné depuis `v003`. Il est conservé dans `configs/neural_profiles/v004.pt`; `v003` et `v002`
-restent des références historiques protégées.
+Le profil stable actif est `v005`, issu de l'expérience macro
+`structured_semantic_v5_macro_tactical_action_v1` et entraîné depuis `v004`. Il est conservé dans
+`configs/neural_profiles/v005.pt`; `v004` reste le contrôle atomique et `v003`/`v002` restent des
+références historiques protégées.
 
 ## Modèle
 
@@ -46,12 +47,28 @@ L'ablation `without_identity` a été testée puis rejetée dans `exp-00101` ; s
 `StructuredSemanticV4Scorer` et ses checkpoints restent inchangés. Le profil actif V5 utilise une
 normalisation L2 par voie avec `card_fusion_id_scale=0.5` et `card_fusion_semantic_scale=1.5`.
 
+Le scoreur expérimental `structured_semantic_v5_macro_deck_state_v1` choisit entre les candidats
+macro produits par `PlayTurnSolver`. Il réutilise l'encodeur structuré avec le feature set
+`deck_state_v1`, donc les sept cardinalités de zones et les quatre comptes factionnels actifs sont
+présents dans son état. Les candidats sont encodés par histogramme des types de trace, phase, état
+terminal et conséquences numériques. Il est entraîné séparément du scoreur atomique avec
+`scripts/train_macro_imitation.py` et le profil candidat
+`configs/neural_training_profiles/candidates/exp00109-macro-v8-deck-state.yaml`.
+
 ## Entraînement
 
 `neural_training.py` lit le JSONL en streaming. Les losses disponibles sont : préférence
 paire-à-paire, imitation de l'action choisie et régression optionnelle des scores normalisés par
 décision. `train_neural_imitation.py` produit un checkpoint hors de `doc/` et partitionne les
 décisions par `game_id` de façon déterministe.
+
+`macro_training.py` lit le dataset unifié en streaming. Le lecteur strict V4 consomme les décisions
+`macro_play` et `atomic`, exclut les candidats uniques, et conserve un split groupé par `game_id`.
+`train_macro_imitation.py` utilise des pondérations `decision_kind` déclarées dans le profil,
+rapporte les métriques par type de décision, phase, action, matchup et collisions, initialise par
+défaut les modules communs depuis V004 après migration vers `deck_state_v1`, puis écrit le
+checkpoint mutable canonique et ses métriques. Le dataset unifié n'est pas compatible avec
+`train_neural_imitation.py`.
 
 Chaque epoch peut maintenant être suivi dans les fichiers `.metrics.json` et `.metrics.csv` ; un
 fichier `.svg` est également généré par défaut. Les métriques de validation incluent la loss,
@@ -108,12 +125,14 @@ observable, sans prétendre déterminer si jouer la carte était stratégiquemen
 Le rapport inclut également, pour chaque adversaire, neuf graphiques SVG par multiplicité centrale
 (`×1`, `×2`, `×3`) : moyenne NeuralPlayer, moyenne adverse et delta des copies moyennes. Les cartes
 de chaque groupe sont triées par moyenne décroissante, ou par valeur absolue du delta décroissante.
+Le JSON et le HTML indiquent aussi le nombre moyen de décisions neural par partie ; avec un
+checkpoint macro, ils séparent les décisions macro du PLAY et les décisions atomiques unifiées.
 
 `benchmarks/benchmark_neural_panel.py`, appelé par `make neural-benchmark-panel`, applique la même
 instrumentation à un panel fixe composé de Random, Heuristic v007, Heuristic v008 et des profils
-neural v001, v002, v003 et v004. Il joue un nombre égal de parties contre chaque adversaire, conserve
+neural v001, v002, v003, v004 et v005. Il joue un nombre égal de parties contre chaque adversaire, conserve
 chaque partie dans `artifacts/neural_benchmark/neural_panel.json` et produit le rapport autonome
-`artifacts/neural_benchmark/neural_panel.html`. Le profil testé est v004 par défaut et peut être
+`artifacts/neural_benchmark/neural_panel.html`. Le profil testé est v005 par défaut et peut être
 remplacé par `NEURAL_PANEL_CHECKPOINT` pour analyser le checkpoint mutable ou une autre version.
 
 Le self-play n'est pas encore implémenté. Les anciennes cibles Makefile PPO et DAgGER ont été
@@ -121,7 +140,7 @@ retirées car elles pointaient vers des recettes candidates historiques. Les nou
 sont orchestrés comme des expériences candidates avec `v003` comme parent explicite. Le checkpoint
 mutable reste `artifacts/neural_training/checkpoint.pt`; les checkpoints stables sous
 `configs/neural_profiles/` ne sont jamais entraînés en place. Les pointeurs actifs désignent
-actuellement `v004` et son architecture `structured_semantic_v5_fusion_experiment`.
+actuellement `v005` et son architecture `structured_semantic_v5_macro_tactical_action_v1`.
 
 `scripts/validate_neural_profile.py` compare un candidat au dernier profil neural actif sur les mêmes seeds,
 contre `RandomPlayer`, `v007`, `v008` et les quatre derniers profils neural dont les
@@ -129,7 +148,7 @@ checkpoints existent. Il imprime les résultats par adversaire avec deux décima
 victoires/parties. Chaque profil neural pèse `1/4`, soit un poids total de `1` pour le groupe neural.
 Le défaut Makefile est de 100 parties par adversaire ; un panel d'au moins 200
 parties est recommandé pour une promotion finale. Le script propose de ne promouvoir le candidat
-que par rapport au profil neural actif courant (`v004` actuellement) ; `v008` reste l'adversaire
+que par rapport au profil neural actif courant (`v005` actuellement) ; `v008` reste l'adversaire
 heuristique protégé et ne constitue pas la référence neural remplacée à chaque promotion.
 La promotion est autorisée si la moyenne pondérée des deltas de tous les adversaires est strictement
 positive, y compris lorsqu'elle contient une baisse contre v008. Chaque adversaire compte une fois, indépendamment
@@ -158,6 +177,55 @@ conserve aussi l'état actor-critic et de l'optimiseur pour la reprise. Le bench
 `benchmarks/benchmark_neural_players.py` accepte `--opponent neural` et
 `--opponent-checkpoint`, ce qui permet de comparer deux versions historiques sans dépendre du
 profil actif.
+
+## Abstraction macro expérimentale des play turns
+
+`MacroNeuralPlayer` utilise `PlayTurnSolver` pour canoniser les segments de `PLAY` dont les effets
+fixes ou les conditions déjà actives ne créent pas de choix stratégique. Les effets conditionnels
+restent des branches si leur seuil maximal, leur Union, leur Domination, leur santé ou leur présence
+de champion n'est pas garantie. Echo/Spectra reste volatile lorsqu'une action disponible peut
+piocher ou modifier la défausse. Les actions atomiques produites par le solveur sont toujours
+rejouées et validées par `Game.apply()`.
+
+Les actions physiques équivalentes sont regroupées avant le scoring : même définition et même zone
+logique donnent un représentant déterministe, avec `physical_variant_count` conservé dans la
+candidate et le payload de décision. Les `instance_id` restent dans la trace atomique rejouée mais
+ne sont pas exposés au tenseur. Les cartes de la pioche, les slots de la rivière et les champions
+dont l'état d'activation diffère restent distincts. Les cibles `BanishCard` identiques dans une même
+zone suivent la même canonisation ; `SkipBanish` et les définitions différentes restent distincts.
+
+Les budgets sont des constantes fixes du solveur : 256 expansions, 128 états mémoïsés, 16 candidates
+macro et 32 actions atomiques par segment. Un dépassement utilise les candidats atomiques unifiés. Le hook
+`GameRunner.macro_decision_observer` expose un payload uniquement lorsqu'une candidate macro est
+choisie ; les actions automatiquement rejouées ne produisent pas de décisions d'apprentissage.
+Une résolution ne contenant qu'une candidate est également rejouée automatiquement, sans appel au
+scorer, sans compteur `macro_decisions` et sans payload.
+
+Le scorer macro neural V4 et son entraînement dédié constituent désormais la voie macro active par
+défaut via `configs/neural_profiles/v005.pt`. Le contrat structured_semantic_v5_macro_tactical_action_v1 conserve l'identité racine et
+les conséquences connues V3, puis ajoute au candidat PlayCard les features tactiques V6
+action-conditionnées Union, Echo et Domination.
+Le contrat V3 conserve, pour chaque branche, les deltas bornés de ressources et de zones, les choix pending,
+les masques de factions/champions, la victoire immédiate et les définitions de cartes résolues depuis
+la vue pré-décision. Les identifiants d'instance et les cartes révélées par une pioche future ne
+parviennent jamais au tenseur. Les schémas V1/V2 restent lisibles pour les artefacts historiques.
+Le sélecteur par défaut est déterministe et sert uniquement à mesurer le coût de l'abstraction. Sur un match seedé
+`104` contre Heuristic V8, trois répétitions donnent une médiane de 175 actions,
+22 tours, 39 décisions exposées et 80.3 ms. L'optimisation de `Game.clone()` utilise la copie
+manuelle de l'état et une copie explicite du flux RNG ; elle a réduit le solveur de 315.2 ms à 13.3 ms
+sur le même workload avant l'arrêt de la campagne.
+
+La génération du dataset macro utilise désormais le schéma candidat V4 et la représentation avec
+conséquences connues et tactiques. Elle ajoute l'action racine masquée au résumé macro et retire
+card_instance_id et choice_id avant encodage ; les représentations historiques V1/V2 restent
+disponibles pour lecture. Le nouveau profil d'entraînement est
+configs/neural_training_profiles/candidates/exp00112-macro-v4-tactical-action.yaml. Le profil stable
+correspondant est `configs/neural_training_profiles/v005.yaml` et son pointeur actif est `v005`.
+
+La couverture atomique unifiée est implémentée : hors PLAY et lorsque le solveur ne
+peut pas abstraire une décision, les actions légales sont transformées en candidats de trace de
+longueur 1 avec `decision_kind=atomic` et présentées au même scoreur V4. Les champs de conséquences
+macro sont nuls pour ces candidats ; les features tactiques applicables restent action-conditionnées.
 
 ## Analyse offline de l'imitation
 

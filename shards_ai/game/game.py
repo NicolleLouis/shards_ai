@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from copy import deepcopy
-
 from .actions import (
     Action,
     ActivateChampion,
@@ -194,7 +192,12 @@ class Game:
 
     def clone(self) -> "Game":
         """Return a detached copy suitable for tests, replay and search."""
-        return deepcopy(self)
+        # ``GameState`` already has an explicit detached copier that shares immutable
+        # card definitions.  Copying the entire object graph with ``deepcopy`` is
+        # disproportionately expensive for the bounded PLAY solver, which clones the
+        # game once per explored branch.  The RNG remains a private mutable stream and
+        # must retain its exact state in the clone.
+        return Game(state=self._detached_state(), rng=self._rng.clone())
 
     def legal_actions(self) -> list[Action]:
         if self.state.status is not GameStatus.RUNNING:

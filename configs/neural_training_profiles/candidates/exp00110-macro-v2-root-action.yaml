@@ -1,0 +1,31 @@
+schema_version: 1
+profile_id: exp00110-macro-v2-root-action
+parent_profile_id: v004
+method: imitation
+dataset: artifacts/imitation_dataset/macro_v2_v8_vs_v7_v4.jsonl
+output: artifacts/neural_training/checkpoint.pt
+seed: 51000
+split_seed: 51001
+epochs: 5
+learning_rate: 0.001
+torch_threads: 1
+max_records: 100000
+max_validation_records: 10000
+model:
+  card_fusion_id_scale: 0.5
+  card_fusion_semantic_scale: 1.5
+  card_fusion_normalization: l2
+  card_fusion_normalization_epsilon: 1.0e-8
+  observation_feature_set: deck_state_v1
+metadata:
+  objective: macro_play_imitation_root_action_v2
+  architecture: structured_semantic_v5_macro_root_action_v2
+  dataset_schema_version: 2
+  candidate_schema_version: 2
+  candidate_feature_set: root_action_v2
+  experiment_role: macro_teacher_v8_root_action
+  compare_to: exp00109-macro-v8-deck-state
+  evaluation_split: game_id_holdout
+  training_initialization: migrate_v004_zero_new_features
+  training_protocol: macro_candidate_micro_batch
+  initial_checkpoint: configs/neural_profiles/v004.pt

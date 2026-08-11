@@ -2,8 +2,10 @@
 
 ## Statut
 
-À lancer uniquement après les expériences 1 à 3. Cette note ne justifie pas à elle seule
-l'implémentation simultanée de toutes les features.
+Terminée côté intégration technique et tests. Le regroupement cardinalités + composition +
+activation tactique est présent dans le pipeline V4 (`deck_state_v1` et encodeur tactique). Les
+comparaisons d'ablation et la validation de qualité restent différées conformément à
+l'architecture 081.
 
 ## Objectif
 

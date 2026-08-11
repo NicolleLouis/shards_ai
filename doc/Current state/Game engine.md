@@ -239,7 +239,7 @@ et lève `InvalidGameStateError` lorsque celle-ci est atteinte.
 
 ## Tests et performances
 
-La suite pytest contient actuellement 188 tests couvrant :
+La suite pytest contient actuellement 342 tests couvrant :
 
 - la composition des decks et de la rivière ;
 - la reproductibilité des mélanges ;
@@ -265,6 +265,7 @@ La suite pytest contient actuellement 188 tests couvrant :
 - la politique de gain de maîtrise et d'arrêt à 10 % du `RandomPlayer` ;
 - la limite d'actions et la reproductibilité des parties random ;
 - la limite de tours et la déclaration d'ex æquo.
+- le clone détaché du jeu et la conservation de la position du flux aléatoire pour la recherche.
 
 Le benchmark `benchmarks/benchmark_game.py` identifie le ruleset par son scénario et mesure par
 défaut 10 000 parties engine-only avec les seeds `0..9999`. L'option `--games` permet un workload
@@ -279,3 +280,7 @@ Le joueur heuristique alterne entre les deux positions selon la seed afin de ré
 Les parties sont vérifiées
 comme terminées ou nulles ; ce benchmark sert à isoler le coût des observations et des décisions
 d'achat du coût du moteur engine-only.
+
+`Game.clone()` utilise la copie détachée explicite des zones et une copie explicite de l'état du
+flux `GameRandom`. Cette voie conserve la reproductibilité tout en évitant le `deepcopy` complet de
+l'objet `Game`, notamment pour les recherches bornées du solveur de play turns.

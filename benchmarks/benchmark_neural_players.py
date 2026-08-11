@@ -9,7 +9,7 @@ from pathlib import Path
 
 import torch
 
-from shards_ai.ai import HeuristicPlayer, NeuralPlayer, RandomPlayer
+from shards_ai.ai import HeuristicPlayer, NeuralPlayer, RandomPlayer, build_neural_player
 from shards_ai.ai.heuristic_profiles import load_profile
 from shards_ai.game import Game, GameRandom, GameRunner, GameStatus, PlayerId
 
@@ -29,19 +29,21 @@ def play_game(
     game = Game.new(seed=seed, rng=root_rng.derive("engine"))
     neural_id = PlayerId.PLAYER_1 if seed % 2 == 0 else PlayerId.PLAYER_2
     opponent_id = neural_id.opponent
-    neural = NeuralPlayer(
+    neural = build_neural_player(
         neural_id,
-        checkpoint if neural_scorer is None else None,
+        game,
         root_rng.derive("neural"),
+        checkpoint_path=checkpoint if neural_scorer is None else None,
         scorer=neural_scorer,
     )
     if opponent == "random":
         other = RandomPlayer(opponent_id, root_rng.derive("opponent"))
     elif opponent == "neural":
-        other = NeuralPlayer(
+        other = build_neural_player(
             opponent_id,
-            opponent_checkpoint if opponent_scorer is None else None,
+            game,
             root_rng.derive("opponent"),
+            checkpoint_path=opponent_checkpoint if opponent_scorer is None else None,
             scorer=opponent_scorer,
         )
     else:

@@ -2,8 +2,9 @@
 
 ## Statut
 
-À étudier. Aucun changement de code, de checkpoint actif ou de règle du moteur n'est demandé par
-cette note.
+Terminée côté implémentation et tests. Les cardinalités sont intégrées au feature set
+`deck_state_v1`. Le screening en partie et l'ablation causale restent différés conformément à
+l'architecture 081.
 
 ## Question
 

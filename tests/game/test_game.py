@@ -50,6 +50,28 @@ def test_observation_is_detached_from_mutable_game_state() -> None:
     assert observed_card.definition is actual_card.definition
 
 
+def test_clone_is_detached_and_preserves_card_definition_identity() -> None:
+    game = Game.new(seed=701)
+    clone = game.clone()
+    cloned_definition = clone.active.hand[0].definition
+
+    clone.active.hand.clear()
+    clone.state.river[0] = None
+
+    assert len(game.active.hand) == 5
+    assert game.state.river[0] is not None
+    assert clone.active.hand is not game.active.hand
+    assert cloned_definition is game.active.hand[0].definition
+
+
+def test_clone_preserves_the_random_stream_position() -> None:
+    game = Game.new(seed=702)
+    clone = game.clone()
+
+    assert clone._rng.random() == game._rng.random()
+    assert clone._rng.random() == game._rng.random()
+
+
 def test_shaping_observation_keeps_only_state_potential_data_detached() -> None:
     game = Game.new(seed=107)
     player_id = game.active_player

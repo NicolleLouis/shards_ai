@@ -18,7 +18,7 @@ from benchmarks.benchmark_neural_mix import (
     _mercenary_table,
     _summary,
 )
-from shards_ai.ai import HeuristicPlayer, NeuralPlayer, RandomPlayer
+from shards_ai.ai import HeuristicPlayer, NeuralPlayer, RandomPlayer, build_neural_player
 from shards_ai.ai.heuristic_profiles import HeuristicProfile, load_profile
 from shards_ai.game import Game, GameRandom, GameRunner, GameStatus, PlayerId
 from shards_ai.game.actions import BuyCard, GainMastery, PassPlayPhase, PlayCard, RecruitMercenary
@@ -32,12 +32,14 @@ OPPONENTS = (
     "neural:v002",
     "neural:v003",
     "neural:v004",
+    "neural:v005",
 )
 NEURAL_PROFILE_PATHS = {
     "v001": Path("configs/neural_profiles/v001.pt"),
     "v002": Path("configs/neural_profiles/v002.pt"),
     "v003": Path("configs/neural_profiles/v003.pt"),
     "v004": Path("configs/neural_profiles/v004.pt"),
+    "v005": Path("configs/neural_profiles/v005.pt"),
 }
 
 
@@ -54,13 +56,15 @@ def play_game(
     game = Game.new(seed=seed, rng=root_rng.derive("engine"))
     neural_id = PlayerId.PLAYER_1 if seed % 2 == 0 else PlayerId.PLAYER_2
     opponent_id = neural_id.opponent
-    neural = NeuralPlayer(neural_id, None, root_rng.derive("neural"), scorer=scorer)
+    neural = build_neural_player(
+        neural_id, game, root_rng.derive("neural"), scorer=scorer,
+    )
     if opponent == "random":
         other = RandomPlayer(opponent_id, root_rng.derive("opponent"))
     elif opponent.startswith("neural:"):
-        other = NeuralPlayer(
+        other = build_neural_player(
             opponent_id,
-            None,
+            game,
             root_rng.derive("opponent"),
             scorer=neural_scorers[opponent.removeprefix("neural:")],
         )
@@ -120,6 +124,7 @@ def play_game(
         "actions": runner.actions_played,
         "elapsed_seconds": time.perf_counter() - started,
         "neural_decisions": neural.decisions,
+        "neural_macro_decisions": getattr(neural, "macro_decisions", 0),
         "neural_inference_seconds": neural.total_inference_seconds,
         "neural_health": state.players[neural_id].health,
         "opponent_health": state.players[opponent_id].health,
@@ -191,13 +196,14 @@ body{{font-family:system-ui,sans-serif;background:#f5f7fb;color:#172033;margin:0
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--checkpoint", type=Path, default=Path("configs/neural_profiles/v004.pt"))
+    parser.add_argument("--checkpoint", type=Path, default=Path("configs/neural_profiles/v005.pt"))
     parser.add_argument("--profile-v007", type=Path, default=Path("configs/heuristic_profiles/v007.yaml"))
     parser.add_argument("--profile-v008", type=Path, default=Path("configs/heuristic_profiles/v008.yaml"))
     parser.add_argument("--profile-v001-checkpoint", type=Path, default=NEURAL_PROFILE_PATHS["v001"])
     parser.add_argument("--profile-v002-checkpoint", type=Path, default=NEURAL_PROFILE_PATHS["v002"])
     parser.add_argument("--profile-v003-checkpoint", type=Path, default=NEURAL_PROFILE_PATHS["v003"])
     parser.add_argument("--profile-v004-checkpoint", type=Path, default=NEURAL_PROFILE_PATHS["v004"])
+    parser.add_argument("--profile-v005-checkpoint", type=Path, default=NEURAL_PROFILE_PATHS["v005"])
     parser.add_argument("--games", type=int, default=200, help="Number of games per opponent.")
     parser.add_argument("--seed", type=int, default=104)
     parser.add_argument("--max-actions", type=int, default=GameRunner.DEFAULT_MAX_ACTIONS)
@@ -213,6 +219,7 @@ def main() -> None:
         "v002": args.profile_v002_checkpoint,
         "v003": args.profile_v003_checkpoint,
         "v004": args.profile_v004_checkpoint,
+        "v005": args.profile_v005_checkpoint,
         "v007": args.profile_v007,
         "v008": args.profile_v008,
     }
@@ -227,7 +234,7 @@ def main() -> None:
     scorer = NeuralPlayer.load_scorer(args.checkpoint)
     neural_scorers = {
         profile_id: NeuralPlayer.load_scorer(paths[profile_id])
-        for profile_id in ("v001", "v002", "v003", "v004")
+        for profile_id in ("v001", "v002", "v003", "v004", "v005")
     }
     records: list[dict[str, object]] = []
     for opponent in OPPONENTS:
@@ -251,7 +258,7 @@ def main() -> None:
             "seed": args.seed,
             "torch_threads": args.torch_threads,
             "opponents": list(OPPONENTS),
-            "neural_opponent_checkpoints": {profile_id: str(neural_scorers_path) for profile_id, neural_scorers_path in paths.items() if profile_id in {"v001", "v002", "v003", "v004"}},
+            "neural_opponent_checkpoints": {profile_id: str(neural_scorers_path) for profile_id, neural_scorers_path in paths.items() if profile_id in {"v001", "v002", "v003", "v004", "v005"}},
         },
         "summary_by_opponent": {
             opponent: _summary([record for record in records if record["opponent"] == opponent])

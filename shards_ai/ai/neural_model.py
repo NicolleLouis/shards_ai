@@ -568,6 +568,10 @@ SUPPORTED_ARCHITECTURES = (
     "structured_semantic_v5_fusion_experiment",
     "structured_semantic_v5_deck_state_v1",
     "structured_semantic_v6_tactical_action_v1",
+    "structured_semantic_v5_macro_deck_state_v1",
+    "structured_semantic_v5_macro_root_action_v2",
+    "structured_semantic_v5_macro_known_consequence_v1",
+    "structured_semantic_v5_macro_tactical_action_v1",
 )
 
 
@@ -600,6 +604,22 @@ def build_neural_scorer(
         from .structured_v006 import StructuredSemanticV6TacticalActionScorer
 
         return StructuredSemanticV6TacticalActionScorer(config, card_catalog=card_catalog)
+    if architecture == "structured_semantic_v5_macro_deck_state_v1":
+        from .macro_model import MacroActionScorer
+
+        return MacroActionScorer(config, card_catalog=card_catalog)
+    if architecture == "structured_semantic_v5_macro_root_action_v2":
+        from .macro_model import MacroActionScorerV2
+
+        return MacroActionScorerV2(config, card_catalog=card_catalog)
+    if architecture == "structured_semantic_v5_macro_known_consequence_v1":
+        from .macro_model import MacroActionScorerV3
+
+        return MacroActionScorerV3(config, card_catalog=card_catalog)
+    if architecture == "structured_semantic_v5_macro_tactical_action_v1":
+        from .macro_model import MacroActionScorerV4
+
+        return MacroActionScorerV4(config, card_catalog=card_catalog)
     try:
         model_class = classes[architecture]
     except KeyError as error:

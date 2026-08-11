@@ -2,8 +2,9 @@
 
 ## Statut
 
-À implémenter séparément du calcul global des cardinalités et de la composition. Cette expérience est prioritaire
-si l'objectif est d'améliorer les erreurs de choix pendant `PLAY`.
+Terminée côté implémentation et tests. Les features d'activation tactique sont intégrées à
+l'encodeur d'action V4. L'ablation tactique et la validation en partie restent différées
+conformément à l'architecture 081.
 
 ## Question
 
