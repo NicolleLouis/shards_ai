@@ -239,7 +239,7 @@ et lève `InvalidGameStateError` lorsque celle-ci est atteinte.
 
 ## Tests et performances
 
-La suite pytest contient actuellement 342 tests couvrant :
+La suite pytest contient actuellement 365 tests couvrant :
 
 - la composition des decks et de la rivière ;
 - la reproductibilité des mélanges ;

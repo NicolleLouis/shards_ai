@@ -28,12 +28,16 @@ from shards_ai.game import Game, GameRandom, GameRunner, GameStatus, PlayerId
 
 
 QUALITY_OPPONENT_WEIGHTS = {
-    "random": 0.25,
     "v007": 1.0,
-    "v008": 1.5,
+    "v008": 2.0,
+    "neural:v001": 0.5,
+    "neural:v002": 0.5,
+    "neural:v004": 0.5,
+    "neural:v005": 1.0,
+    "neural:v006": 1.0,
 }
-NEURAL_REFERENCE_COUNT = 4
-NEURAL_PROFILE_WEIGHT = 1.0 / NEURAL_REFERENCE_COUNT
+NEURAL_REFERENCE_PROFILE_IDS = ("v001", "v002", "v004", "v005", "v006")
+NEURAL_REFERENCE_COUNT = len(NEURAL_REFERENCE_PROFILE_IDS)
 
 
 def _play(
@@ -133,11 +137,11 @@ def acceptance_metrics(
 ) -> dict[str, object]:
     """Apply the quality gate once per opponent, never once per game.
 
-    The only quality condition is a strictly positive weighted mean: Random has
-    weight 0.25, v007 weight 1, v008 weight 1.5, and exactly four neural
-    opponents each have weight 1/4, for a neural-group total of 1. Every
-    opponent, including v008, is therefore a weighted quality signal rather
-    than a hard non-regression guard.
+    The only quality condition is a strictly positive weighted mean: v007 has
+    weight 1, v008 weight 2, neural v001/v002/v004 have weight 0.5, while
+    v005 and the active v006 have weight 1. Every
+    opponent is a weighted quality signal rather than a hard non-regression
+    guard. Random is outside this gate.
     """
     deltas = {opponent: float(item["delta_win_rate"]) for opponent, item in results.items()}
     if "v008" not in deltas:
@@ -150,32 +154,27 @@ def acceptance_metrics(
     weighted_sum = 0.0
     total_weight = 0.0
     applied_weights = {}
-    neural_deltas = []
     for opponent, delta in deltas.items():
-        if opponent.startswith("neural:"):
-            neural_deltas.append(delta)
+        weight = QUALITY_OPPONENT_WEIGHTS.get(opponent)
+        if weight is None:
             continue
-        weight = QUALITY_OPPONENT_WEIGHTS.get(opponent, 1.0)
         weighted_sum += weight * delta
         total_weight += weight
         applied_weights[opponent] = weight
-    if len(neural_deltas) != NEURAL_REFERENCE_COUNT:
+    missing_opponents = sorted(set(QUALITY_OPPONENT_WEIGHTS) - set(applied_weights))
+    if missing_opponents:
         return {
             "accepted": False,
             "reason": "missing_neural_references",
             "mean_delta_win_rate": None,
             "opponent_count": len(deltas),
-            "neural_reference_count": len(neural_deltas),
+            "neural_reference_count": sum(key.startswith("neural:") for key in applied_weights),
             "required_neural_reference_count": NEURAL_REFERENCE_COUNT,
             "deltas": deltas,
             "opponent_weights": applied_weights,
+            "missing_opponents": missing_opponents,
             "minimum_weighted_mean_delta": 0.0,
         }
-    for opponent, delta in deltas.items():
-        if opponent.startswith("neural:"):
-            weighted_sum += NEURAL_PROFILE_WEIGHT * delta
-            total_weight += NEURAL_PROFILE_WEIGHT
-            applied_weights[opponent] = NEURAL_PROFILE_WEIGHT
     mean_delta = weighted_sum / total_weight
     accepted = mean_delta > 0.0
     return {
@@ -220,7 +219,7 @@ def _panel(args: argparse.Namespace, candidate_profile_id: str) -> tuple[list[st
     }
     neural_profiles = {}
     for _number, path, profile in reversed(versioned_training_profiles(args.profile_dir)):
-        if profile.profile_id == candidate_profile_id:
+        if profile.profile_id not in NEURAL_REFERENCE_PROFILE_IDS or profile.profile_id == candidate_profile_id:
             continue
         checkpoint = profile.resolve_path(profile.output)
         if checkpoint.exists():
@@ -232,7 +231,7 @@ def _panel(args: argparse.Namespace, candidate_profile_id: str) -> tuple[list[st
             f"quality validation requires {NEURAL_REFERENCE_COUNT} promoted neural references; "
             f"found {len(neural_profiles)}"
         )
-    opponents = ["random", "v007", "v008", *(f"neural:{profile_id}" for profile_id in neural_profiles)]
+    opponents = ["v007", "v008", *(f"neural:{profile_id}" for profile_id in NEURAL_REFERENCE_PROFILE_IDS)]
     return opponents, heuristic_profiles, neural_profiles
 
 

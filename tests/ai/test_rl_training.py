@@ -306,7 +306,7 @@ def test_evaluation_score_uses_profile_weights_and_favors_v008():
     assert weighted_evaluation_score(evaluation, {"random": 0.2, "v007": 0.3, "v008": 0.5}) == pytest.approx(0.35)
 
 
-def test_evaluation_selection_rejects_regression_against_any_opponent():
+def test_evaluation_selection_uses_only_weighted_score():
     incumbent = {
         "by_opponent": {
             "random": {"win_rate": 0.5},
@@ -322,7 +322,7 @@ def test_evaluation_selection_rejects_regression_against_any_opponent():
         }
     }
 
-    assert not is_monotonic_evaluation_improvement(
+    assert is_monotonic_evaluation_improvement(
         candidate,
         incumbent,
         {"random": 0.2, "v007": 0.3, "v008": 0.5},
@@ -354,7 +354,7 @@ def test_evaluation_selection_allows_one_reference_loss_with_better_weighted_sco
     )
 
 
-def test_evaluation_selection_never_tolerates_a_v008_regression():
+def test_evaluation_selection_rejects_a_lower_weighted_score():
     incumbent = {
         "by_opponent": {
             "random": {"win_rate": 0.890625},

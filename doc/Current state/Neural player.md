@@ -16,10 +16,10 @@ enregistrent l'identifiant du profil, son fingerprint et celui de la configurati
 checkpoints promus sont versionnés sous `configs/neural_profiles/` et ne sont plus entraînés ; les
 datasets et rapports restent sous `artifacts/` et ne doivent pas être versionnés dans Git.
 
-Le profil stable actif est `v005`, issu de l'expérience macro
-`structured_semantic_v5_macro_tactical_action_v1` et entraîné depuis `v004`. Il est conservé dans
-`configs/neural_profiles/v005.pt`; `v004` reste le contrôle atomique et `v003`/`v002` restent des
-références historiques protégées.
+Le profil stable actif est `v006`, issu d'un fine-tuning PPO macro
+`structured_semantic_v5_macro_tactical_action_v1` depuis V005. Il est conservé dans
+`configs/neural_profiles/v006.pt`; V005 reste la référence parent immédiate, V004 le contrôle
+atomique historique, et V001 à V005 restent des références historiques protégées.
 
 ## Modèle
 
@@ -54,6 +54,17 @@ présents dans son état. Les candidats sont encodés par histogramme des types 
 terminal et conséquences numériques. Il est entraîné séparément du scoreur atomique avec
 `scripts/train_macro_imitation.py` et le profil candidat
 `configs/neural_training_profiles/candidates/exp00109-macro-v8-deck-state.yaml`.
+
+## Fine-tuning PPO V006
+
+V006 conserve le contrat macro/atomique et l'architecture de V005. Il a été initialisé depuis
+`configs/neural_profiles/v005.pt`, puis entraîné avec un PPO à récompense terminale uniquement,
+`gamma=1`, `gae_lambda=1` et `learning_rate=0.0005`. La validation paired de 100 parties par
+adversaire a produit un gain pondéré de `+1,125 point` contre V005 ; le candidat a ensuite été
+promu dans `configs/neural_profiles/v006.pt`.
+
+Le panel de qualité comprend V007, V008 et Neural V001 à V006. Ses poids sont respectivement
+`1,5`, `2`, `0,5`, `0,5`, `0,25`, `0,25`, `1`, `1`. Random reste diagnostique et hors gate.
 
 ## Entraînement
 
@@ -130,9 +141,9 @@ checkpoint macro, ils séparent les décisions macro du PLAY et les décisions a
 
 `benchmarks/benchmark_neural_panel.py`, appelé par `make neural-benchmark-panel`, applique la même
 instrumentation à un panel fixe composé de Random, Heuristic v007, Heuristic v008 et des profils
-neural v001, v002, v003, v004 et v005. Il joue un nombre égal de parties contre chaque adversaire, conserve
+neural v001, v002, v003, v004, v005 et v006. Il joue un nombre égal de parties contre chaque adversaire, conserve
 chaque partie dans `artifacts/neural_benchmark/neural_panel.json` et produit le rapport autonome
-`artifacts/neural_benchmark/neural_panel.html`. Le profil testé est v005 par défaut et peut être
+`artifacts/neural_benchmark/neural_panel.html`. Le profil testé est v006 par défaut et peut être
 remplacé par `NEURAL_PANEL_CHECKPOINT` pour analyser le checkpoint mutable ou une autre version.
 
 Le self-play n'est pas encore implémenté. Les anciennes cibles Makefile PPO et DAgGER ont été
@@ -140,18 +151,20 @@ retirées car elles pointaient vers des recettes candidates historiques. Les nou
 sont orchestrés comme des expériences candidates avec `v003` comme parent explicite. Le checkpoint
 mutable reste `artifacts/neural_training/checkpoint.pt`; les checkpoints stables sous
 `configs/neural_profiles/` ne sont jamais entraînés en place. Les pointeurs actifs désignent
-actuellement `v005` et son architecture `structured_semantic_v5_macro_tactical_action_v1`.
+actuellement `v006` et son architecture `structured_semantic_v5_macro_tactical_action_v1`.
 
 `scripts/validate_neural_profile.py` compare un candidat au dernier profil neural actif sur les mêmes seeds,
-contre `RandomPlayer`, `v007`, `v008` et les quatre derniers profils neural dont les
+contre `v007`, `v008` et les profils neural v001, v002, v004, v005 et v006 dont les
 checkpoints existent. Il imprime les résultats par adversaire avec deux décimales et les comptes
-victoires/parties. Chaque profil neural pèse `1/4`, soit un poids total de `1` pour le groupe neural.
+victoires/parties. La gate pondère v007 à `1`, v008 à `2`, v001/v002/v004 à `0,5` et v005/v006
+à `1` ; Neural V003 et Random sont exclus de la gate.
 Le défaut Makefile est de 100 parties par adversaire ; un panel d'au moins 200
 parties est recommandé pour une promotion finale. Le script propose de ne promouvoir le candidat
-que par rapport au profil neural actif courant (`v005` actuellement) ; `v008` reste l'adversaire
+que par rapport au profil neural actif courant (`v006` actuellement) ; `v008` reste l'adversaire
 heuristique protégé et ne constitue pas la référence neural remplacée à chaque promotion.
 La promotion est autorisée si la moyenne pondérée des deltas de tous les adversaires est strictement
-positive, y compris lorsqu'elle contient une baisse contre v008. Chaque adversaire compte une fois, indépendamment
+positive, y compris lorsqu'elle contient une baisse contre v008. Random n'appartient pas à cette gate, mais reste
+disponible dans les benchmarks diagnostiques. Chaque adversaire compte une fois, indépendamment
 du nombre de parties jouées ; les résultats sont d'abord agrégés par adversaire. Les résultats de
 catégories éventuelles sont conservés mais ne modifient pas cette gate. Cette validation
 peut être exécutée hors de Codex ; le résultat doit alors être conservé ou fourni avant promotion.
@@ -202,7 +215,7 @@ Une résolution ne contenant qu'une candidate est également rejouée automatiqu
 scorer, sans compteur `macro_decisions` et sans payload.
 
 Le scorer macro neural V4 et son entraînement dédié constituent désormais la voie macro active par
-défaut via `configs/neural_profiles/v005.pt`. Le contrat structured_semantic_v5_macro_tactical_action_v1 conserve l'identité racine et
+défaut via `configs/neural_profiles/v006.pt`. Le contrat structured_semantic_v5_macro_tactical_action_v1 conserve l'identité racine et
 les conséquences connues V3, puis ajoute au candidat PlayCard les features tactiques V6
 action-conditionnées Union, Echo et Domination.
 Le contrat V3 conserve, pour chaque branche, les deltas bornés de ressources et de zones, les choix pending,
@@ -220,7 +233,7 @@ conséquences connues et tactiques. Elle ajoute l'action racine masquée au rés
 card_instance_id et choice_id avant encodage ; les représentations historiques V1/V2 restent
 disponibles pour lecture. Le nouveau profil d'entraînement est
 configs/neural_training_profiles/candidates/exp00112-macro-v4-tactical-action.yaml. Le profil stable
-correspondant est `configs/neural_training_profiles/v005.yaml` et son pointeur actif est `v005`.
+correspondant est `configs/neural_training_profiles/v006.yaml` et son pointeur actif est `v006`.
 
 La couverture atomique unifiée est implémentée : hors PLAY et lorsque le solveur ne
 peut pas abstraire une décision, les actions légales sont transformées en candidats de trace de
@@ -252,22 +265,48 @@ heuristique et la première divergence de chaque partie. Les sorties JSON/HTML s
 `artifacts/analysis/`. Cette mesure est conditionnelle à la trajectoire du NeuralPlayer et ne simule
 pas une seconde branche de partie.
 
-## Joueurs hybrides et ablation en partie
-
-`shards_ai.ai.HybridPlayer` encapsule un `NeuralPlayer` et un `HeuristicPlayer`.
-La politique `purchase_recruitment` délègue les achats, recrutements et sorties
-de la phase d'achat à Heuristic V8; `play_phase` délègue toutes les décisions de
-`Phase.PLAY`; `banish` délègue les décisions dont les actions légales contiennent
-un `BanishCard`. Les autres décisions restent neuronales.
-
-`benchmarks/benchmark_neural_hybrids.py`, appelé par `make neural-hybrid-benchmark`,
-fait jouer le NeuralPlayer contre Neural, Heuristic V8 et ces trois hybrides. Le
-nombre de parties doit être un multiple de cinq; l'index de partie répartit les
-adversaires à parts égales. Le JSON conserve les résultats détaillés et le HTML
-les taux de victoire par intervention. Cette campagne mesure une ablation sur
-des trajectoires différentes, pas un effet causal isolé état par état.
-
 Le training d'imitation utilise l'implémentation CPU `foreach` d'Adam. Elle
 réduit le coût de dispatch des mises à jour effectuées à chaque décision sans
 modifier la taille des lots, l'ordre des records, la loss ou le nombre de
 threads configuré.
+
+## Joueur composé acquisition / play / banishment
+
+`shards_ai.ai.HybridPlayer` route maintenant indépendamment les familles de
+décisions. La première composition algorithmique construite par
+`build_hybrid_player(profile="hybrid-v002")` est `neural_v006` pour les achats
+et recrutements, `algorithmic_play_v001` pour PLAY et
+`deterministic_blaster_crystal_v001` pour les bannissements. `hybrid-v001`
+reste la composition historique avec PLAY heuristique V008.
+
+Les versions sont décrites par des profils YAML immuables sous
+`configs/hybrid_profiles/`. Les politiques indépendantes sont conservées sous
+`configs/player_policies/{acquisition,play,banish}/`; `hybrid-v002` référence
+explicitement `acquisition/v006`, `play/v001` et `banish/v001`.
+`load_hybrid_profile()` charge une version exacte ; aucun pointeur actif n'est
+consulté. La fingerprint du document permet de vérifier qu'une composition
+rejouée n'a pas changé. Une nouvelle composition ou une nouvelle politique
+doit créer un nouveau profil et ne pas réécrire une version déjà utilisée.
+
+La politique de bannissement choisit un Blaster visible dans la main ou la
+défausse ; à défaut elle choisit un Crystal de la défausse ; sinon elle choisit
+`SkipBanish`. Les égalités sont départagées par `instance_id`. Le routeur donne
+la priorité au bannissement avant l'acquisition, notamment lorsqu'un effet
+pendant PLAY ou BUY demande un bannissement.
+
+L'acquisition utilise le checkpoint macro V006 via `MacroNeuralPlayer`, mais
+uniquement lorsque les actions légales sont `BuyCard`, `RecruitMercenary`,
+`RecruitFreeCard` ou `StopBuying`. Le joueur composé conserve l'état public et
+chaque politique renvoie une action qui est ensuite validée par le moteur.
+`last_decision` expose l'identifiant de politique, la famille et le type de
+l'action choisie. Le PPO multi-tête partagé reste une architecture future ; il
+n'est pas activé par cette composition.
+
+`AlgorithmicPlayPolicy` est la version `algorithmic_play_v001`. À chaque
+décision PLAY, elle recalcule les contraintes visibles et classe les cartes dans
+l'ordre suivant : pioche sans remélange, effet de bannissement, cartes Spectra
+avec Echo, cartes sans contrainte ou déjà validées, pioches avec remélange,
+contraintes nouvellement validées, pioches dont la contrainte reste invalide,
+puis cartes restantes. Les contraintes suivies sont santé, maîtrise, Echo,
+Domination, Union et Inspiration ; les actions `BanishCard` elles-mêmes restent
+routées à la politique banishment.

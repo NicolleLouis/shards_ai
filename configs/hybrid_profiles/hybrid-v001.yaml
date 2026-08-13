@@ -1,0 +1,18 @@
+schema_version: 1
+profile_id: hybrid-v001
+parent_profile_id: null
+policies:
+  acquisition:
+    policy_id: neural_v006
+    checkpoint: configs/neural_profiles/v006.pt
+  play:
+    policy_id: heuristic_v008
+    profile: configs/heuristic_profiles/v008.yaml
+  banish:
+    policy_id: deterministic_blaster_crystal
+metadata:
+  objective: neural_acquisition_with_fixed_play_and_banish
+  acquisition_teacher: neural_v006
+  play_contract: heuristic_v008
+  banish_contract: blaster_then_discard_crystal_then_skip
+  replay_policy: exact_profile_and_checkpoint_paths

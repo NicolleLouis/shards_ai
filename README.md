@@ -59,7 +59,8 @@ PYTHONPATH=. poetry run python scripts/benchmark_heuristic_report.py \
 
 Les recettes d'entraînement sont versionnées sous `configs/neural_training_profiles/` et les
 checkpoints stables promus sous `configs/neural_profiles/`. Les deux pointeurs `active.yaml`
-désignent actuellement `v004` (`structured_semantic_v5_fusion_experiment`, identité `0,5`, sémantique `1,5`).
+désignent actuellement `v006` (`structured_semantic_v5_macro_tactical_action_v1`), promu après
+fine-tuning PPO de V005.
 
 Il n'existe qu'un seul checkpoint de training mutable :
 `artifacts/neural_training/checkpoint.pt`. La variable `NEURAL_CHECKPOINT` est utilisée par les
@@ -67,9 +68,9 @@ cibles neural restantes du `Makefile` : benchmark et validation. Les checkpoints
 `configs/neural_profiles/` sont stables, ne sont plus entraînés et sont les seules versions
 conservées durablement. Les artefacts générés restent hors Git.
 
-La gate de qualité compare chaque candidat à Random, v007, v008 et aux quatre derniers profils
-neural promus. Le groupe neural pèse `1` au total, soit `1/4` par profil ; Random pèse `0,25`,
-v007 `1` et v008 `1,5` ; la décision repose
+La gate de qualité compare chaque candidat à v007, v008 et aux profils neural v001, v002, v004,
+v005 et v006. Les poids sont v007 `1`, v008 `2`, v001/v002/v004 `0,5` et v005/v006 `1`.
+Neural V003 et Random restent diagnostiques et sont exclus de la gate ; la décision repose
 uniquement sur une moyenne pondérée strictement positive, sans garde dure de non-régression v008.
 
 Pour expérimenter une nouvelle recette, créer un profil candidat temporaire avec
@@ -113,7 +114,7 @@ ne sont pas modifiés.
 Le mode `--no-promote` permet de produire uniquement le rapport.
 
 Pour comparer un profil à un panel complet, `make neural-benchmark-panel` joue contre Random,
-Heuristic v007, Heuristic v008 et les checkpoints neural v001, v002, v003 et v004. Le défaut est de
+Heuristic v007, Heuristic v008 et les checkpoints neural v001 à v006. Le défaut est de
 200 parties par adversaire, soit 1 400 parties, avec `configs/neural_profiles/v004.pt` comme profil
 testé. Le JSON détaillé et le rapport HTML sont écrits dans `artifacts/neural_benchmark/`.
 Les variables `NEURAL_PANEL_CHECKPOINT`, `NEURAL_PANEL_GAMES`, `NEURAL_PANEL_SEED`,

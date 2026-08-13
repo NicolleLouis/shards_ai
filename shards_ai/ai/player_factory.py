@@ -41,6 +41,7 @@ def build_neural_player(
     if loaded_scorer is None:
         selected_checkpoint = checkpoint_path or load_active_neural_profile().checkpoint_path
         loaded_scorer = NeuralPlayer.load_scorer(selected_checkpoint)
+    loaded_scorer.eval()
 
     architecture = getattr(loaded_scorer, "architecture", None)
     if not is_macro_architecture(architecture):
@@ -48,13 +49,19 @@ def build_neural_player(
 
     from .macro_player import MacroNeuralPlayer
 
+    player_ref: dict[str, MacroNeuralPlayer] = {}
+
     def choose_macro(_game: Game, observation, candidates) -> int:
         with torch.inference_mode():
-            return int(loaded_scorer(observation, candidates).argmax().item())
+            scores = loaded_scorer(observation, candidates)
+        player_ref["player"]._last_candidate_scores = tuple(float(value) for value in scores.tolist())
+        return int(scores.argmax().item())
 
-    return MacroNeuralPlayer(
+    player = MacroNeuralPlayer(
         player_id,
         game,
         candidate_scorer=choose_macro,
         candidate_schema_version=MACRO_ARCHITECTURE_SCHEMA_VERSIONS[architecture],
     )
+    player_ref["player"] = player
+    return player

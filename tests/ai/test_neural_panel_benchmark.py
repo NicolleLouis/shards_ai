@@ -34,16 +34,26 @@ def _record(opponent: str) -> dict[str, object]:
     }
 
 
-def test_panel_contains_heuristic_and_four_neural_opponents() -> None:
-    assert OPPONENTS == ("random", "v007", "v008", "neural:v001", "neural:v002", "neural:v003", "neural:v004")
+def test_panel_contains_heuristic_and_eight_configured_opponents() -> None:
+    assert OPPONENTS == (
+        "random",
+        "v007",
+        "v008",
+        "neural:v001",
+        "neural:v002",
+        "neural:v003",
+        "neural:v004",
+        "neural:v005",
+        "neural:v006",
+    )
 
 
 def test_panel_html_renders_each_opponent() -> None:
     payload = {
         "config": {
-            "checkpoint": "configs/neural_profiles/v004.pt",
+            "checkpoint": "configs/neural_profiles/v006.pt",
             "games_per_opponent": 1,
-            "total_games": 7,
+            "total_games": 8,
             "seed": 104,
             "torch_threads": 1,
         },
@@ -55,6 +65,6 @@ def test_panel_html_renders_each_opponent() -> None:
     report = _render_report(payload)
 
     assert "Benchmark NeuralPlayer — panel complet" in report
-    assert "configs/neural_profiles/v004.pt" in report
+    assert "configs/neural_profiles/v006.pt" in report
     for opponent in OPPONENTS:
         assert f"Contre {opponent}" in report

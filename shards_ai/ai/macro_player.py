@@ -91,6 +91,7 @@ class MacroNeuralPlayer:
         self._last_macro_decision: MacroDecisionPayload | None = None
         self._last_atomic_decision: AtomicDecisionPayload | None = None
         self._last_scored_candidates: tuple[PlayTurnCandidate, ...] = ()
+        self._last_candidate_scores: tuple[float, ...] = ()
 
     @property
     def decisions(self) -> int:
@@ -202,6 +203,14 @@ class MacroNeuralPlayer:
         payload = self._last_atomic_decision
         self._last_atomic_decision = None
         return payload
+
+    @property
+    def last_scored_candidates(self) -> tuple[PlayTurnCandidate, ...]:
+        return self._last_scored_candidates
+
+    @property
+    def last_candidate_scores(self) -> tuple[float, ...]:
+        return self._last_candidate_scores
 
     @property
     def has_pending_macro_trace(self) -> bool:

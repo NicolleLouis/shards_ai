@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""Generate canonical and turn-number-only horizon forecast datasets."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+from pathlib import Path
+
+from shards_ai.ai.heuristic_player import HeuristicPlayer
+from shards_ai.ai.heuristic_profiles import load_profile
+from shards_ai.ai.horizon_forecast import (
+    HORIZON_DATASET_SCHEMA_VERSION,
+    features_from_state,
+    features_to_record,
+    horizon_class_for_remaining_turns,
+    project_baseline_dataset,
+)
+from shards_ai.ai.player_factory import build_neural_player
+from shards_ai.ai.random_player import RandomPlayer
+from shards_ai.game import Game, GameRandom, GameRunner, GameStatus, PlayerId
+
+
+def parser() -> argparse.ArgumentParser:
+    value = argparse.ArgumentParser(description=__doc__)
+    value.add_argument("--heuristic-profile", action="append", type=Path, default=[])
+    value.add_argument("--neural-checkpoint", action="append", type=Path, default=[])
+    value.add_argument("--output", type=Path, required=True)
+    value.add_argument("--games-per-matchup", type=int, required=True)
+    value.add_argument("--seed", type=int, required=True)
+    value.add_argument("--max-actions", type=int, default=GameRunner.DEFAULT_MAX_ACTIONS)
+    value.add_argument("--max-turns", type=int, default=GameRunner.MAX_TURNS_PER_PLAYER * 2)
+    value.add_argument("--no-random", action="store_true")
+    return value
+
+
+def game_seed(root_seed: int, index: int) -> int:
+    return int.from_bytes(hashlib.blake2b(f"horizon:{root_seed}:{index}".encode(), digest_size=8).digest(), "big")
+
+
+def main() -> None:
+    args = parser().parse_args()
+    if args.games_per_matchup <= 0 or args.max_turns <= 0:
+        raise SystemExit("games-per-matchup and max-turns must be positive")
+    specs: list[tuple[str, str, Path | None]] = []
+    if not args.no_random:
+        specs.append(("random", "random", None))
+    specs.extend(("heuristic", path.stem, path) for path in args.heuristic_profile)
+    specs.extend(("neural", path.stem, path) for path in args.neural_checkpoint)
+    if len(specs) < 2:
+        raise SystemExit("At least two players are required")
+    if len({profile_id for _, profile_id, _ in specs}) != len(specs):
+        raise SystemExit("Player profile ids must be unique")
+    undirected = [(left, right) for index, left in enumerate(specs) for right in specs[index + 1:]]
+    directed = undirected + [(right, left) for left, right in undirected]
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    records: list[dict] = []
+    games = 0
+    for matchup_index, (left, right) in enumerate(directed):
+        for local_index in range(args.games_per_matchup):
+            seed = game_seed(args.seed, matchup_index * args.games_per_matchup + local_index)
+            root_rng = GameRandom(seed)
+            game = Game.new(seed=seed, rng=root_rng.derive("engine"))
+            players = {}
+            for player_id, spec in ((PlayerId.PLAYER_1, left), (PlayerId.PLAYER_2, right)):
+                kind, profile_id, path = spec
+                rng = root_rng.derive(f"player-{player_id.value}")
+                if kind == "random":
+                    player = RandomPlayer(player_id, rng)
+                elif kind == "heuristic":
+                    profile = load_profile(path)
+                    player = HeuristicPlayer(player_id, profile.weights, profile.card_acquisition_weights, profile.constraint_weights)
+                else:
+                    player = build_neural_player(player_id, game, rng, checkpoint_path=path)
+                players[player_id] = player
+            runner = GameRunner(game, players, max_actions=args.max_actions, max_turns=args.max_turns)
+            game_records: list[dict] = []
+            turn_keys: list[tuple[int, str]] = []
+            seen_turn: tuple[int, str] | None = None
+
+            def on_decision(observation, _legal, _chosen, player_id) -> None:
+                nonlocal seen_turn
+                state = runner.game.state
+                key = (state.turn_number, player_id.name)
+                if key != seen_turn:
+                    turn_keys.append(key)
+                    seen_turn = key
+                game_records.append({
+                    "schema_version": HORIZON_DATASET_SCHEMA_VERSION,
+                    "feature_set": "active_state_faction_counts_v1",
+                    "game_id": f"horizon-game-{matchup_index:05d}-{local_index:05d}",
+                    "game_seed": seed,
+                    "decision_index": len(game_records),
+                    "active_player": player_id.value,
+                    "player_1_profile": left[1],
+                    "player_2_profile": right[1],
+                    "features": features_to_record(features_from_state(state)),
+                    "_turn_position": len(turn_keys) - 1,
+                })
+
+            try:
+                final_state = runner.run(decision_observer=on_decision)
+            except Exception as error:
+                raise RuntimeError(f"failed game seed={seed}: {error}") from error
+            if final_state.status is not GameStatus.FINISHED:
+                continue
+            for record in game_records:
+                position = int(record.pop("_turn_position"))
+                active_name = "PLAYER_1" if record["active_player"] == 1 else "PLAYER_2"
+                remaining_turns = sum(
+                    player == active_name for _, player in turn_keys[position + 1:]
+                )
+                record["target_horizon_class"] = horizon_class_for_remaining_turns(remaining_turns)
+                records.append(record)
+            games += 1
+    with args.output.open("w", encoding="utf-8") as stream:
+        for record in records:
+            stream.write(json.dumps(record, sort_keys=True) + "\n")
+    baseline_path = args.output.with_name(args.output.stem + "_baseline.jsonl")
+    baseline_records = project_baseline_dataset(args.output, baseline_path)
+    manifest = {
+        "schema_version": HORIZON_DATASET_SCHEMA_VERSION,
+        "canonical_dataset": str(args.output),
+        "baseline_dataset": str(baseline_path),
+        "games": games,
+        "records": len(records),
+        "baseline_records": baseline_records,
+        "players": [{"kind": kind, "profile_id": profile_id, "path": str(path) if path else None} for kind, profile_id, path in specs],
+        "games_per_matchup": args.games_per_matchup,
+        "seed": args.seed,
+        "max_turns": args.max_turns,
+    }
+    args.output.with_suffix(args.output.suffix + ".manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(json.dumps(manifest, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()

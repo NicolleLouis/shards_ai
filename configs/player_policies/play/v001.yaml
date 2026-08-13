@@ -1,0 +1,15 @@
+schema_version: 1
+policy_id: algorithmic_play_v001
+family: play
+version: v001
+algorithm: priority_order_v1
+contract: legal_atomic_play_action
+priority:
+  - draw_without_discard_reshuffle
+  - offer_banish
+  - spectra_echo
+  - unconstrained_or_already_validated
+  - draw_with_discard_reshuffle
+  - newly_validated_constraint
+  - draw_with_unvalidated_constraint
+  - remaining_cards

@@ -224,6 +224,9 @@ def load_training_profile(path: str | Path) -> NeuralTrainingProfile:
     _positive_int(profile.max_validation_records, "max_validation_records")
     _positive_int(profile.max_records, "max_records", allow_none=True)
     if profile.method == "ppo":
+        architecture = str(profile.metadata.get("architecture", ""))
+        if architecture == "structured_semantic_v5_macro_tactical_action_v1" and profile.reward_shaping:
+            raise ValueError("PPO macro profiles must define an empty reward_shaping mapping")
         for name in (
             "total_games", "games_per_update", "optimization_epochs", "minibatch_size",
             "evaluation_interval_games", "evaluation_games", "max_transitions_per_update",

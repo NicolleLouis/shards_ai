@@ -43,16 +43,24 @@ def _save_checkpoint(
     metrics: list[dict],
     best_evaluation: dict,
     best_evaluation_score: float,
+    best_model_state: dict[str, torch.Tensor],
+    best_optimizer_state: dict,
+    best_update_index: int,
+    best_games_seen: int,
+    best_transitions_seen: int,
+    latest_evaluation: dict | None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     checkpoint = {
         # Keeps the promoted checkpoint readable by NeuralPlayer v001+.
         "model_state_dict": model.inference_state_dict(),
         "actor_critic_state_dict": model.state_dict(),
+        "latest_actor_critic_state_dict": model.state_dict(),
         "model_config": asdict(model.config),
         "architecture": model.architecture,
         "card_ids": model.card_ids,
         "optimizer_state_dict": optimizer.state_dict(),
+        "latest_optimizer_state_dict": optimizer.state_dict(),
         "profile_id": profile.profile_id,
         "parent_profile_id": profile.parent_profile_id,
         "profile_fingerprint": profile.fingerprint,
@@ -66,6 +74,12 @@ def _save_checkpoint(
         "training_metrics": metrics,
         "best_evaluation_score": best_evaluation_score,
         "best_evaluation": best_evaluation,
+        "best_actor_critic_state_dict": best_model_state,
+        "best_optimizer_state_dict": best_optimizer_state,
+        "best_update_index": best_update_index,
+        "best_games_seen": best_games_seen,
+        "best_transitions_seen": best_transitions_seen,
+        "latest_evaluation": latest_evaluation,
         "training_config": profile.resolved_document(),
     }
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -136,6 +150,12 @@ def main() -> int:
     parser.add_argument("--torch-threads", type=int)
     parser.add_argument("--workers", type=int, default=1,
                         help="Number of concurrent game-collection workers (default: 1).")
+    parser.add_argument("--evaluation-games", type=int,
+                        help="Override evaluation games per opponent for a pilot run.")
+    parser.add_argument("--evaluation-interval-games", type=int,
+                        help="Override the evaluation interval for a pilot run.")
+    parser.add_argument("--resume-best", action="store_true",
+                        help="Resume the best state embedded in --resume-from instead of latest.")
     args = parser.parse_args()
 
     profile = load_training_profile(args.profile)
@@ -147,6 +167,14 @@ def main() -> int:
         if not 0 < value <= 1:
             parser.error(f"--{name} must be greater than 0 and at most 1")
     profile = replace(profile, gamma=gamma, gae_lambda=gae_lambda)
+    if args.evaluation_games is not None:
+        if args.evaluation_games <= 0:
+            parser.error("--evaluation-games must be positive")
+        profile = replace(profile, evaluation_games=args.evaluation_games)
+    if args.evaluation_interval_games is not None:
+        if args.evaluation_interval_games <= 0:
+            parser.error("--evaluation-interval-games must be positive")
+        profile = replace(profile, evaluation_interval_games=args.evaluation_interval_games)
     output = args.output or Path(profile.output)
     total_games = args.total_games or profile.total_games
     games_per_update = args.games_per_update or profile.games_per_update
@@ -179,6 +207,17 @@ def main() -> int:
             random.setstate(checkpoint["python_random_state"])
         if "torch_random_state" in checkpoint:
             torch.set_rng_state(checkpoint["torch_random_state"])
+        if args.resume_best:
+            best_state = checkpoint.get("best_actor_critic_state_dict")
+            if best_state is None:
+                parser.error("--resume-best requires a checkpoint containing a best state")
+            model.load_state_dict(best_state)
+            best_optimizer_state = checkpoint.get("best_optimizer_state_dict")
+            if best_optimizer_state is not None:
+                optimizer.load_state_dict(best_optimizer_state)
+            updates_seen = int(checkpoint.get("best_update_index", updates_seen))
+            games_seen = int(checkpoint.get("best_games_seen", games_seen))
+            transitions_seen = int(checkpoint.get("best_transitions_seen", transitions_seen))
     else:
         initial_path = profile.initial_checkpoint
         if not initial_path:
@@ -196,11 +235,19 @@ def main() -> int:
     reference_checkpoint = _load(profile.resolve_path(profile.initial_checkpoint))
     reference_model = NeuralActorCritic.from_checkpoint(reference_checkpoint)
     reference_model.eval()
-    best_model_state = copy.deepcopy(model.state_dict())
-    best_optimizer_state = copy.deepcopy(optimizer.state_dict())
+    best_model_state = copy.deepcopy(checkpoint.get(
+        "best_actor_critic_state_dict", model.state_dict()
+    ))
+    best_optimizer_state = copy.deepcopy(checkpoint.get(
+        "best_optimizer_state_dict", optimizer.state_dict()
+    ))
+    best_update_index = int(checkpoint.get("best_update_index", updates_seen))
+    best_games_seen = int(checkpoint.get("best_games_seen", games_seen))
+    best_transitions_seen = int(checkpoint.get("best_transitions_seen", transitions_seen))
     if not isinstance(best_evaluation, dict) or "by_opponent" not in best_evaluation:
         best_evaluation = evaluate_greedy_model(model, profile)
     best_evaluation_score = float(best_evaluation["score"])
+    latest_evaluation = checkpoint.get("latest_evaluation")
     next_evaluation_games = profile.evaluation_interval_games
 
     if games_seen >= total_games:
@@ -248,23 +295,23 @@ def main() -> int:
         if games_seen >= next_evaluation_games:
             evaluation = evaluate_greedy_model(model, profile)
             item["evaluation"] = evaluation
+            latest_evaluation = evaluation
             next_evaluation_games += profile.evaluation_interval_games
             if is_monotonic_evaluation_improvement(
                 evaluation,
                 best_evaluation,
                 profile.opponents,
-                tolerated_opponents=("random", "v007"),
-                tolerance_rate=1.0 / profile.evaluation_games,
             ):
                 best_evaluation_score = float(evaluation["score"])
                 best_evaluation = evaluation
                 best_model_state = copy.deepcopy(model.state_dict())
                 best_optimizer_state = copy.deepcopy(optimizer.state_dict())
+                best_update_index = updates_seen
+                best_games_seen = games_seen
+                best_transitions_seen = transitions_seen
                 item["accepted_best"] = True
             else:
-                model.load_state_dict(best_model_state)
-                optimizer.load_state_dict(best_optimizer_state)
-                item["restored_best"] = True
+                item["kept_latest"] = True
         item["best_evaluation_score"] = best_evaluation_score
         metrics.append(item)
         _save_checkpoint(
@@ -278,11 +325,15 @@ def main() -> int:
             metrics=metrics,
             best_evaluation=best_evaluation,
             best_evaluation_score=best_evaluation_score,
+            best_model_state=best_model_state,
+            best_optimizer_state=best_optimizer_state,
+            best_update_index=best_update_index,
+            best_games_seen=best_games_seen,
+            best_transitions_seen=best_transitions_seen,
+            latest_evaluation=latest_evaluation,
         )
         _write_metrics(metrics, output.with_suffix(".metrics.json"))
         print(json.dumps(item, sort_keys=True))
-    model.load_state_dict(best_model_state)
-    optimizer.load_state_dict(best_optimizer_state)
     _save_checkpoint(
         output,
         model,
@@ -294,6 +345,12 @@ def main() -> int:
         metrics=metrics,
         best_evaluation=best_evaluation,
         best_evaluation_score=best_evaluation_score,
+        best_model_state=best_model_state,
+        best_optimizer_state=best_optimizer_state,
+        best_update_index=best_update_index,
+        best_games_seen=best_games_seen,
+        best_transitions_seen=best_transitions_seen,
+        latest_evaluation=latest_evaluation,
     )
     _write_metrics(metrics, output.with_suffix(".metrics.json"))
     return 0

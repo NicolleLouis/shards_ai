@@ -29,13 +29,14 @@ from shards_ai.ai.heuristic_profiles import HeuristicProfile, load_profile
 from shards_ai.game import Game, GameRandom, GameRunner, GameStatus, PlayerId
 
 
-PLAYERS = ("Random", "Heuristic 7", "Heuristic 8", "Neuronal 1", "Neuronal 2", "Neuronal 3", "Neuronal 4", "Neuronal 5")
+PLAYERS = ("Random", "Heuristic 7", "Heuristic 8", "Neuronal 1", "Neuronal 2", "Neuronal 3", "Neuronal 4", "Neuronal 5", "Neuronal 6")
 DEFAULT_NEURAL_CHECKPOINTS = {
     "Neuronal 1": Path("configs/neural_profiles/v001.pt"),
     "Neuronal 2": Path("configs/neural_profiles/v002.pt"),
     "Neuronal 3": Path("configs/neural_profiles/v003.pt"),
     "Neuronal 4": Path("configs/neural_profiles/v004.pt"),
     "Neuronal 5": Path("configs/neural_profiles/v005.pt"),
+    "Neuronal 6": Path("configs/neural_profiles/v006.pt"),
 }
 
 
@@ -125,14 +126,58 @@ def _format_cell(value: float, metric: str) -> str:
     return f"{value:+.2%}" if metric == "signed" else f"{value:.2%}"
 
 
-def build_matrix(results: dict[tuple[str, str], MatchResult], metric: str) -> list[list[str]]:
+def _cell_background(number: float, metric: str) -> str:
+    """Return a red-neutral-green background for a rendered percentage."""
+    if metric == "signed":
+        position = (number + 100.0) / 200.0
+    else:
+        position = number / 100.0
+    position = max(0.0, min(1.0, position))
+
+    red = (239, 111, 121)
+    neutral = (243, 245, 247)
+    green = (69, 201, 139)
+    if position <= 0.5:
+        start, end, ratio = red, neutral, position * 2
+    else:
+        start, end, ratio = neutral, green, (position - 0.5) * 2
+    channels = tuple(round(start[index] + (end[index] - start[index]) * ratio) for index in range(3))
+    return "rgb(" + ", ".join(str(channel) for channel in channels) + ")"
+
+
+def order_players_by_global_win_rate(results: dict[tuple[str, str], MatchResult]) -> tuple[str, ...]:
+    """Order players from highest to lowest win rate across all matchups."""
+    totals = {
+        player: (
+            sum(result.wins for result in results.values() if result.row == player),
+            sum(result.games for result in results.values() if result.row == player),
+        )
+        for player in PLAYERS
+    }
+    return tuple(
+        sorted(
+            PLAYERS,
+            key=lambda player: (
+                totals[player][0] / totals[player][1] if totals[player][1] else 0.0,
+                -PLAYERS.index(player),
+            ),
+            reverse=True,
+        )
+    )
+
+
+def build_matrix(
+    results: dict[tuple[str, str], MatchResult],
+    metric: str,
+    players: tuple[str, ...] = PLAYERS,
+) -> list[list[str]]:
     """Return rows suitable for the HTML/JSON table, including All totals."""
     matrix: list[list[str]] = []
-    for row in ("All", *PLAYERS):
+    for row in ("All", *players):
         values = []
-        for column in ("All", *PLAYERS):
+        for column in ("All", *players):
             if row == column == "All":
-                values.append("0.00%")
+                values.append("—")
                 continue
             if row == column:
                 values.append("—")
@@ -153,26 +198,57 @@ def build_matrix(results: dict[tuple[str, str], MatchResult], metric: str) -> li
     return matrix
 
 
-def render_html(matrix: list[list[str]], games: int, seed: int, metric: str) -> str:
-    headers = ["Joueur", "All", *PLAYERS]
+def render_html(
+    matrix: list[list[str]],
+    games: int,
+    seed: int,
+    metric: str,
+    players: tuple[str, ...] = PLAYERS,
+) -> str:
+    headers = ["Joueur", "All", *players]
     header_html = "".join(f"<th>{html.escape(header)}</th>" for header in headers)
     rows = []
     for row in matrix:
         cells = [f"<th>{html.escape(row[0])}</th>"]
-        for value in row[1:]:
+        for column_index, value in enumerate(row[1:], start=1):
             classes = ""
             if value != "—":
                 number = float(value.removesuffix("%").replace("+", ""))
-                classes = " positive" if number > 0 else " negative" if number < 0 else " neutral"
-            cells.append(f"<td class='{classes.strip()}'>{html.escape(value)}</td>")
+                if row[0] == "All" and column_index == 1:
+                    classes = " neutral"
+                else:
+                    comparison = number if metric == "signed" else number - 50.0
+                    classes = " positive" if comparison > 0 else " negative" if comparison < 0 else " neutral"
+            style = ""
+            if value != "—" and not (row[0] == "All" and column_index == 1):
+                style = f" style='background-color:{_cell_background(number, metric)}'"
+            cells.append(f"<td class='{classes.strip()}'{style}>{html.escape(value)}</td>")
         rows.append("<tr>" + "".join(cells) + "</tr>")
     metric_label = "avantage signé (victoires − défaites)" if metric == "signed" else "taux de victoire"
+    note = (
+        "Une valeur positive signifie que le joueur en ligne gagne davantage que le joueur en colonne."
+        if metric == "signed"
+        else "Une valeur supérieure à 50% signifie que le joueur en ligne gagne davantage que le joueur en colonne."
+    )
     return f"""<!doctype html><html lang='fr'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <title>Tournoi Shards AI</title><style>
 body{{font-family:system-ui,sans-serif;margin:0;padding:28px;background:#f5f7fb;color:#172033}}main{{max-width:1500px;margin:auto;background:white;padding:24px;border-radius:14px;box-shadow:0 3px 14px #17203318}}table{{border-collapse:collapse;width:100%;font-size:14px}}th,td{{border:1px solid #d5dbe3;padding:9px;text-align:center;white-space:nowrap}}thead th{{background:#eef1f5}}tbody th{{background:#eef1f5;text-align:left}}td{{background:#fff}}td.positive{{background:#b9e8d2}}td.negative{{background:#f6c0c4}}td.neutral{{background:#edf5f3}}.note{{color:#637083}}
 </style></head><body><main><h1>Tournoi Shards AI</h1><p class='note'>{games} parties par match-up · seed {seed} · métrique : {html.escape(metric_label)}</p>
 <table><thead><tr>{header_html}</tr></thead><tbody>{''.join(rows)}</tbody></table>
-<p class='note'>Une valeur positive signifie que le joueur en ligne gagne davantage que le joueur en colonne. Les diagonales sont volontairement vides.</p></main></body></html>"""
+<p class='note'>{note} Les diagonales sont volontairement vides.</p></main></body></html>"""
+
+
+def render_html_from_json(input_path: Path) -> str:
+    """Render a previously persisted tournament payload without rerunning games."""
+    payload = json.loads(input_path.read_text(encoding="utf-8"))
+    players = tuple(payload["players"])
+    return render_html(
+        payload["matrix"],
+        int(payload["games_per_matchup"]),
+        int(payload["seed"]),
+        payload["metric"],
+        players,
+    )
 
 
 def main() -> None:
@@ -192,9 +268,22 @@ def main() -> None:
         parser.add_argument(f"--{name.lower().replace(' ', '-')}", dest=argument_name, type=Path, default=path)
     parser.add_argument("--output", type=Path, default=Path("artifacts/player_tournament/tournament.json"))
     parser.add_argument("--html-output", type=Path, default=Path("artifacts/player_tournament/tournament.html"))
+    parser.add_argument(
+        "--render-from-json",
+        type=Path,
+        help="Render an existing tournament JSON without running any games.",
+    )
     args = parser.parse_args()
     if args.games <= 0 or args.torch_threads <= 0:
         parser.error("--games and --torch-threads must be positive")
+
+    if args.render_from_json is not None:
+        if not args.render_from_json.exists():
+            parser.error(f"file not found: {args.render_from_json}")
+        args.html_output.parent.mkdir(parents=True, exist_ok=True)
+        args.html_output.write_text(render_html_from_json(args.render_from_json), encoding="utf-8")
+        print(f"rendered={args.html_output} from={args.render_from_json}")
+        return
 
     heuristic_paths = {"Heuristic 7": args.heuristic_7, "Heuristic 8": args.heuristic_8}
     neural_paths = {name: getattr(args, argument_name) for name, argument_name in neural_argument_names.items()}
@@ -214,9 +303,10 @@ def main() -> None:
             results[(column, row)] = MatchResult(column, row, result.games, result.losses, result.wins, result.draws)
             print(f"completed={row} vs {column} games={args.games} result={result.wins}-{result.losses}-{result.draws}", flush=True)
 
-    matrix = build_matrix(results, args.metric)
+    player_order = order_players_by_global_win_rate(results)
+    matrix = build_matrix(results, args.metric, player_order)
     payload = {
-        "players": list(PLAYERS),
+        "players": list(player_order),
         "games_per_matchup": args.games,
         "seed": args.seed,
         "metric": args.metric,
@@ -226,7 +316,10 @@ def main() -> None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     args.html_output.parent.mkdir(parents=True, exist_ok=True)
-    args.html_output.write_text(render_html(matrix, args.games, args.seed, args.metric), encoding="utf-8")
+    args.html_output.write_text(
+        render_html(matrix, args.games, args.seed, args.metric, player_order),
+        encoding="utf-8",
+    )
     print(f"wrote={args.output} html={args.html_output}")
 
 

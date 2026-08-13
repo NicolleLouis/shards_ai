@@ -1,0 +1,8 @@
+schema_version: 1
+policy_id: deterministic_blaster_crystal_v001
+family: banish
+version: v001
+rule:
+  - blaster_in_hand_or_discard
+  - crystal_in_discard
+  - skip_banish

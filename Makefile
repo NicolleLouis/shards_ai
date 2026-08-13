@@ -1,5 +1,5 @@
 .PHONY: heuristic-benchmark-mix neural-macro-dataset neural-macro-train \
-	neural-benchmark-mix neural-benchmark-panel neural-hybrid-benchmark neural-validate neural-validate-batched \
+	neural-benchmark-mix neural-benchmark-panel neural-validate neural-validate-batched \
 	neural-imitation-analysis neural-visited-state-analysis meta-improve
 
 HEURISTIC_VERSION := v008
@@ -23,15 +23,11 @@ NEURAL_MIX_GAMES ?= 2000
 NEURAL_MIX_SEED ?= 104
 NEURAL_MIX_OUTPUT ?= artifacts/neural_benchmark/neural_mix.json
 NEURAL_MIX_HTML_OUTPUT ?= artifacts/neural_benchmark/neural_mix.html
-NEURAL_PANEL_CHECKPOINT ?= configs/neural_profiles/v005.pt
+NEURAL_PANEL_CHECKPOINT ?= configs/neural_profiles/v006.pt
 NEURAL_PANEL_GAMES ?= 200
 NEURAL_PANEL_SEED ?= 104
 NEURAL_PANEL_OUTPUT ?= artifacts/neural_benchmark/neural_panel.json
 NEURAL_PANEL_HTML_OUTPUT ?= artifacts/neural_benchmark/neural_panel.html
-NEURAL_HYBRID_GAMES ?= 2000
-NEURAL_HYBRID_SEED ?= 104
-NEURAL_HYBRID_OUTPUT ?= artifacts/neural_benchmark/neural_hybrids.json
-NEURAL_HYBRID_HTML_OUTPUT ?= artifacts/neural_benchmark/neural_hybrids.html
 NEURAL_IMITATION_DATASET ?= artifacts/imitation_dataset/v008_vs_random_v007_1m.jsonl
 NEURAL_MACRO_DATASET ?= artifacts/imitation_dataset/unified_v4_v8_vs_v7_v4.jsonl
 NEURAL_MACRO_DATASET_GAMES ?= 100
@@ -63,16 +59,6 @@ neural-benchmark-panel:
 		--torch-threads $(NEURAL_TORCH_THREADS) \
 		--output $(NEURAL_PANEL_OUTPUT) \
 		--html-output $(NEURAL_PANEL_HTML_OUTPUT)
-
-neural-hybrid-benchmark:
-	PYTHONPATH=. poetry run python benchmarks/benchmark_neural_hybrids.py \
-		--checkpoint $(NEURAL_CHECKPOINT) \
-		--profile configs/heuristic_profiles/v008.yaml \
-		--games $(NEURAL_HYBRID_GAMES) \
-		--seed $(NEURAL_HYBRID_SEED) \
-		--torch-threads $(NEURAL_TORCH_THREADS) \
-		--output $(NEURAL_HYBRID_OUTPUT) \
-		--html-output $(NEURAL_HYBRID_HTML_OUTPUT)
 
 neural-imitation-analysis:
 	PYTHONPATH=. poetry run python scripts/analyze_neural_imitation.py \

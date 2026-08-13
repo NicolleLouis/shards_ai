@@ -1,0 +1,19 @@
+schema_version: 1
+profile_id: hybrid-v002
+parent_profile_id: hybrid-v001
+policies:
+  acquisition:
+    policy_id: neural_v006
+    checkpoint: configs/neural_profiles/v006.pt
+    profile: configs/player_policies/acquisition/v006.yaml
+  play:
+    policy_id: algorithmic_play_v001
+    profile: configs/player_policies/play/v001.yaml
+    policy_profile: configs/player_policies/play/v001.yaml
+  banish:
+    policy_id: deterministic_blaster_crystal_v001
+    profile: configs/player_policies/banish/v001.yaml
+metadata:
+  objective: neural_acquisition_algorithmic_play_fixed_banish
+  composition: acquisition_v006_play_v001_banish_v001
+  replay_policy: exact_component_profiles_and_checkpoint_paths

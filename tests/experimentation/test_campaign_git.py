@@ -159,8 +159,9 @@ def test_orchestrator_recomputes_quality_gate_when_agent_says_rejected(tmp_path)
                 "v008": {"delta_win_rate": 0.065},
                 "neural:v002": {"delta_win_rate": -0.05},
                 "neural:v001": {"delta_win_rate": 0.09},
-                "neural:v003": {"delta_win_rate": 0.03},
                 "neural:v004": {"delta_win_rate": 0.0},
+                "neural:v005": {"delta_win_rate": 0.0},
+                "neural:v006": {"delta_win_rate": 0.0},
             }},
             "performance": {
                 "baseline": {"elapsed_seconds": 14.7},
@@ -171,7 +172,7 @@ def test_orchestrator_recomputes_quality_gate_when_agent_says_rejected(tmp_path)
     )
 
     assert status.value == "accepted"
-    assert decision["mean_delta_win_rate"] == pytest.approx(0.0286666667)
+    assert decision["mean_delta_win_rate"] == pytest.approx(0.0230769231)
     assert error is None
 
 
@@ -186,8 +187,9 @@ def test_quality_gate_uses_configured_opponent_weights(tmp_path):
                 "v008": {"delta_win_rate": 0.20},
                 "neural:v001": {"delta_win_rate": 0.0},
                 "neural:v002": {"delta_win_rate": 0.0},
-                "neural:v003": {"delta_win_rate": 0.0},
                 "neural:v004": {"delta_win_rate": 0.0},
+                "neural:v005": {"delta_win_rate": 0.0},
+                "neural:v006": {"delta_win_rate": 0.0},
             }},
             "performance": {
                 "baseline": {"elapsed_seconds": 100.0},
@@ -198,7 +200,7 @@ def test_quality_gate_uses_configured_opponent_weights(tmp_path):
     )
 
     assert status.value == "accepted"
-    assert decision["mean_delta_win_rate"] == pytest.approx(0.0933333333)
+    assert decision["mean_delta_win_rate"] == pytest.approx(0.0769230769)
     assert error is None
 
 
@@ -213,8 +215,9 @@ def test_quality_gain_with_large_runtime_regression_is_accepted_and_schedules_pe
                 "v008": {"delta_win_rate": 0.04},
                 "neural:v001": {"delta_win_rate": 0.0},
                 "neural:v002": {"delta_win_rate": 0.0},
-                "neural:v003": {"delta_win_rate": 0.0},
                 "neural:v004": {"delta_win_rate": 0.0},
+                "neural:v005": {"delta_win_rate": 0.0},
+                "neural:v006": {"delta_win_rate": 0.0},
             }},
             "performance": {
                 "baseline": {"elapsed_seconds": 100.0},
@@ -274,8 +277,9 @@ def test_analysis_schedule_does_not_trigger_after_quality_promotion(tmp_path):
             "v008": {"delta_win_rate": 0.04},
             "neural:v001": {"delta_win_rate": 0.0},
             "neural:v002": {"delta_win_rate": 0.0},
-            "neural:v003": {"delta_win_rate": 0.0},
             "neural:v004": {"delta_win_rate": 0.0},
+            "neural:v005": {"delta_win_rate": 0.0},
+            "neural:v006": {"delta_win_rate": 0.0},
         }},
         "performance": {
             "baseline": {"elapsed_seconds": 100.0},

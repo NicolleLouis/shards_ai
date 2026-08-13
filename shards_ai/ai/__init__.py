@@ -107,7 +107,18 @@ from .play_turn_solver import (
     macro_representations_v3,
     macro_representations_v4,
 )
-from .hybrid_player import HybridPlayer, HybridPolicy
+from .composed_player import (
+    HybridPlayer,
+    ComposedPlayer,
+    DecisionDiagnostic,
+    DeterministicBanishPolicy,
+    HeuristicPlayPolicy,
+    NeuralAcquisitionPolicy,
+    build_composed_player,
+    build_hybrid_player,
+)
+from .algorithmic_play import AlgorithmicPlayPolicy, PlayCardClassification
+from .hybrid_profiles import DEFAULT_HYBRID_PROFILE_DIR, HybridProfile, load_hybrid_profile
 from .neural_training_profiles import (
     NeuralProfile,
     NeuralTrainingProfile,
@@ -136,6 +147,7 @@ from .neural_training import (
 )
 from .rl_training import (
     NeuralActorCritic,
+    PPOTrainingMacroPlayer,
     PPOTrainingPlayer,
     PPOUpdateMetrics,
     RolloutResult,
@@ -242,7 +254,18 @@ __all__ = [
     "macro_representations_v4",
     "dependency_for_action",
     "HybridPlayer",
-    "HybridPolicy",
+    "ComposedPlayer",
+    "DecisionDiagnostic",
+    "DeterministicBanishPolicy",
+    "HeuristicPlayPolicy",
+    "NeuralAcquisitionPolicy",
+    "build_composed_player",
+    "build_hybrid_player",
+    "DEFAULT_HYBRID_PROFILE_DIR",
+    "HybridProfile",
+    "load_hybrid_profile",
+    "AlgorithmicPlayPolicy",
+    "PlayCardClassification",
     "load_active_training_profile",
     "load_active_neural_profile",
     "load_training_profile",
@@ -264,6 +287,7 @@ __all__ = [
     "train_epoch",
     "train_jsonl",
     "NeuralActorCritic",
+    "PPOTrainingMacroPlayer",
     "PPOTrainingPlayer",
     "PPOUpdateMetrics",
     "RolloutResult",

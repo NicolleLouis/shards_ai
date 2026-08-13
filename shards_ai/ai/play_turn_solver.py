@@ -512,20 +512,24 @@ class PlayTurnSolver:
                 budget_boundary_reason = "max_atomic_actions_per_segment"
                 break
             legal = list(working.legal_actions())
-            safe = [action for action in legal if dependency_for_action(working, action).canonicalizable]
+            descriptors = {
+                action: dependency_for_action(working, action)
+                for action in legal
+            }
+            safe = [action for action in legal if descriptors[action].canonicalizable]
             if not safe:
                 break
             safe.sort(key=_action_key)
             action = safe[0]
-            descriptor = dependency_for_action(working, action)
+            descriptor = descriptors[action]
             if any(
-                _strategic_action_can_invalidate(descriptor, dependency_for_action(working, other))
+                _strategic_action_can_invalidate(descriptor, descriptors[other])
                 for other in legal
                 if other != action
             ):
                 break
             if any(
-                not _descriptors_commute(descriptor, dependency_for_action(working, other))
+                not _descriptors_commute(descriptor, descriptors[other])
                 for other in safe[1:]
             ):
                 break
@@ -601,20 +605,24 @@ class PlayTurnSolver:
             if len(trace) >= self.max_atomic_actions_per_segment:
                 return consumed, working, "max_atomic_actions_per_segment"
             legal = list(working.legal_actions())
-            safe = [action for action in legal if dependency_for_action(working, action).canonicalizable]
+            descriptors = {
+                action: dependency_for_action(working, action)
+                for action in legal
+            }
+            safe = [action for action in legal if descriptors[action].canonicalizable]
             if not safe:
                 return consumed, working, None
             safe.sort(key=_action_key)
             action = safe[0]
-            descriptor = dependency_for_action(working, action)
+            descriptor = descriptors[action]
             if any(
-                _strategic_action_can_invalidate(descriptor, dependency_for_action(working, other))
+                _strategic_action_can_invalidate(descriptor, descriptors[other])
                 for other in legal
                 if other != action
             ):
                 return consumed, working, None
             if any(
-                not _descriptors_commute(descriptor, dependency_for_action(working, other))
+                not _descriptors_commute(descriptor, descriptors[other])
                 for other in safe[1:]
             ):
                 return consumed, working, None

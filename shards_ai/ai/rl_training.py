@@ -20,6 +20,8 @@ from .action_representation import ActionRepresentation, representation_for_neur
 from .card_value_shaping import deckbuilding_shaping_delta, load_card_values
 from .heuristic_player import HeuristicPlayer
 from .heuristic_profiles import load_profile
+from .macro_player import MacroNeuralPlayer
+from .player_factory import MACRO_ARCHITECTURE_SCHEMA_VERSIONS, build_neural_player
 from .neural_model import NeuralActionScorer, NeuralModelConfig, build_neural_scorer
 from .neural_player import NeuralPlayer
 from .neural_training_profiles import NeuralTrainingProfile
@@ -36,7 +38,7 @@ class RolloutTransition:
     neural_player_id: PlayerId
     turn_number: int
     observation: NeuralObservation
-    legal_action_representations: tuple[ActionRepresentation, ...]
+    legal_action_representations: tuple[object, ...]
     chosen_action_index: int
     old_log_probability: float
     value_estimate: float
@@ -78,7 +80,8 @@ class NeuralActorCritic(nn.Module):
         self.backbone = build_neural_scorer(architecture, config)
         self.architecture = architecture
         self.config = self.backbone.config
-        self.policy_head = copy.deepcopy(self.backbone.scorer)
+        policy_module = getattr(self.backbone, "macro_scorer", None) or self.backbone.scorer
+        self.policy_head = copy.deepcopy(policy_module)
         self.value_head = nn.Sequential(
             nn.LayerNorm(self.config.state_hidden_dim),
             nn.Linear(self.config.state_hidden_dim, self.config.state_hidden_dim),
@@ -102,7 +105,7 @@ class NeuralActorCritic(nn.Module):
     def policy_logits(
         self,
         observation: NeuralObservation,
-        actions: Sequence[ActionRepresentation],
+        actions: Sequence[object],
     ) -> Tensor:
         if not actions:
             return torch.empty(0, device=self.device)
@@ -113,17 +116,29 @@ class NeuralActorCritic(nn.Module):
     def _encode_inputs(
         self,
         observation: NeuralObservation,
-        actions: Sequence[ActionRepresentation],
+        actions: Sequence[object],
     ) -> tuple[Tensor, Tensor, Tensor | None]:
         if not actions:
             raise ValueError("Cannot encode an empty legal action list")
         card_ids = list(self.backbone._observation_card_ids(observation))
-        card_ids.extend(action.card_definition_id for action in actions)
+        if self.architecture == "structured_semantic_v5_macro_tactical_action_v1":
+            card_ids.extend(
+                candidate.root_action.card_definition_id
+                for candidate in actions
+                if getattr(candidate, "root_action", None) is not None
+            )
+        else:
+            card_ids.extend(getattr(action, "card_definition_id", None) for action in actions)
         embedding_lookup = self.backbone._embedding_lookup(card_ids)
         state = self.backbone.encode_observation(observation, embedding_lookup=embedding_lookup)
-        action = self.backbone.encode_actions(
-            actions, observation=observation, embedding_lookup=embedding_lookup
-        )
+        if self.architecture == "structured_semantic_v5_macro_tactical_action_v1":
+            action = self.backbone.encode_macro_candidates(
+                actions, observation=observation, embedding_lookup=embedding_lookup,
+            )
+        else:
+            action = self.backbone.encode_actions(
+                actions, observation=observation, embedding_lookup=embedding_lookup
+            )
         context = None
         if self.architecture == "global_candidate_context":
             context = self.backbone.candidate_context_encoder(action.mean(dim=0, keepdim=True))
@@ -139,7 +154,7 @@ class NeuralActorCritic(nn.Module):
     def evaluate(
         self,
         observation: NeuralObservation,
-        actions: Sequence[ActionRepresentation],
+        actions: Sequence[object],
     ) -> tuple[Tensor, Tensor]:
         """Return policy logits and value while encoding the observation once."""
         state, action, context = self._encode_inputs(observation, actions)
@@ -158,7 +173,7 @@ class NeuralActorCritic(nn.Module):
     def forward(
         self,
         observation: NeuralObservation,
-        actions: Sequence[ActionRepresentation],
+        actions: Sequence[object],
     ) -> Tensor:
         """Return policy logits so the model remains usable by ``NeuralPlayer``."""
         return self.policy_logits(observation, actions)
@@ -166,8 +181,9 @@ class NeuralActorCritic(nn.Module):
     def inference_state_dict(self) -> dict[str, Tensor]:
         """Export the actor as a v001-compatible ``NeuralActionScorer`` state dict."""
         state = dict(self.backbone.state_dict())
+        prefix = "macro_scorer." if self.architecture == "structured_semantic_v5_macro_tactical_action_v1" else "scorer."
         for key, value in self.policy_head.state_dict().items():
-            state[f"scorer.{key}"] = value
+            state[f"{prefix}{key}"] = value
         return state
 
     @classmethod
@@ -188,7 +204,12 @@ class NeuralActorCritic(nn.Module):
         if scorer_state is None:
             raise ValueError("Checkpoint does not contain a neural model state")
         model.backbone.load_state_dict(scorer_state)
-        model.policy_head.load_state_dict(model.backbone.scorer.state_dict())
+        policy_module = (
+            model.backbone.macro_scorer
+            if architecture == "structured_semantic_v5_macro_tactical_action_v1"
+            else model.backbone.scorer
+        )
+        model.policy_head.load_state_dict(policy_module.state_dict())
         return model
 
 
@@ -263,6 +284,64 @@ class PPOTrainingPlayer:
         return payload
 
 
+class PPOTrainingMacroPlayer(MacroNeuralPlayer):
+    """PPO adapter for the unified V4 macro/atomic player contract.
+
+    ``MacroNeuralPlayer`` remains responsible for solver expansion and legal
+    replay.  This adapter only samples the exposed candidate set and records
+    one payload per actual neural decision; replay actions never reach the
+    payload queue.
+    """
+
+    def __init__(
+        self,
+        player_id: PlayerId,
+        game: Game,
+        model: NeuralActorCritic,
+        *,
+        torch_generator: torch.Generator | None = None,
+        candidate_schema_version: int = 4,
+    ) -> None:
+        self.model = model
+        self.torch_generator = torch_generator
+        self._last_decision: _DecisionPayload | None = None
+        super().__init__(
+            player_id,
+            game,
+            candidate_scorer=self._sample_candidates,
+            candidate_schema_version=candidate_schema_version,
+        )
+
+    def _sample_candidates(self, _game, observation, candidates) -> int:
+        representations = tuple(candidate.representation for candidate in candidates)
+        with torch.no_grad():
+            logits, value = self.model.evaluate(observation, representations)
+            distribution = Categorical(logits=logits)
+            if self.torch_generator is None:
+                chosen_tensor = distribution.sample()
+            else:
+                chosen_tensor = torch.multinomial(
+                    distribution.probs, 1, generator=self.torch_generator,
+                ).squeeze(0)
+            chosen = int(chosen_tensor.item())
+            self._last_decision = _DecisionPayload(
+                observation=observation,
+                legal_action_representations=representations,
+                chosen_action_index=chosen,
+                old_log_probability=float(distribution.log_prob(chosen_tensor).item()),
+                value_estimate=float(value.item()),
+                turn_number=observation.turn_number,
+            )
+        return chosen
+
+    def pop_last_decision(self) -> _DecisionPayload:
+        if self._last_decision is None:
+            raise RuntimeError("No macro learner decision is available for the current transition")
+        payload = self._last_decision
+        self._last_decision = None
+        return payload
+
+
 def terminal_reward(state, player_id: PlayerId) -> float:
     """Return only the terminal outcome from the learner's perspective."""
     if state.status is GameStatus.DRAW or state.winner is None:
@@ -304,7 +383,13 @@ def _collect_episode(
     game = Game.new(seed=game_seed, rng=root_rng.derive("engine"))
     policy_generator = torch.Generator(device="cpu")
     policy_generator.manual_seed(game_seed % (2**63 - 1))
-    learner = PPOTrainingPlayer(neural_id, model, torch_generator=policy_generator)
+    if model.architecture == "structured_semantic_v5_macro_tactical_action_v1":
+        learner = PPOTrainingMacroPlayer(
+            neural_id, game, model, torch_generator=policy_generator,
+            candidate_schema_version=MACRO_ARCHITECTURE_SCHEMA_VERSIONS[model.architecture],
+        )
+    else:
+        learner = PPOTrainingPlayer(neural_id, model, torch_generator=policy_generator)
     if opponent_name == "random":
         opponent = RandomPlayer(opponent_id, root_rng.derive("random-opponent"))
     elif opponent_name in heuristic_profiles:
@@ -314,6 +399,14 @@ def _collect_episode(
             opponent_profile.weights,
             opponent_profile.card_acquisition_weights,
             opponent_profile.constraint_weights,
+        )
+    elif opponent_name.startswith("neural:"):
+        profile_id = opponent_name.removeprefix("neural:")
+        opponent = build_neural_player(
+            opponent_id,
+            game,
+            root_rng.derive("neural-opponent"),
+            checkpoint_path=Path(f"configs/neural_profiles/{profile_id}.pt"),
         )
     else:
         raise ValueError(f"Unsupported RL opponent: {opponent_name!r}")
@@ -327,6 +420,10 @@ def _collect_episode(
 
     def on_decision(_observation, _legal_actions, _chosen, player_id) -> None:
         if player_id is not neural_id:
+            return
+        if isinstance(learner, PPOTrainingMacroPlayer) and learner.last_action_kind not in {
+            "macro_choice", "atomic_choice",
+        }:
             return
         payload = learner.pop_last_decision()
         episode.append(RolloutTransition(
@@ -343,6 +440,8 @@ def _collect_episode(
         ))
 
     def on_transition(before, action, after, player_id) -> None:
+        if profile.reward_shaping:
+            raise ValueError("Reward shaping is not supported by the PPO macro profile")
         if card_values is None or player_id is not neural_id:
             return
         if not episode:
@@ -355,7 +454,7 @@ def _collect_episode(
 
     final_state = runner.run(
         decision_observer=on_decision,
-        transition_observer=on_transition,
+        transition_observer=on_transition if card_values is not None else None,
         observer_before_state_factory=game.shaping_observation_for if card_values is not None else None,
     )
     if not episode:
@@ -386,6 +485,8 @@ def collect_rollout(
         if name in profile.opponents
     }
     shaping_config = dict(profile.reward_shaping or {})
+    if model.architecture == "structured_semantic_v5_macro_tactical_action_v1" and shaping_config:
+        raise ValueError("Reward shaping must remain empty for the PPO macro architecture")
     card_values = None
     shaping_beta = 0.0
     shaping_clip = 1.0
@@ -463,10 +564,10 @@ def evaluate_greedy_model(
     scorer.eval()
     heuristic_profiles = {
         name: load_profile(Path(f"configs/heuristic_profiles/{name}.yaml"))
-        for name in ("v007", "v008")
+        for name in ("v007", "v008") if name in profile.opponents
     }
     by_opponent: dict[str, dict[str, float | int]] = {}
-    for opponent_name in ("random", "v007", "v008"):
+    for opponent_name in profile.opponents:
         wins = losses = draws = 0
         for index in range(profile.evaluation_games):
             seed = profile.evaluation_seed + index
@@ -474,10 +575,12 @@ def evaluate_greedy_model(
             game = Game.new(seed=seed, rng=root_rng.derive("engine"))
             neural_id = PlayerId.PLAYER_1 if seed % 2 == 0 else PlayerId.PLAYER_2
             opponent_id = neural_id.opponent
-            neural = NeuralPlayer(neural_id, None, root_rng.derive("neural"), scorer=scorer)
+            neural = build_neural_player(
+                neural_id, game, root_rng.derive("neural"), scorer=scorer,
+            )
             if opponent_name == "random":
                 opponent = RandomPlayer(opponent_id, root_rng.derive("opponent"))
-            else:
+            elif opponent_name in heuristic_profiles:
                 opponent_profile = heuristic_profiles[opponent_name]
                 opponent = HeuristicPlayer(
                     opponent_id,
@@ -485,6 +588,15 @@ def evaluate_greedy_model(
                     opponent_profile.card_acquisition_weights,
                     opponent_profile.constraint_weights,
                 )
+            elif opponent_name.startswith("neural:"):
+                opponent = build_neural_player(
+                    opponent_id, game, root_rng.derive("opponent"),
+                    checkpoint_path=Path(
+                        f"configs/neural_profiles/{opponent_name.removeprefix('neural:')}.pt"
+                    ),
+                )
+            else:
+                raise ValueError(f"Unsupported evaluation opponent: {opponent_name!r}")
             state = GameRunner(
                 game,
                 {neural_id: neural, opponent_id: opponent},
@@ -539,21 +651,16 @@ def is_monotonic_evaluation_improvement(
     tolerated_opponents: Sequence[str] = (),
     tolerance_rate: float = 0.0,
 ) -> bool:
-    """Return whether a candidate improves within optional per-opponent tolerances."""
-    candidate_by_opponent = candidate.get("by_opponent", {})
-    incumbent_by_opponent = incumbent.get("by_opponent", {})
-    if not isinstance(candidate_by_opponent, Mapping) or not isinstance(incumbent_by_opponent, Mapping):
+    """Return whether the weighted panel score strictly improves.
+
+    The promotion gate intentionally owns the only quality criterion: an
+    individual opponent may regress while the weighted mean improves.
+    Legacy tolerance arguments remain accepted for API compatibility.
+    """
+    if not isinstance(candidate.get("by_opponent", {}), Mapping) or not isinstance(
+        incumbent.get("by_opponent", {}), Mapping
+    ):
         raise ValueError("Evaluations must contain by_opponent mappings")
-    for name, weight in opponents.items():
-        if float(weight) <= 0:
-            continue
-        candidate_result = candidate_by_opponent.get(name)
-        incumbent_result = incumbent_by_opponent.get(name)
-        if not isinstance(candidate_result, Mapping) or not isinstance(incumbent_result, Mapping):
-            raise ValueError(f"Evaluation is missing opponent {name!r}")
-        tolerance = tolerance_rate if name in tolerated_opponents else 0.0
-        if float(candidate_result["win_rate"]) + 1e-12 < float(incumbent_result["win_rate"]) - tolerance:
-            return False
     return weighted_evaluation_score(candidate, opponents) > weighted_evaluation_score(incumbent, opponents)
 
 
@@ -691,6 +798,7 @@ def ppo_update(
 
 __all__ = [
     "NeuralActorCritic",
+    "PPOTrainingMacroPlayer",
     "PPOTrainingPlayer",
     "PPOUpdateMetrics",
     "RolloutResult",

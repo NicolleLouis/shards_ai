@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Mapping, Sequence
 
 import torch
@@ -145,7 +146,8 @@ class MacroActionScorer(StructuredSemanticV5DeckStateScorer):
                 TRACE_ACTION_TYPE_MAP.get(action_type, action_type)
                 for action_type in candidate.trace_action_types
             ]
-            action_counts = [normalized_trace.count(action_type) for action_type in ACTION_TYPES]
+            trace_counts = Counter(normalized_trace)
+            action_counts = [trace_counts[action_type] for action_type in ACTION_TYPES]
             terminal = [float(candidate.terminal_kind == value) for value in MACRO_TERMINAL_TYPES]
             phase = [float(candidate.phase == value) for value in MACRO_PHASE_TYPES]
             numeric = [
@@ -183,6 +185,7 @@ class MacroActionScorerV2(MacroActionScorer):
         candidates: Sequence[MacroActionRepresentation],
         *,
         observation: NeuralObservation | None = None,
+        embedding_lookup: dict[str | None, Tensor] | None = None,
     ) -> Tensor:
         if observation is None:
             raise ValueError("MacroActionScorerV2 requires the decision observation")
@@ -192,7 +195,7 @@ class MacroActionScorerV2(MacroActionScorer):
             raise ValueError("Macro V2 candidates require root_action")
         root_encoded = self.encode_actions(
             [root for root in roots if root is not None],
-            observation=observation,
+            observation=observation, embedding_lookup=embedding_lookup,
         )
         return self.macro_action_encoder(torch.cat((base, root_encoded), dim=1))
 
@@ -236,6 +239,7 @@ class MacroActionScorerV3(MacroActionScorerV2):
         candidates: Sequence[MacroActionRepresentation],
         *,
         observation: NeuralObservation | None = None,
+        embedding_lookup: dict[str | None, Tensor] | None = None,
     ) -> Tensor:
         if observation is None:
             raise ValueError("MacroActionScorerV3 requires the decision observation")
@@ -244,7 +248,8 @@ class MacroActionScorerV3(MacroActionScorerV2):
         if any(root is None for root in roots):
             raise ValueError("Macro V3 candidates require root_action")
         root_encoded = self.encode_actions(
-            [root for root in roots if root is not None], observation=observation,
+            [root for root in roots if root is not None],
+            observation=observation, embedding_lookup=embedding_lookup,
         )
         consequence = self._known_consequence_tensor(candidates)
         return self.macro_action_encoder(torch.cat((base, root_encoded, consequence), dim=1))
@@ -323,6 +328,7 @@ class MacroActionScorerV4(MacroActionScorerV3):
         candidates: Sequence[MacroActionRepresentation],
         *,
         observation: NeuralObservation | None = None,
+        embedding_lookup: dict[str | None, Tensor] | None = None,
     ) -> Tensor:
         if observation is None:
             raise ValueError("MacroActionScorerV4 requires the decision observation")
@@ -331,7 +337,8 @@ class MacroActionScorerV4(MacroActionScorerV3):
         if any(root is None for root in roots):
             raise ValueError("Macro V4 candidates require root_action")
         root_encoded = self.encode_actions(
-            [root for root in roots if root is not None], observation=observation,
+            [root for root in roots if root is not None],
+            observation=observation, embedding_lookup=embedding_lookup,
         )
         consequence = self._known_consequence_tensor(candidates)
         tactical = torch.tensor(

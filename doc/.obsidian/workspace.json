@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Architecture/073-ablation-ponderation-voies-cartes.md",
+                "file": "Architecture/085-ppo-joueur-macro-play-turn-solver.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "073-ablation-ponderation-voies-cartes"
+              "title": "085-ppo-joueur-macro-play-turn-solver"
             }
           }
         ]
@@ -184,6 +184,7 @@
   },
   "active": "659b86805782863b",
   "lastOpenFiles": [
+    "Architecture/073-ablation-ponderation-voies-cartes.md",
     "regles-shards-of-infinity-base.md",
     "Current state/Random player.md",
     "Current state/Game engine.md",
@@ -196,7 +197,6 @@
     "Architecture/009-joueur-heuristique-pondere.md",
     "Architecture/054-entrainement-imitation-pondere.md",
     "Architecture/057-apprentissage-cible-mercenaires.md",
-    "Architecture/073-ablation-ponderation-voies-cartes.md",
     "Architecture/001-architecture-moteur-duel-v0.md",
     "Architecture/002-joueur-random.md",
     "Ideas.md",

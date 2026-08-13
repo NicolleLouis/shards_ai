@@ -15,7 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from shards_ai.ai import HeuristicPlayer, RandomPlayer
+from shards_ai.ai import HeuristicPlayer, HybridPlayer, RandomPlayer, build_hybrid_player
 from shards_ai.ai.heuristic_profiles import load_profile
 from shards_ai.game.actions import Action
 from shards_ai.game import (
@@ -125,6 +125,17 @@ def _decision_explanation(
     chosen: Action,
     player_id: PlayerId,
 ) -> dict[str, Any]:
+    if isinstance(player, HybridPlayer):
+        diagnostic = player.last_decision
+        return {
+            "kind": "hybrid",
+            "policy_id": diagnostic.policy_id if diagnostic else None,
+            "decision_family": diagnostic.decision_family if diagnostic else None,
+            "action_type": diagnostic.action_type if diagnostic else type(chosen).__name__,
+            "reason": diagnostic.reason if diagnostic else "diagnostic indisponible",
+            "chosen_score": diagnostic.chosen_score if diagnostic else None,
+            "ranked_alternatives": list(diagnostic.ranked_alternatives) if diagnostic else [],
+        }
     if not isinstance(player, HeuristicPlayer):
         return {"kind": "random", "reason": "choix aléatoire pondéré"}
 
@@ -182,6 +193,18 @@ def _purchase_analysis(
     chosen: Action,
     player_id: PlayerId,
 ) -> dict[str, Any]:
+    if isinstance(player, HybridPlayer):
+        diagnostic = player.last_decision
+        if diagnostic is not None and diagnostic.decision_family == "acquisition":
+            return {
+                "kind": "neural",
+                "alternatives": list(diagnostic.ranked_alternatives),
+                "conclusion": {
+                    "action": _action_data(observation, player_id, chosen),
+                    "score": diagnostic.chosen_score,
+                    "reason": diagnostic.reason,
+                },
+            }
     legal_actions_set = set(legal_actions)
 
     river = []
@@ -249,6 +272,25 @@ def _purchase_analysis(
 
 
 def _render_purchase_analysis(analysis: dict[str, Any]) -> str:
+    if analysis.get("kind") == "neural":
+        rows = []
+        for alternative in analysis.get("alternatives", []):
+            rows.append(
+                "<tr>"
+                f"<td>{html.escape(str(alternative.get('action_type', 'Action')))}</td>"
+                f"<td>{html.escape(str(alternative.get('action', '')))}</td>"
+                f"<td>{html.escape(str(alternative.get('score')))}</td>"
+                f"<td>{'oui' if alternative.get('selected') else 'non'}</td></tr>"
+            )
+        conclusion = analysis.get("conclusion", {})
+        return (
+            "<div class='purchase-analysis'><h4>Scores neural de l'acquisition</h4>"
+            "<table><thead><tr><th>Type</th><th>Action</th><th>Score</th><th>Retenue</th></tr></thead>"
+            f"<tbody>{''.join(rows)}</tbody></table>"
+            f"<p class='conclusion'><strong>Action retenue :</strong> "
+            f"{html.escape(str(conclusion.get('action', {}).get('type', 'Action')))}"
+            f" — score {html.escape(str(conclusion.get('score')))}</p></div>"
+        )
     rows = []
     for entry in analysis.get("river", []):
         card = entry.get("card")
@@ -295,7 +337,8 @@ def _render_action(item: dict[str, Any]) -> str:
     label = action.get("type", "Action")
     if action.get("card_name"):
         label += f" — {action['card_name']}"
-    score = item.get("explanation", {}).get("chosen_score")
+    explanation = item.get("explanation", {})
+    score = explanation.get("chosen_score")
     reason = item.get("explanation", {}).get("reason", "")
     purchase = (
         _render_purchase_analysis(item["purchase_analysis"])
@@ -304,12 +347,13 @@ def _render_action(item: dict[str, Any]) -> str:
     )
     return (
         f"<div class='action player-{item['player_id'].lower()[-1]}'><div class='action-title'><strong>{html.escape(label)}</strong> "
-        f"<span>score choisi : {html.escape(str(score))}</span></div>"
+        + (f"<span>score choisi : {html.escape(str(score))}</span>" if score is not None else "")
+        + "</div>"
         f"<div class='reason'>{html.escape(item['player_id'])} — {html.escape(reason)}</div>"
         f"{purchase}"
         f"<details><summary>État avant / après</summary><div class='state-grid'><div><b>Avant</b><pre>{html.escape(json.dumps(item['state_before'], ensure_ascii=False, indent=2))}</pre></div>"
         f"<div><b>Après</b><pre>{html.escape(json.dumps(item.get('state_after', {}), ensure_ascii=False, indent=2))}</pre></div></div></details>"
-        f"<details><summary>Actions légales et scores</summary><pre>{html.escape(json.dumps(item.get('explanation', {}).get('ranked_alternatives', item['legal_actions']), ensure_ascii=False, indent=2))}</pre></details></div>"
+        f"<details><summary>Actions légales et diagnostic</summary><pre>{html.escape(json.dumps(item.get('explanation', {}).get('ranked_alternatives', item['legal_actions']), ensure_ascii=False, indent=2))}</pre></details></div>"
     )
 
 
@@ -347,9 +391,10 @@ pre {{ white-space:pre-wrap; overflow:auto; background:#f1f5f9; padding:.7rem; b
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, required=True)
-    parser.add_argument("--player1", choices=("heuristic", "random"), default="heuristic")
-    parser.add_argument("--player2", choices=("heuristic", "random"), default="random")
+    parser.add_argument("--player1", choices=("heuristic", "hybrid", "random"), default="heuristic")
+    parser.add_argument("--player2", choices=("heuristic", "hybrid", "random"), default="random")
     parser.add_argument("--profile", type=Path, default=PROJECT_ROOT / "configs/heuristic_profiles/v008.yaml")
+    parser.add_argument("--hybrid-profile", type=str, default="hybrid-v002")
     parser.add_argument("--max-actions", type=int, default=GameRunner.DEFAULT_MAX_ACTIONS)
     parser.add_argument("--max-turns", type=int, default=None)
     parser.add_argument(
@@ -372,6 +417,13 @@ def main() -> None:
                 profile.weights,
                 profile.card_acquisition_weights,
                 profile.constraint_weights,
+            )
+        elif kind == "hybrid":
+            players[player_id] = build_hybrid_player(
+                player_id,
+                game,
+                root_rng.derive(f"player-{player_id.value}"),
+                profile=args.hybrid_profile,
             )
         else:
             players[player_id] = RandomPlayer(
@@ -414,6 +466,7 @@ def main() -> None:
         "seed": args.seed,
         "players": {player_id.name: args.player1 if player_id is PlayerId.PLAYER_1 else args.player2 for player_id in PlayerId},
         "profile": str(args.profile),
+        "hybrid_profile": args.hybrid_profile if "hybrid" in (args.player1, args.player2) else None,
         "result": {"status": state.status.value, "winner": state.winner.name if state.winner else None},
         "events": events,
     }

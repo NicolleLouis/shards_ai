@@ -5,13 +5,16 @@ les métriques et les commandes restent dans `doc/Experiments/`.
 
 ## Règles de décision
 
-- Comparer chaque candidate à la référence neural active, à Random, à v007 et à la garde v008.
+- Comparer chaque candidate à v007, v008 et aux profils neural v001 à v005 ; Random reste un benchmark
+  diagnostique hors gate.
 - Utiliser un panel complet et reproductible ; un screening court ne peut jamais accepter une candidate.
-- Calculer la moyenne qualité avec les poids Random `0,25`, v007 `1`, v008 `1,5` et groupe neural `1` (`1/4` par profil v001 à v004) ; aucun adversaire, y compris v008, n'est une garde dure : seule la moyenne pondérée strictement positive décide.
+- Calculer la moyenne qualité sans Random avec les poids v007 `1,5`, v008 `2`, neural v001/v002 `0,5` chacun,
+  v003/v004 `0,25` chacun et v005 `1` ; aucun adversaire, y compris v008, n'est une garde dure : seule la
+  moyenne pondérée strictement positive décide.
 - Séparer entraînement, validation et holdout par `game_id`, et conserver la provenance des seeds.
 - Valider sur plusieurs seeds tirés avant l'évaluation ; chaque seed doit être rejouée avec exactement les mêmes parties pour la candidate et la référence.
 - Pour un entraînement long multi-seed, ne pas réentraîner un contrôle expérimental à chaque seed :
-  comparer la candidate au checkpoint stable du profil neural actif (`configs/neural_profiles/v004.pt`
+  comparer la candidate au checkpoint stable du profil neural actif (`configs/neural_profiles/v005.pt`
   actuellement), qui est déjà la référence de la gate. Un contrôle réentraîné n'est justifié que si
   l'expérience modifie le dataset, le protocole d'entraînement ou une autre variable qui rend le
   checkpoint actif incomparable.
@@ -21,7 +24,7 @@ les métriques et les commandes restent dans `doc/Experiments/`.
   plusieurs seeds avec le panel paired.
 - Mesurer séparément qualité, temps de partie, nombre d'actions et coût d'inférence.
 - Modifier une seule hypothèse structurante à la fois ; ne pas modifier le moteur, les heuristiques ou le masque d'information.
-- Conserver v003 et v002 comme références historiques protégées ; le profil actif est v004.
+- Conserver v001 à v004 comme références historiques protégées ; le profil actif est v005.
 - Ne pas reprendre une distillation locale ou une loss ranking-only sans preuve holdout indépendante et budget explicite de décisions modifiées.
 
 ## Diagnostic de situation
