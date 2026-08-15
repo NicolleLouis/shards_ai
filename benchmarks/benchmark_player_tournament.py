@@ -24,19 +24,21 @@ from typing import Callable
 
 import torch
 
-from shards_ai.ai import HeuristicPlayer, NeuralPlayer, RandomPlayer, build_neural_player
+from shards_ai.ai import HeuristicPlayer, NeuralPlayer, RandomPlayer, build_hybrid_player, build_neural_player
 from shards_ai.ai.heuristic_profiles import HeuristicProfile, load_profile
-from shards_ai.game import Game, GameRandom, GameRunner, GameStatus, PlayerId
+from shards_ai.game import GainMastery, Game, GameRandom, GameRunner, GameStatus, PlayerId
 
 
-PLAYERS = ("Random", "Heuristic 7", "Heuristic 8", "Neuronal 1", "Neuronal 2", "Neuronal 3", "Neuronal 4", "Neuronal 5", "Neuronal 6")
-DEFAULT_NEURAL_CHECKPOINTS = {
-    "Neuronal 1": Path("configs/neural_profiles/v001.pt"),
-    "Neuronal 2": Path("configs/neural_profiles/v002.pt"),
-    "Neuronal 3": Path("configs/neural_profiles/v003.pt"),
-    "Neuronal 4": Path("configs/neural_profiles/v004.pt"),
-    "Neuronal 5": Path("configs/neural_profiles/v005.pt"),
-    "Neuronal 6": Path("configs/neural_profiles/v006.pt"),
+PLAYERS = (
+    "Random", "Heuristic 8",
+    "Hybrid 1", "Hybrid 3", "Hybrid 4", "Hybrid 5", "Hybrid 6",
+)
+DEFAULT_HYBRID_PROFILES = {
+    "Hybrid 1": Path("configs/hybrid_profiles/hybrid-v001.yaml"),
+    "Hybrid 3": Path("configs/hybrid_profiles/hybrid-v003.yaml"),
+    "Hybrid 4": Path("configs/hybrid_profiles/hybrid-v004.yaml"),
+    "Hybrid 5": Path("configs/hybrid_profiles/hybrid-v005.yaml"),
+    "Hybrid 6": Path("configs/hybrid_profiles/hybrid-v006.yaml"),
 }
 
 
@@ -48,6 +50,10 @@ class MatchResult:
     wins: int
     losses: int
     draws: int
+    row_gain_mastery_actions: int = 0
+    column_gain_mastery_actions: int = 0
+    row_boundary_gain_mastery_conversions: int = 0
+    column_boundary_gain_mastery_conversions: int = 0
 
     @property
     def win_rate(self) -> float:
@@ -68,6 +74,8 @@ def play_match(
     max_turns: int | None,
 ) -> MatchResult:
     wins = losses = draws = 0
+    row_gain_mastery_actions = column_gain_mastery_actions = 0
+    row_boundary_conversions = column_boundary_conversions = 0
     for index in range(games):
         seed = first_seed + index
         root_rng = GameRandom(seed)
@@ -78,14 +86,42 @@ def play_match(
             row_id: make_player(row, row_id, root_rng.derive("row"), game),
             column_id: make_player(column, column_id, root_rng.derive("column"), game),
         }
-        state = GameRunner(game, players, max_actions=max_actions, max_turns=max_turns).run()
+        def observe_transition(_before, action, _after, player_id):
+            nonlocal row_gain_mastery_actions, column_gain_mastery_actions
+            if isinstance(action, GainMastery):
+                if player_id is row_id:
+                    row_gain_mastery_actions += 1
+                else:
+                    column_gain_mastery_actions += 1
+
+        runner = GameRunner(game, players, max_actions=max_actions, max_turns=max_turns)
+        state = runner.run(
+            transition_observer=observe_transition,
+            observer_receives_detached_state=False,
+            players_receive_detached_observation=False,
+        )
+        row_middleware = runner.players[row_id]
+        column_middleware = runner.players[column_id]
+        row_boundary_conversions += getattr(row_middleware, "boundary_gain_mastery_conversions", 0)
+        column_boundary_conversions += getattr(column_middleware, "boundary_gain_mastery_conversions", 0)
         if state.status is GameStatus.DRAW or state.winner is None:
             draws += 1
         elif state.winner is row_id:
             wins += 1
         else:
             losses += 1
-    return MatchResult(row, column, games, wins, losses, draws)
+    return MatchResult(
+        row,
+        column,
+        games,
+        wins,
+        losses,
+        draws,
+        row_gain_mastery_actions,
+        column_gain_mastery_actions,
+        row_boundary_conversions,
+        column_boundary_conversions,
+    )
 
 
 def _build_factory(
@@ -95,13 +131,20 @@ def _build_factory(
     def make_player(name: str, player_id: PlayerId, rng: GameRandom, current_game: Game) -> object:
         if name == "Random":
             return RandomPlayer(player_id, rng)
-        if name == "Heuristic 7" or name == "Heuristic 8":
+        if name == "Heuristic 8":
             profile = heuristic_profiles[name]
             return HeuristicPlayer(
                 player_id,
                 profile.weights,
                 profile.card_acquisition_weights,
                 profile.constraint_weights,
+            )
+        if name in DEFAULT_HYBRID_PROFILES:
+            return build_hybrid_player(
+                player_id,
+                current_game,
+                rng,
+                profile=DEFAULT_HYBRID_PROFILES[name],
             )
         if name.startswith("Neuronal "):
             return build_neural_player(
@@ -120,6 +163,37 @@ def _aggregate(results: dict[tuple[str, str], MatchResult], row: str, column: st
     if not selected:
         raise KeyError((row, column))
     return selected[0]
+
+
+def _behavior_summary(results: dict[tuple[str, str], MatchResult]) -> dict[str, dict[str, float | int]]:
+    """Aggregate actual GainMastery actions and V3 boundary conversions by player."""
+    summary = {
+        player: {
+            "games": 0,
+            "gain_mastery_actions": 0,
+            "gain_mastery_actions_per_game": 0.0,
+            "boundary_gain_mastery_conversions": 0,
+            "boundary_conversion_rate": 0.0,
+        }
+        for player in PLAYERS
+    }
+    for (row, column), result in results.items():
+        if PLAYERS.index(row) >= PLAYERS.index(column):
+            continue
+        row_summary = summary[row]
+        column_summary = summary[column]
+        row_summary["games"] += result.games
+        column_summary["games"] += result.games
+        row_summary["gain_mastery_actions"] += result.row_gain_mastery_actions
+        column_summary["gain_mastery_actions"] += result.column_gain_mastery_actions
+        row_summary["boundary_gain_mastery_conversions"] += result.row_boundary_gain_mastery_conversions
+        column_summary["boundary_gain_mastery_conversions"] += result.column_boundary_gain_mastery_conversions
+    for item in summary.values():
+        games = int(item["games"])
+        if games:
+            item["gain_mastery_actions_per_game"] = item["gain_mastery_actions"] / games
+            item["boundary_conversion_rate"] = item["boundary_gain_mastery_conversions"] / games
+    return summary
 
 
 def _format_cell(value: float, metric: str) -> str:
@@ -259,13 +333,7 @@ def main() -> None:
     parser.add_argument("--torch-threads", type=int, default=1)
     parser.add_argument("--max-actions", type=int, default=GameRunner.DEFAULT_MAX_ACTIONS)
     parser.add_argument("--max-turns", type=int)
-    parser.add_argument("--heuristic-7", type=Path, default=Path("configs/heuristic_profiles/v007.yaml"))
     parser.add_argument("--heuristic-8", type=Path, default=Path("configs/heuristic_profiles/v008.yaml"))
-    neural_argument_names = {}
-    for index, (name, path) in enumerate(DEFAULT_NEURAL_CHECKPOINTS.items(), start=1):
-        argument_name = f"neural_{index}"
-        neural_argument_names[name] = argument_name
-        parser.add_argument(f"--{name.lower().replace(' ', '-')}", dest=argument_name, type=Path, default=path)
     parser.add_argument("--output", type=Path, default=Path("artifacts/player_tournament/tournament.json"))
     parser.add_argument("--html-output", type=Path, default=Path("artifacts/player_tournament/tournament.html"))
     parser.add_argument(
@@ -285,9 +353,9 @@ def main() -> None:
         print(f"rendered={args.html_output} from={args.render_from_json}")
         return
 
-    heuristic_paths = {"Heuristic 7": args.heuristic_7, "Heuristic 8": args.heuristic_8}
-    neural_paths = {name: getattr(args, argument_name) for name, argument_name in neural_argument_names.items()}
-    for path in (*heuristic_paths.values(), *neural_paths.values()):
+    heuristic_paths = {"Heuristic 8": args.heuristic_8}
+    neural_paths = {}
+    for path in (*heuristic_paths.values(), *DEFAULT_HYBRID_PROFILES.values()):
         if not path.exists():
             parser.error(f"file not found: {path}")
     torch.set_num_threads(args.torch_threads)
@@ -300,7 +368,18 @@ def main() -> None:
         for column in PLAYERS[row_index + 1:]:
             result = play_match(row, column, args.games, args.seed + len(results) * args.games, make_player, args.max_actions, args.max_turns)
             results[(row, column)] = result
-            results[(column, row)] = MatchResult(column, row, result.games, result.losses, result.wins, result.draws)
+            results[(column, row)] = MatchResult(
+                column,
+                row,
+                result.games,
+                result.losses,
+                result.wins,
+                result.draws,
+                result.column_gain_mastery_actions,
+                result.row_gain_mastery_actions,
+                result.column_boundary_gain_mastery_conversions,
+                result.row_boundary_gain_mastery_conversions,
+            )
             print(f"completed={row} vs {column} games={args.games} result={result.wins}-{result.losses}-{result.draws}", flush=True)
 
     player_order = order_players_by_global_win_rate(results)
@@ -312,6 +391,7 @@ def main() -> None:
         "metric": args.metric,
         "results": {f"{row} vs {column}": asdict(result) for (row, column), result in results.items() if PLAYERS.index(row) < PLAYERS.index(column)},
         "matrix": matrix,
+        "behavior_by_player": _behavior_summary(results),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

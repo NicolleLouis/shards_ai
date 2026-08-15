@@ -59,6 +59,8 @@ class NeuralTrainingProfile:
         "v008": 1 / 3,
     })
     reward_shaping: Mapping[str, Any] = field(default_factory=dict)
+    composition_profile: str | None = None
+    decision_family: str | None = None
 
     def resolved_model_config(self) -> NeuralModelConfig:
         return NeuralModelConfig(**dict(self.model or {}))
@@ -80,6 +82,8 @@ class NeuralTrainingProfile:
             "max_validation_records": self.max_validation_records,
             "model": dict(self.model or {}),
             "metadata": dict(self.metadata or {}),
+            "composition_profile": self.composition_profile,
+            "decision_family": self.decision_family,
         }
         if self.method == "ppo":
             document.update({
@@ -216,7 +220,15 @@ def load_training_profile(path: str | Path) -> NeuralTrainingProfile:
             "v008": 1 / 3,
         }) or {}),
         reward_shaping=dict(document.get("reward_shaping", {}) or {}),
+        composition_profile=document.get("composition_profile"),
+        decision_family=document.get("decision_family"),
     )
+    if profile.composition_profile is not None and not isinstance(profile.composition_profile, str):
+        raise ValueError("composition_profile must be a string or null")
+    if profile.decision_family is not None and not isinstance(profile.decision_family, str):
+        raise ValueError("decision_family must be a string or null")
+    if profile.method == "ppo" and profile.decision_family == "acquisition" and not profile.composition_profile:
+        raise ValueError("Acquisition PPO profiles must define composition_profile")
     for name in ("seed", "split_seed"):
         _nonnegative_int(getattr(profile, name), name)
     _positive_int(profile.epochs, "epochs")

@@ -22,13 +22,21 @@ def _make_player(name, player_id, game, rng, *, hybrid_profile, heuristic_profil
         return HeuristicPlayer(player_id, profile.weights, profile.card_acquisition_weights, profile.constraint_weights)
     if name == "Neural V6":
         return build_neural_player(player_id, game, rng, scorer=neural_scorer)
-    if name == "Hybrid V2":
-        return build_hybrid_player(player_id, game, rng, profile=hybrid_profile)
+    if name in {"Hybrid V1", "Hybrid V2", "Hybrid V3"}:
+        return build_hybrid_player(
+            player_id,
+            game,
+            rng,
+            profile=hybrid_profile,
+            acquisition_scorer=neural_scorer,
+        )
     raise ValueError(f"Unknown player: {name}")
 
 
-def play_match(name, opponent, games, first_seed, *, hybrid_profile, heuristic_profiles, neural_scorer, max_actions, max_turns):
+def play_match(name, opponent, games, first_seed, *, hybrid_profile, opponent_hybrid_profile, heuristic_profiles, neural_scorer, max_actions, max_turns):
     wins = losses = draws = 0
+    conversions = 0
+    conversion_games = 0
     for index in range(games):
         seed = first_seed + index
         root_rng = GameRandom(seed)
@@ -37,16 +45,30 @@ def play_match(name, opponent, games, first_seed, *, hybrid_profile, heuristic_p
         column_id = row_id.opponent
         players = {
             row_id: _make_player(name, row_id, game, root_rng.derive("row"), hybrid_profile=hybrid_profile, heuristic_profiles=heuristic_profiles, neural_scorer=neural_scorer),
-            column_id: _make_player(opponent, column_id, game, root_rng.derive("column"), hybrid_profile=hybrid_profile, heuristic_profiles=heuristic_profiles, neural_scorer=neural_scorer),
+            column_id: _make_player(opponent, column_id, game, root_rng.derive("column"), hybrid_profile=opponent_hybrid_profile, heuristic_profiles=heuristic_profiles, neural_scorer=neural_scorer),
         }
-        state = GameRunner(game, players, max_actions=max_actions, max_turns=max_turns).run()
+        runner = GameRunner(game, players, max_actions=max_actions, max_turns=max_turns)
+        state = runner.run()
+        row_middleware = runner.players[row_id]
+        game_conversions = getattr(row_middleware, "boundary_gain_mastery_conversions", 0)
+        conversions += game_conversions
+        conversion_games += int(game_conversions > 0)
         if state.status is GameStatus.DRAW or state.winner is None:
             draws += 1
         elif state.winner is row_id:
             wins += 1
         else:
             losses += 1
-    return {"games": games, "wins": wins, "losses": losses, "draws": draws, "win_rate": wins / games}
+    return {
+        "games": games,
+        "wins": wins,
+        "losses": losses,
+        "draws": draws,
+        "win_rate": wins / games,
+        "boundary_gain_mastery_conversions": conversions,
+        "boundary_gain_mastery_games": conversion_games,
+        "boundary_gain_mastery_rate": conversion_games / games,
+    }
 
 
 def render_html(payload):
@@ -67,7 +89,10 @@ def render_html(payload):
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--player", default="Hybrid V2")
+    parser.add_argument("--opponent", default=None)
     parser.add_argument("--hybrid-profile", default="hybrid-v002")
+    parser.add_argument("--opponent-hybrid-profile", default=None)
     parser.add_argument("--games", type=int, default=100)
     parser.add_argument("--seed", type=int, default=20260901)
     parser.add_argument("--torch-threads", type=int, default=1)
@@ -84,16 +109,25 @@ def main() -> None:
         "Heuristic V8": load_profile("configs/heuristic_profiles/v008.yaml"),
     }
     neural_scorer = NeuralPlayer.load_scorer("configs/neural_profiles/v006.pt")
-    opponents = ("Random", "Heuristic V8", "Heuristic V7", "Neural V6")
+    opponent_hybrid_profile = args.opponent_hybrid_profile or args.hybrid_profile
+    opponents = (args.opponent,) if args.opponent is not None else ("Random", "Heuristic V8", "Heuristic V7", "Neural V6")
     results = {}
     for index, opponent in enumerate(opponents):
         results[opponent] = play_match(
-            "Hybrid V2", opponent, args.games, args.seed + index * args.games,
-            hybrid_profile=args.hybrid_profile, heuristic_profiles=heuristic_profiles,
+            args.player, opponent, args.games, args.seed + index * args.games,
+            hybrid_profile=args.hybrid_profile, opponent_hybrid_profile=opponent_hybrid_profile,
+            heuristic_profiles=heuristic_profiles,
             neural_scorer=neural_scorer, max_actions=args.max_actions, max_turns=args.max_turns,
         )
-        print(f"completed=Hybrid V2 vs {opponent} {results[opponent]}", flush=True)
-    payload = {"hybrid_profile": args.hybrid_profile, "games_per_opponent": args.games, "seed": args.seed, "opponents": list(opponents), "results": results}
+        print(f"completed={args.player} vs {opponent} {results[opponent]}", flush=True)
+    payload = {
+        "hybrid_profile": args.hybrid_profile,
+        "opponent_hybrid_profile": opponent_hybrid_profile,
+        "games_per_opponent": args.games,
+        "seed": args.seed,
+        "opponents": list(opponents),
+        "results": results,
+    }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.html_output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

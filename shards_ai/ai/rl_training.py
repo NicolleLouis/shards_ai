@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from pathlib import Path
+import time
 
 import torch
 from torch import Tensor, nn
@@ -21,6 +22,11 @@ from .card_value_shaping import deckbuilding_shaping_delta, load_card_values
 from .heuristic_player import HeuristicPlayer
 from .heuristic_profiles import load_profile
 from .macro_player import MacroNeuralPlayer
+from .play_turn_solver import (
+    atomic_candidates_for_actions,
+    macro_representations_v4,
+)
+from .composed_player import build_hybrid_player, ACQUISITION_ACTION_TYPES
 from .player_factory import MACRO_ARCHITECTURE_SCHEMA_VERSIONS, build_neural_player
 from .neural_model import NeuralActionScorer, NeuralModelConfig, build_neural_scorer
 from .neural_player import NeuralPlayer
@@ -279,6 +285,95 @@ class PPOTrainingPlayer:
     def pop_last_decision(self) -> _DecisionPayload:
         if self._last_decision is None:
             raise RuntimeError("No learner decision is available for the current transition")
+        payload = self._last_decision
+        self._last_decision = None
+        return payload
+
+
+class PPOTrainingAcquisitionPolicy:
+    """Stochastic PPO policy restricted to HybridPlayer acquisition decisions."""
+
+    policy_id = "ppo_acquisition"
+
+    def __init__(
+        self,
+        player_id: PlayerId,
+        game: Game,
+        model: NeuralActorCritic,
+        *,
+        torch_generator: torch.Generator | None = None,
+        stochastic: bool = True,
+    ) -> None:
+        self.player_id = player_id
+        self.game = game
+        self.model = model
+        self.torch_generator = torch_generator
+        self.stochastic = stochastic
+        self.legacy_view_mode = None
+        self._last_decision: _DecisionPayload | None = None
+        self._decisions = 0
+        self._total_inference_seconds = 0.0
+
+    @property
+    def decisions(self) -> int:
+        return self._decisions
+
+    @property
+    def total_inference_seconds(self) -> float:
+        return self._total_inference_seconds
+
+    def choose_action(
+        self,
+        _observation,
+        legal_actions: Sequence[Action],
+    ) -> tuple[Action, str]:
+        actions = list(legal_actions)
+        if not actions:
+            raise ValueError("Cannot choose an acquisition action from an empty list")
+        if not all(isinstance(action, ACQUISITION_ACTION_TYPES) for action in actions):
+            raise ValueError(
+                "PPO acquisition policy received a non-acquisition action: "
+                f"{actions!r}"
+            )
+        observation = self.game.neural_observation_for(self.player_id)
+        if self.legacy_view_mode is not None:
+            observation = replace(observation, phase=self.legacy_view_mode.value)
+        candidates = atomic_candidates_for_actions(self.game, actions)
+        representations = tuple(macro_representations_v4(observation, candidates))
+        started = time.perf_counter()
+        with torch.no_grad():
+            logits, value = self.model.evaluate(observation, representations)
+            if self.stochastic:
+                distribution = Categorical(logits=logits)
+                if self.torch_generator is None:
+                    chosen_tensor = distribution.sample()
+                else:
+                    chosen_tensor = torch.multinomial(
+                        distribution.probs, 1, generator=self.torch_generator,
+                    ).squeeze(0)
+            else:
+                distribution = Categorical(logits=logits)
+                chosen_tensor = logits.argmax()
+            chosen = int(chosen_tensor.item())
+            log_probability = float(distribution.log_prob(chosen_tensor).item())
+            value_estimate = float(value.item())
+        self._total_inference_seconds += time.perf_counter() - started
+        if not 0 <= chosen < len(candidates) or not candidates[chosen].atomic_trace:
+            raise ValueError(f"PPO acquisition selected invalid candidate index {chosen}")
+        self._last_decision = _DecisionPayload(
+            observation=observation,
+            legal_action_representations=representations,
+            chosen_action_index=chosen,
+            old_log_probability=log_probability,
+            value_estimate=value_estimate,
+            turn_number=observation.turn_number,
+        )
+        self._decisions += 1
+        return candidates[chosen].atomic_trace[0], "ppo_acquisition"
+
+    def pop_last_decision(self) -> _DecisionPayload:
+        if self._last_decision is None:
+            raise RuntimeError("No PPO acquisition decision is available")
         payload = self._last_decision
         self._last_decision = None
         return payload
@@ -554,6 +649,153 @@ def collect_rollout(
     )
 
 
+def _build_hybrid_training_opponent(
+    opponent_name: str,
+    opponent_id: PlayerId,
+    game: Game,
+    rng: GameRandom,
+    heuristic_profiles: Mapping[str, object],
+):
+    if opponent_name == "random":
+        return RandomPlayer(opponent_id, rng)
+    if opponent_name in heuristic_profiles:
+        opponent_profile = heuristic_profiles[opponent_name]
+        return HeuristicPlayer(
+            opponent_id,
+            opponent_profile.weights,
+            opponent_profile.card_acquisition_weights,
+            opponent_profile.constraint_weights,
+        )
+    if opponent_name.startswith("neural:"):
+        return build_neural_player(
+            opponent_id,
+            game,
+            rng,
+            checkpoint_path=Path(
+                f"configs/neural_profiles/{opponent_name.removeprefix('neural:')}.pt"
+            ),
+        )
+    if opponent_name.startswith("hybrid:"):
+        return build_hybrid_player(
+            opponent_id,
+            game,
+            rng,
+            profile=f"hybrid-{opponent_name.removeprefix('hybrid:')}",
+        )
+    raise ValueError(f"Unsupported hybrid PPO opponent: {opponent_name!r}")
+
+
+def _collect_hybrid_acquisition_episode(
+    model: NeuralActorCritic,
+    profile: NeuralTrainingProfile,
+    game_index: int,
+    heuristic_profiles: Mapping[str, object],
+) -> tuple[str, tuple[RolloutTransition, ...], float]:
+    game_seed = profile.seed * 1_000_003 + game_index
+    root_rng = GameRandom(game_seed)
+    opponent_name = choose_opponent(root_rng.derive("opponent"), profile.opponents)
+    learner_id = PlayerId.PLAYER_1 if game_index % 2 == 0 else PlayerId.PLAYER_2
+    opponent_id = learner_id.opponent
+    game = Game.new(seed=game_seed, rng=root_rng.derive("engine"))
+    policy_generator = torch.Generator(device="cpu")
+    policy_generator.manual_seed(game_seed % (2**63 - 1))
+    acquisition_policy = PPOTrainingAcquisitionPolicy(
+        learner_id, game, model, torch_generator=policy_generator,
+    )
+    composition = profile.composition_profile or "configs/hybrid_profiles/hybrid-v003.yaml"
+    learner = build_hybrid_player(
+        learner_id,
+        game,
+        root_rng.derive("hybrid-learner"),
+        profile=composition,
+        acquisition_policy=acquisition_policy,
+    )
+    opponent = _build_hybrid_training_opponent(
+        opponent_name, opponent_id, game, root_rng.derive("opponent-player"), heuristic_profiles,
+    )
+    runner = GameRunner(
+        game,
+        {learner_id: learner, opponent_id: opponent},
+        max_actions=profile.max_actions,
+        max_turns=profile.max_turns,
+    )
+    episode: list[RolloutTransition] = []
+
+    def on_decision(_observation, _legal_actions, _chosen, player_id) -> None:
+        if player_id is not learner_id:
+            return
+        diagnostic = learner.last_decision
+        if diagnostic is None or diagnostic.decision_family != "acquisition":
+            return
+        if diagnostic.policy_id != acquisition_policy.policy_id:
+            raise RuntimeError(
+                f"Unexpected acquisition policy in PPO rollout: {diagnostic.policy_id!r}"
+            )
+        payload = acquisition_policy.pop_last_decision()
+        episode.append(RolloutTransition(
+            episode_id=game_index,
+            game_seed=game_seed,
+            opponent_id=opponent_name,
+            neural_player_id=learner_id,
+            turn_number=payload.turn_number,
+            observation=payload.observation,
+            legal_action_representations=payload.legal_action_representations,
+            chosen_action_index=payload.chosen_action_index,
+            old_log_probability=payload.old_log_probability,
+            value_estimate=payload.value_estimate,
+        ))
+
+    final_state = runner.run(decision_observer=on_decision)
+    if not episode:
+        raise RuntimeError(f"Hybrid PPO episode {game_index} produced no acquisition transition")
+    reward = terminal_reward(final_state, learner_id)
+    episode[-1] = replace(episode[-1], reward=reward, done=True)
+    return opponent_name, tuple(episode), reward
+
+
+def collect_hybrid_acquisition_rollout(
+    model: NeuralActorCritic,
+    profile: NeuralTrainingProfile,
+    *,
+    start_game_index: int,
+    games: int | None = None,
+    max_transitions: int | None = None,
+    workers: int = 1,
+) -> RolloutResult:
+    """Collect complete Hybrid V3 games with PPO transitions for acquisition only."""
+    requested_games = games if games is not None else profile.games_per_update
+    if requested_games <= 0:
+        raise ValueError("games must be positive")
+    if workers != 1:
+        raise ValueError("Hybrid acquisition collection currently requires workers=1")
+    heuristic_profiles = {
+        name: load_profile(Path(f"configs/heuristic_profiles/{name}.yaml"))
+        for name in ("v007", "v008") if name in profile.opponents
+    }
+    transitions: list[RolloutTransition] = []
+    games_by_opponent: dict[str, int] = {}
+    outcomes_by_opponent: dict[str, dict[str, int]] = {}
+    transitions_by_episode: list[int] = []
+    for game_index in range(start_game_index, start_game_index + requested_games):
+        result = _collect_hybrid_acquisition_episode(model, profile, game_index, heuristic_profiles)
+        opponent_name, episode, reward = result
+        if max_transitions is not None and transitions and len(transitions) >= max_transitions:
+            break
+        transitions.extend(episode)
+        transitions_by_episode.append(len(episode))
+        games_by_opponent[opponent_name] = games_by_opponent.get(opponent_name, 0) + 1
+        outcome = "win" if reward > 0 else "loss" if reward < 0 else "draw"
+        outcomes = outcomes_by_opponent.setdefault(opponent_name, {"win": 0, "loss": 0, "draw": 0})
+        outcomes[outcome] += 1
+    return RolloutResult(
+        transitions=tuple(transitions),
+        games=len(transitions_by_episode),
+        games_by_opponent=games_by_opponent,
+        outcomes_by_opponent=outcomes_by_opponent,
+        transitions_by_episode=tuple(transitions_by_episode),
+    )
+
+
 def evaluate_greedy_model(
     model: NeuralActorCritic,
     profile: NeuralTrainingProfile,
@@ -604,6 +846,62 @@ def evaluate_greedy_model(
                 max_turns=profile.max_turns,
             ).run()
             if state.winner is neural_id:
+                wins += 1
+            elif state.winner is opponent_id:
+                losses += 1
+            else:
+                draws += 1
+        games = wins + losses + draws
+        by_opponent[opponent_name] = {
+            "games": games,
+            "wins": wins,
+            "losses": losses,
+            "draws": draws,
+            "win_rate": wins / games if games else 0.0,
+        }
+    score = weighted_evaluation_score({"by_opponent": by_opponent}, profile.opponents)
+    return {"score": score, "by_opponent": by_opponent}
+
+
+def evaluate_greedy_hybrid_model(
+    model: NeuralActorCritic,
+    profile: NeuralTrainingProfile,
+) -> dict[str, object]:
+    """Evaluate acquisition PPO greedily inside the complete Hybrid V3 composition."""
+    heuristic_profiles = {
+        name: load_profile(Path(f"configs/heuristic_profiles/{name}.yaml"))
+        for name in ("v007", "v008") if name in profile.opponents
+    }
+    by_opponent: dict[str, dict[str, float | int]] = {}
+    composition = profile.composition_profile or "configs/hybrid_profiles/hybrid-v003.yaml"
+    for opponent_name in profile.opponents:
+        wins = losses = draws = 0
+        for index in range(profile.evaluation_games):
+            seed = profile.evaluation_seed + index
+            root_rng = GameRandom(seed)
+            game = Game.new(seed=seed, rng=root_rng.derive("engine"))
+            learner_id = PlayerId.PLAYER_1 if seed % 2 == 0 else PlayerId.PLAYER_2
+            opponent_id = learner_id.opponent
+            acquisition_policy = PPOTrainingAcquisitionPolicy(
+                learner_id, game, model, stochastic=False,
+            )
+            learner = build_hybrid_player(
+                learner_id,
+                game,
+                root_rng.derive("hybrid-learner"),
+                profile=composition,
+                acquisition_policy=acquisition_policy,
+            )
+            opponent = _build_hybrid_training_opponent(
+                opponent_name, opponent_id, game, root_rng.derive("opponent"), heuristic_profiles,
+            )
+            state = GameRunner(
+                game,
+                {learner_id: learner, opponent_id: opponent},
+                max_actions=profile.max_actions,
+                max_turns=profile.max_turns,
+            ).run()
+            if state.winner is learner_id:
                 wins += 1
             elif state.winner is opponent_id:
                 losses += 1
@@ -799,13 +1097,16 @@ def ppo_update(
 __all__ = [
     "NeuralActorCritic",
     "PPOTrainingMacroPlayer",
+    "PPOTrainingAcquisitionPolicy",
     "PPOTrainingPlayer",
     "PPOUpdateMetrics",
     "RolloutResult",
     "RolloutTransition",
     "choose_opponent",
     "collect_rollout",
+    "collect_hybrid_acquisition_rollout",
     "evaluate_greedy_model",
+    "evaluate_greedy_hybrid_model",
     "is_monotonic_evaluation_improvement",
     "weighted_evaluation_score",
     "gae_returns",

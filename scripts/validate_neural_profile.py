@@ -17,7 +17,9 @@ from shards_ai.ai import (
     HeuristicPlayer,
     RandomPlayer,
     build_neural_player,
+    build_hybrid_player,
     load_active_training_profile,
+    load_hybrid_profile,
     load_training_profile,
     next_training_profile_id,
     save_training_profile,
@@ -28,16 +30,17 @@ from shards_ai.game import Game, GameRandom, GameRunner, GameStatus, PlayerId
 
 
 QUALITY_OPPONENT_WEIGHTS = {
-    "v007": 1.0,
-    "v008": 2.0,
-    "neural:v001": 0.5,
-    "neural:v002": 0.5,
-    "neural:v004": 0.5,
-    "neural:v005": 1.0,
-    "neural:v006": 1.0,
+    "hybrid:v006": 1.0,
+    "hybrid:v004": 1.0,
+    "hybrid:v005": 1.0,
+    "v008": 1.0,
+    "hybrid:v001": 0.75,
+    "hybrid:v003": 0.75,
 }
-NEURAL_REFERENCE_PROFILE_IDS = ("v001", "v002", "v004", "v005", "v006")
+QUALITY_GATE_EPSILON = 1e-12
+NEURAL_REFERENCE_PROFILE_IDS = ()
 NEURAL_REFERENCE_COUNT = len(NEURAL_REFERENCE_PROFILE_IDS)
+HYBRID_REFERENCE_PROFILE_IDS = ("v006", "v004", "v005", "v001", "v003")
 
 
 def _play(
@@ -46,8 +49,10 @@ def _play(
     opponent: str,
     heuristic_profiles: dict[str, object],
     neural_scorers: dict[str, object],
+    hybrid_profiles: dict[str, object],
     max_actions: int,
     max_turns: int | None,
+    hybrid_scorers: dict[str, object] | None = None,
 ) -> dict[str, object]:
     root_rng = GameRandom(seed)
     game = Game.new(seed=seed, rng=root_rng.derive("engine"))
@@ -64,6 +69,14 @@ def _play(
             game,
             root_rng.derive("opponent"),
             scorer=neural_scorers[opponent.removeprefix("neural:")],
+        )
+    elif opponent.startswith("hybrid:"):
+        other = build_hybrid_player(
+            opponent_id,
+            game,
+            root_rng.derive("opponent"),
+            profile=hybrid_profiles[opponent.removeprefix("hybrid:")],
+            acquisition_scorer=(hybrid_scorers or {}).get(opponent.removeprefix("hybrid:")),
         )
     else:
         profile = heuristic_profiles[opponent]
@@ -137,11 +150,10 @@ def acceptance_metrics(
 ) -> dict[str, object]:
     """Apply the quality gate once per opponent, never once per game.
 
-    The only quality condition is a strictly positive weighted mean: v007 has
-    weight 1, v008 weight 2, neural v001/v002/v004 have weight 0.5, while
-    v005 and the active v006 have weight 1. Every
-    opponent is a weighted quality signal rather than a hard non-regression
-    guard. Random is outside this gate.
+    The only quality condition is a strictly positive weighted mean: hybrid v006,
+    v004, v005 and v008 have weight 1, while hybrid v001 and v003 have weight
+    0.75. Every opponent is a weighted quality signal rather than a hard
+    non-regression guard. Random and retired profiles are outside this gate.
     """
     deltas = {opponent: float(item["delta_win_rate"]) for opponent, item in results.items()}
     if "v008" not in deltas:
@@ -176,7 +188,7 @@ def acceptance_metrics(
             "minimum_weighted_mean_delta": 0.0,
         }
     mean_delta = weighted_sum / total_weight
-    accepted = mean_delta > 0.0
+    accepted = mean_delta > QUALITY_GATE_EPSILON
     return {
         "accepted": accepted,
         "reason": "weighted_mean_gain" if accepted else "weighted_mean_gain_failed",
@@ -212,11 +224,10 @@ def format_validation_line(
     )
 
 
-def _panel(args: argparse.Namespace, candidate_profile_id: str) -> tuple[list[str], dict[str, object], dict[str, object]]:
-    heuristic_profiles = {
-        "v007": load_profile(args.profile_v007),
-        "v008": load_profile(args.profile_v008),
-    }
+def _panel(
+    args: argparse.Namespace, candidate_profile_id: str,
+) -> tuple[list[str], dict[str, object], dict[str, object], dict[str, object]]:
+    heuristic_profiles = {"v008": load_profile(args.profile_v008)}
     neural_profiles = {}
     for _number, path, profile in reversed(versioned_training_profiles(args.profile_dir)):
         if profile.profile_id not in NEURAL_REFERENCE_PROFILE_IDS or profile.profile_id == candidate_profile_id:
@@ -231,8 +242,26 @@ def _panel(args: argparse.Namespace, candidate_profile_id: str) -> tuple[list[st
             f"quality validation requires {NEURAL_REFERENCE_COUNT} promoted neural references; "
             f"found {len(neural_profiles)}"
         )
-    opponents = ["v007", "v008", *(f"neural:{profile_id}" for profile_id in NEURAL_REFERENCE_PROFILE_IDS)]
-    return opponents, heuristic_profiles, neural_profiles
+    hybrid_paths = {
+        "v006": args.profile_hybrid_v006,
+        "v004": args.profile_hybrid_v004,
+        "v005": args.profile_hybrid_v005,
+        "v001": args.profile_hybrid_v001,
+        "v003": args.profile_hybrid_v003,
+    }
+    hybrid_profiles = {
+        profile_id: load_hybrid_profile(hybrid_paths[profile_id])
+        for profile_id in HYBRID_REFERENCE_PROFILE_IDS
+    }
+    opponents = [
+        "hybrid:v006",
+        "hybrid:v004",
+        "hybrid:v005",
+        "v008",
+        "hybrid:v001",
+        "hybrid:v003",
+    ]
+    return opponents, heuristic_profiles, neural_profiles, hybrid_profiles
 
 
 def promote_candidate(args: argparse.Namespace, candidate_profile, active_profile, candidate_checkpoint: Path) -> dict[str, object]:
@@ -310,7 +339,7 @@ def validate(args: argparse.Namespace) -> dict[str, object]:
     if not reference_checkpoint.exists():
         raise FileNotFoundError(f"Active reference checkpoint not found: {reference_checkpoint}")
 
-    opponents, heuristic_profiles, neural_profiles = _panel(args, candidate_profile.profile_id)
+    opponents, heuristic_profiles, neural_profiles, hybrid_profiles = _panel(args, candidate_profile.profile_id)
     candidate_scorer = NeuralPlayer.load_scorer(candidate_checkpoint)
     reference_scorer = NeuralPlayer.load_scorer(reference_checkpoint)
     neural_scorers = {
@@ -320,12 +349,12 @@ def validate(args: argparse.Namespace) -> dict[str, object]:
     by_opponent = {}
     for opponent in opponents:
         candidate_records = [
-            _play(args.seed + index, candidate_scorer, opponent, heuristic_profiles, neural_scorers,
+            _play(args.seed + index, candidate_scorer, opponent, heuristic_profiles, neural_scorers, hybrid_profiles,
                   args.max_actions, args.max_turns)
             for index in range(args.games)
         ]
         reference_records = [
-            _play(args.seed + index, reference_scorer, opponent, heuristic_profiles, neural_scorers,
+            _play(args.seed + index, reference_scorer, opponent, heuristic_profiles, neural_scorers, hybrid_profiles,
                   args.max_actions, args.max_turns)
             for index in range(args.games)
         ]
@@ -368,8 +397,12 @@ def main() -> int:
     parser.add_argument("--checkpoint-dir", type=Path, default=Path("configs/neural_profiles"))
     parser.add_argument("--active-profile", type=Path, default=Path("configs/neural_training_profiles/active.yaml"))
     parser.add_argument("--active-neural-profile", type=Path, default=Path("configs/neural_profiles/active.yaml"))
-    parser.add_argument("--profile-v007", type=Path, default=Path("configs/heuristic_profiles/v007.yaml"))
     parser.add_argument("--profile-v008", type=Path, default=Path("configs/heuristic_profiles/v008.yaml"))
+    parser.add_argument("--profile-hybrid-v001", type=Path, default=Path("configs/hybrid_profiles/hybrid-v001.yaml"))
+    parser.add_argument("--profile-hybrid-v003", type=Path, default=Path("configs/hybrid_profiles/hybrid-v003.yaml"))
+    parser.add_argument("--profile-hybrid-v004", type=Path, default=Path("configs/hybrid_profiles/hybrid-v004.yaml"))
+    parser.add_argument("--profile-hybrid-v005", type=Path, default=Path("configs/hybrid_profiles/hybrid-v005.yaml"))
+    parser.add_argument("--profile-hybrid-v006", type=Path, default=Path("configs/hybrid_profiles/hybrid-v006.yaml"))
     parser.add_argument("--games", type=int, default=100)
     parser.add_argument("--seed", type=int, default=90000)
     parser.add_argument("--max-actions", type=int, default=GameRunner.DEFAULT_MAX_ACTIONS)

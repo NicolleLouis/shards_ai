@@ -7,6 +7,11 @@ l'absence d'observateur de transitions, `GameRunner` peut donc lui transmettre l
 éviter une copie. L'observation détachée reste disponible explicitement et reste le comportement
 par défaut dès qu'un observateur de transitions est actif.
 
+Dans `GameRunner`, `RandomPlayer` est automatiquement enveloppé par `LegacyActionMiddleware`. Le
+joueur conserve son contrat historique `PLAY/BUY` alors que le moteur sous-jacent peut intercaler
+les actions modernes. `PassPlayPhase` est consommée par le middleware et `StopBuying` est traduite
+en `EndMainPhase`.
+
 ## Politique actuelle
 
 ### `PLAY`

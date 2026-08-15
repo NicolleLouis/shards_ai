@@ -32,6 +32,10 @@ La protection des cartes qui se remplacent est documentée dans
 `Game.legal_actions()`. Il ne modifie pas l’observation, n’appelle pas `Game.apply()` et ne
 consomme pas de hasard.
 
+Quand il est exécuté par `GameRunner`, il est enveloppé par `LegacyActionMiddleware`. Il conserve
+ainsi la vue historique `PLAY/BUY` et ne reçoit pas les actions modernes intercalables ; le moteur
+reste toutefois responsable de valider l’action réellement appliquée.
+
 Le score est le produit scalaire des features et de `HeuristicWeights`. La configuration par défaut
 est le profil optimisé `v008`, confirmé sur une validation à 1 000 parties contre `v007` et
 `RandomPlayer`. Les poids restent injectables explicitement dans le
@@ -125,72 +129,26 @@ Lors des évaluations où le shaping est désactivé, l'optimiseur n'instancie p
 `RewardShapingTracker` et ne branche pas d'observateur de transition. Cela réduit le coût des
 validations sans modifier les scores ni les transitions de partie.
 
-## Lancer un cycle de training de quatre heures
+## Optimisation des profils
 
-Pour obtenir un débrief avant de lancer une campagne nocturne, utiliser cette commande :
+Les profils conservés sont `v007` et `v008`. Une nouvelle campagne part de `v007` et écrit son
+candidat hors du dépôt ; `v008` reste le profil par défaut jusqu’à validation indépendante :
 
 ```bash
-PYTHONPATH=. nice -n 10 poetry run python scripts/optimize_heuristic.py \
-  --profile configs/heuristic_profiles/v002.yaml \
+PYTHONPATH=. poetry run python scripts/optimize_heuristic.py \
+  --profile configs/heuristic_profiles/v007.yaml \
+  --reference-profile configs/heuristic_profiles/v007.yaml \
   --start-mixed \
-  --duration-seconds 14400 \
-  --initial-games 200 \
-  --racing-games 500 \
-  --validation-games 1000 \
-  --test-games 3000 \
-  --seed 45 \
-  --publish-profile configs/heuristic_profiles/v003.yaml
+  --compute-seconds 3600 \
+  --publish-profile /tmp/heuristic_candidate.yaml \
+  --seed 42
 ```
 
-`14400` secondes correspondent à quatre heures. `nice -n 10` réduit la priorité CPU afin de laisser
-les autres applications réactives. `--start-mixed` utilise le mélange prévu de `RandomPlayer` et de
-la version heuristique de référence, figée au début de la campagne. Le profil de départ reste `v002` ;
-`v003.yaml` n’est écrit que si la validation réussit.
-
-À la fin, conserver le résumé affiché et le chemin `results=...` vers l’artefact JSON sous
-`artifacts/heuristic_optimization/`. Ils servent de débrief pour décider si `v003` peut devenir le
-profil de départ d’une nouvelle campagne plus longue ou si `v002` doit être conservé.
-
-Pour calibrer uniquement la valeur intrinsèque des cartes avant une optimisation combinée :
-
-```bash
-PYTHONPATH=. nice -n 10 poetry run python scripts/optimize_heuristic.py \
-  --profile configs/heuristic_profiles/v003.yaml \
-  --start-mixed \
-  --acquisition-only \
-  --duration-seconds 3600 \
-  --initial-games 200 \
-  --racing-games 500 \
-  --validation-games 1000 \
-  --test-games 3000 \
-  --seed 46 \
-  --publish-profile configs/heuristic_profiles/v004.yaml
-```
-
-Cette phase conserve les poids d’action de `v003` et écrit les coefficients calibrés dans la section
-`card_acquisition_weights` de `v004.yaml` si la validation réussit.
-
-Les profils contiennent également `constraint_weights`, qui pondère séparément les contraintes des
-effets conditionnels : `domination=1.5`, `union=1.0`, `echo=0.75`, `inspiration=0.5`, `mastery=1.0`
-et `health=0.75` dans `v004`. Le profil publié `v005` utilise désormais `domination=1.5`,
-`echo=0.9375`, `health=0.625`, `inspiration=0.5`, `mastery=0.4375` et `union=0.6875`. La pénalité graduelle des seuils de maîtrise et de santé est multipliée
-par son poids ; une contrainte booléenne absente ajoute son poids une fois par opération. Les profils
-historiques sans cette section utilisent explicitement six poids uniformes à `1.0`. Ces poids sont
-injectés dans les voies d’évaluation du jeu, des achats, des mercenaires, du bannissement et des
-décisions en attente. Le mode `--constraints-only` de `scripts/optimize_heuristic.py` permet de les
-optimiser sans modifier les poids d’action ni les poids d’acquisition ; `--reference-profile` impose
-le profil complet utilisé comme adversaire précédent pendant la validation.
-
-Un wrapper prêt à lancer est disponible dans
-[`scripts/train_card_acquisition_1h.sh`](../../scripts/train_card_acquisition_1h.sh). Il peut être
-exécuté depuis la racine du dépôt avec :
-
-```bash
-bash scripts/train_card_acquisition_1h.sh
-```
-
-Le wrapper vérifie la présence de `v003.yaml`, utilise une priorité CPU réduite et place correctement
-`PYTHONPATH` avant `poetry`, afin d’éviter l’erreur de syntaxe rencontrée avec `nice`.
+Les poids `constraint_weights` pondèrent séparément les contraintes des effets conditionnels et
+restent injectés dans les voies d’évaluation du jeu, des achats, des mercenaires, du bannissement
+et des décisions en attente. Les modes `--acquisition-only` et `--constraints-only` permettent de
+calibrer une seule famille de poids ; la validation doit utiliser des seeds indépendantes avant de
+remplacer `v008`.
 
 Les features d’action exposent également des deltas projetés de santé, maîtrise et menace de
 champions. Les projections sont partielles en V1 et signalent les opérations non couvertes ; elles
@@ -303,14 +261,10 @@ limites par défaut identiques, la médiane de trois runs est passée de `5.580 
 `1.105 s` et `19.8 %` de réduction. Les 200 parties sont terminées sans nul dans chaque mesure.
 Une passe supplémentaire n’a pas apporté de gain robuste et a été retirée.
 
-Le script de reporting `scripts/benchmark_heuristic_report.py` capture désormais les actions via
-un wrapper de joueur avant `Game.apply()` au lieu d’activer un observateur de transitions qui clone
-l’état complet à chaque action. Sur 100 parties Heuristic vs Random avec `v004`, seed `1046`, et
-génération JSON/HTML incluse, le temps médian du workload est passé d’environ `1.99 s` à `1.17 s`,
-puis `1.11 s` après l’agrégation des compteurs par rôle, soit environ `44 %` de réduction cumulée.
-Les résultats restent identiques : `73` victoires Heuristic, `27` victoires Random, aucun nul ni
-erreur. Les mesures sont effectuées dans le même processus afin d’exclure le bruit du démarrage de
-Python et du chargement YAML.
+Le script de reporting `scripts/benchmark_heuristic_report.py` capture les actions via un wrapper
+de joueur avant `Game.apply()` au lieu d’activer un observateur de transitions qui clone l’état
+complet à chaque action. Les résultats sont écrits dans `artifacts/` et les mesures doivent être
+reproduites avec un profil conservé.
 
 Le même rapport conserve maintenant, pour chaque partie terminée, les cartes de la main, de la
 pioche, de la défausse et de la zone de jeu finale des rôles Heuristic et Random. Il ajoute dans
@@ -320,12 +274,6 @@ page HTML affiche des graphiques SVG des decks moyens, des factions, des groupes
 grands deltas Heuristic − Random. Des CSV dédiés (`final_deck_*`) permettent une analyse hors HTML.
 Les deltas de choix d’actions sont également exposés par catégorie avec un nombre moyen de choix par
 partie.
-
-Le chemin de capture réutilise maintenant la `CardInstance` déjà résolue pour les compteurs
-d’actions lorsqu’il construit les statistiques mercenaires. Cela évite une seconde recherche dans
-la rivière pour chaque achat ou recrutement, sans modifier les résultats du rapport. Sur 100
-parties Heuristic v005 contre Random, seed `1046`, le temps médian de génération est passé de
-`2.56 s` à `1.90 s` (trois répétitions, soit `25.8 %` de réduction observée).
 
 Le même rapport expose aussi une analyse comportementale limitée au joueur Heuristic : les passages
 de phase de jeu avec une main non vide et les cartes alors conservées, l’utilisation de l’action
@@ -363,36 +311,6 @@ de `2 %` retenu pour une optimisation robuste ; une seconde micro-optimisation a
 elle remontait à `5.605 s`. Les 200 parties sont terminées sans nul dans chaque campagne et la suite
 complète compte `152` tests.
 
-Lors des validations finales où `alpha=0`, la collecte détaillée du shaping est désactivée par défaut : les résultats terminaux sont
-inchangés, mais les snapshots post-transition coûteux ne sont plus produits. Le diagnostic complet
-reste disponible avec `--track-zero-alpha-shaping`. Sur 120 simulations fixes de validation (30
-parties par profil et par adversaire), cette optimisation a réduit la médiane observée d’environ
-8,37 s à 5,30 s, soit 36,7 %, sans modifier les utilités ni les différences appariées. Pendant les
-simulations d’entraînement, le tracker interne
-reçoit l’état post-action vivant de façon synchrone au lieu d’une seconde copie détachée ; le runner
-conserve le post-état détaché par défaut pour les observateurs externes. Pendant les validations à
-`alpha=0`, les politiques internes de la campagne reçoivent également l’état vivant, car elles sont
-en lecture seule ; le runner reste détaché par défaut pour les autres politiques. Sur 100 parties
-entre deux joueurs chargés depuis `v002.yaml`, le temps médian est passé de 4,484 s à 2,570 s après
-les passes d’optimisation, soit une réduction cumulée de 42,7 %, avec 100 parties terminées à chaque
-mesure. Sur le workload mixte contrôlé `RandomPlayer` contre `HeuristicPlayer` (`v002`, 100 seeds,
-rôles alternés), le temps médian est passé de 2,250 s à 1,601 s après la première passe puis à
-1,523 s après la seconde ; les 100 parties sont restées terminées, sans nul, avec 40 victoires de
-l’heuristique à chaque mesure.
-Une mesure historique annonçait 78,5 % contre `RandomPlayer` et 76,2 % contre `v003`, mais le
-second résultat n'est pas reproductible avec les profils actuellement chargés. L'audit contrôlé
-sur 1 000 seeds donne 79,2 % pour `v004` contre `RandomPlayer` et 49,3 % dans le duel
-`v004` contre `v003` lorsque les profils YAML complets sont utilisés. La matrice d'isolation montre
-que la différence vient des `constraint_weights` de `v004` : avec les poids d'action ou d'acquisition
-seuls, le candidat reste à 53,0 % contre `v003`, tandis que l'activation des nouvelles contraintes
-le ramène à 49,3 %. Ces poids améliorent donc le score contre RandomPlayer au prix d'une faiblesse
-contre l'ancien joueur heuristique ; aucune erreur ni nul n'a été observé dans ces mesures.
-Dans le chemin d’optimisation avec shaping, le tracker utilise désormais un snapshot détaché minimal
-qui ne copie que les données nécessaires au potentiel d’état ; les politiques internes en lecture
-seule reçoivent l’état vivant. Sur 100 évaluations fixes `v002` contre `RandomPlayer`, la médiane est
-passée de 3,092 s à 2,008 s, puis à 1,963 s après la fusion du calcul des conditions de shaping, soit
-environ 36,5 % de réduction cumulée, avec 52 victoires, aucun nul et aucune erreur.
-
 Après l’ajout de `durable_replay_factor`, une passe ciblée a réutilisé le multiplicateur de replay
 pour toutes les cartes d’une même décision d’achat au lieu de le recalculer pour chaque carte. Sur
 le même workload de 200 parties, la médiane est passée de `5,309 s` à `5,167 s`, soit `2,7 %` de
@@ -401,8 +319,7 @@ pas identifié d’optimisation locale susceptible d’atteindre encore 2 % sans
 du moteur ou du joueur.
 
 La projection inter-phase de `GainMastery` est calculée uniquement si au moins un de ses deux
-coefficients (`purchase_opportunity_cost` ou `mastery_threshold_value`) est non nul. Avec le profil
-`v004`, les signaux restent donc neutres sans coût de projection. Lorsque la projection est active,
+coefficients (`purchase_opportunity_cost` ou `mastery_threshold_value`) est non nul. Lorsque la projection est active,
 elle reste une évaluation pure de l’observation projetée, réutilisant les extracteurs de features
 existants pour la rivière et la main. Une tentative de réduire les allocations sur ce chemin a été
 profilée, mais son gain était inférieur à 2 % et n’a pas été conservée.

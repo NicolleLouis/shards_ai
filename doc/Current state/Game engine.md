@@ -153,7 +153,7 @@ carte disponible : demander `X` cartes signifie piocher au maximum `X` cartes.
 
 ## Phases et actions
 
-Le cycle réellement exécuté est :
+Le chemin direct historique conserve le cycle :
 
 ```text
 PLAY → BUY → ATTACK → CLEANUP → PLAY
@@ -181,6 +181,18 @@ Actions publiques :
   Power restant peut être réassigné.
 
 `AssignDamage` reste un alias de compatibilité déprécié vers `AssignPower`.
+
+Lorsqu'une partie est exécutée par `GameRunner`, le moteur est activé en mode moderne intercalable.
+La phase principale est représentée par l'état `PLAY` interne pour préserver les observations et
+checkpoints historiques, mais `Game.legal_actions()` expose alors les actions de jeu, `BuyCard`,
+`RecruitMercenary` et `EndMainPhase` dans le même espace. `BuyCard` et `RecruitMercenary` peuvent
+donc être joués avant ou après une action de jeu ; `EndMainPhase` termine la phase principale et
+passe à `ATTACK`.
+
+Les joueurs historiques sont enveloppés par `LegacyActionMiddleware`. Celui-ci leur présente un
+`view_mode` virtuel `PLAY` ou `BUY`, consomme `PassPlayPhase` sans appeler le moteur et traduit
+`StopBuying` en `EndMainPhase`. Les actions réelles restent validées par `Game.apply()` ; le mode
+virtuel n'est pas stocké dans `GameState` et peut donc différer pour deux joueurs.
 
 Lors d’une attaque contre le joueur, les valeurs `shield` de toutes les cartes Bouclier présentes
 dans sa main sont additionnées et soustraites des dégâts reçus. Les cartes Bouclier restent en main.

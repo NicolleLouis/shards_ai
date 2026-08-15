@@ -27,7 +27,13 @@ class GameRunner:
         if max_actions <= 0:
             raise ValueError("max_actions must be positive")
         self.game = game
-        self.players = dict(players)
+        from shards_ai.ai.player_middleware import LegacyActionMiddleware, is_modern_player
+
+        self.players = {
+            player_id: player if is_modern_player(player) else LegacyActionMiddleware(game, player, player_id)
+            for player_id, player in players.items()
+        }
+        self.game.enable_modern_mode()
         self.max_actions = max_actions
         self.max_turns = max_turns if max_turns is not None else self.MAX_TURNS_PER_PLAYER * len(self.players)
         if self.max_turns <= 0:
@@ -65,6 +71,9 @@ class GameRunner:
         players_receive_detached_observation: bool | None = None,
         observer_before_state_factory: Callable[[PlayerId], GameState] | None = None,
     ) -> GameState:
+        virtual_decisions = 0
+        from shards_ai.ai.player_middleware import LegacyActionMiddleware
+
         while self.game.state.status is GameStatus.RUNNING:
             if self.game.state.turn_number > self.max_turns:
                 self.game.state.status = GameStatus.DRAW
@@ -80,39 +89,54 @@ class GameRunner:
             player = self.players.get(player_id)
             if player is None:
                 raise InvalidGameStateError(f"No player configured for {player_id}")
-
-            observation_kind = getattr(player, "observation_kind", "game_state")
-            if observation_kind == "neural":
-                observation = self.game.neural_observation_for(player_id)
-            elif observation_kind == "game_state":
-                receive_detached = (
+            if isinstance(player, LegacyActionMiddleware):
+                player.force_detached_observation = (
                     players_receive_detached_observation
                     if players_receive_detached_observation is not None
                     else transition_observer is not None or decision_observer is not None
-                    or not getattr(player, "observation_is_read_only", False)
-                )
-                observation = self.game.observation_for(player_id) if receive_detached else self.game.state
-            else:
-                raise InvalidGameStateError(f"Unsupported observation kind: {observation_kind!r}")
-            legal_actions = self.game.legal_actions()
-            if not legal_actions:
-                raise InvalidGameStateError(
-                    f"No legal action for running game at phase={self.game.state.phase.value}"
                 )
 
-            action = player.choose_action(observation, legal_actions)
-            if action not in legal_actions:
-                raise InvalidActionError(
-                    f"Player {player_id} returned an illegal action: {action!r}"
-                )
+            if isinstance(player, LegacyActionMiddleware):
+                observation, legal_actions, visible_action = player.choose_visible_action()
+                action = player.translate(visible_action)
+                action_for_observer = visible_action
+            else:
+                observation_kind = getattr(player, "observation_kind", "game_state")
+                if observation_kind == "neural":
+                    observation = self.game.neural_observation_for(player_id)
+                elif observation_kind == "game_state":
+                    receive_detached = (
+                        players_receive_detached_observation
+                        if players_receive_detached_observation is not None
+                        else transition_observer is not None or decision_observer is not None
+                        or not getattr(player, "observation_is_read_only", False)
+                    )
+                    observation = self.game.observation_for(player_id) if receive_detached else self.game.state
+                else:
+                    raise InvalidGameStateError(f"Unsupported observation kind: {observation_kind!r}")
+                legal_actions = self.game.legal_actions()
+                if not legal_actions:
+                    raise InvalidGameStateError(
+                        f"No legal action for running game at phase={self.game.state.phase.value}"
+                    )
+                action_for_observer = action = player.choose_action(observation, legal_actions)
+                if action not in legal_actions:
+                    raise InvalidActionError(
+                        f"Player {player_id} returned an illegal action: {action!r}"
+                    )
             if decision_observer is not None:
-                decision_observer(observation, legal_actions, action, player_id)
+                decision_observer(observation, legal_actions, action_for_observer, player_id)
             if macro_decision_observer is not None:
                 pop_macro_decision = getattr(player, "pop_last_macro_decision", None)
                 if pop_macro_decision is not None:
                     macro_decision = pop_macro_decision()
                     if macro_decision is not None:
                         macro_decision_observer(macro_decision, player_id)
+            if action is None:
+                virtual_decisions += 1
+                if virtual_decisions > self.max_actions * 10:
+                    raise InvalidGameStateError("Middleware exceeded virtual decision limit")
+                continue
             if transition_observer is not None:
                 before = (
                     observer_before_state_factory(player_id)

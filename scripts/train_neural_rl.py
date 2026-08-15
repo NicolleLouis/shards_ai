@@ -21,7 +21,9 @@ from shards_ai.ai.neural_training_profiles import load_training_profile
 from shards_ai.ai.rl_training import (
     NeuralActorCritic,
     collect_rollout,
+    collect_hybrid_acquisition_rollout,
     evaluate_greedy_model,
+    evaluate_greedy_hybrid_model,
     is_monotonic_evaluation_improvement,
     ppo_update,
 )
@@ -147,6 +149,10 @@ def main() -> int:
                         help="Override the PPO discount factor for this reproducible run.")
     parser.add_argument("--gae-lambda", type=float,
                         help="Override the GAE lambda for this reproducible run.")
+    parser.add_argument("--learning-rate", type=float,
+                        help="Override the optimizer learning rate for this reproducible run.")
+    parser.add_argument("--entropy-coefficient", type=float,
+                        help="Override PPO entropy regularization for this reproducible run.")
     parser.add_argument("--torch-threads", type=int)
     parser.add_argument("--workers", type=int, default=1,
                         help="Number of concurrent game-collection workers (default: 1).")
@@ -167,6 +173,14 @@ def main() -> int:
         if not 0 < value <= 1:
             parser.error(f"--{name} must be greater than 0 and at most 1")
     profile = replace(profile, gamma=gamma, gae_lambda=gae_lambda)
+    if args.learning_rate is not None:
+        if args.learning_rate <= 0:
+            parser.error("--learning-rate must be positive")
+        profile = replace(profile, learning_rate=args.learning_rate)
+    if args.entropy_coefficient is not None:
+        if args.entropy_coefficient < 0:
+            parser.error("--entropy-coefficient must be non-negative")
+        profile = replace(profile, entropy_coefficient=args.entropy_coefficient)
     if args.evaluation_games is not None:
         if args.evaluation_games <= 0:
             parser.error("--evaluation-games must be positive")
@@ -244,8 +258,9 @@ def main() -> int:
     best_update_index = int(checkpoint.get("best_update_index", updates_seen))
     best_games_seen = int(checkpoint.get("best_games_seen", games_seen))
     best_transitions_seen = int(checkpoint.get("best_transitions_seen", transitions_seen))
+    evaluate = evaluate_greedy_hybrid_model if profile.decision_family == "acquisition" else evaluate_greedy_model
     if not isinstance(best_evaluation, dict) or "by_opponent" not in best_evaluation:
-        best_evaluation = evaluate_greedy_model(model, profile)
+        best_evaluation = evaluate(model, profile)
     best_evaluation_score = float(best_evaluation["score"])
     latest_evaluation = checkpoint.get("latest_evaluation")
     next_evaluation_games = profile.evaluation_interval_games
@@ -255,13 +270,10 @@ def main() -> int:
 
     while games_seen < total_games:
         rollout_games = min(games_per_update, total_games - games_seen)
-        rollout = collect_rollout(
-            model,
-            profile,
-            start_game_index=games_seen,
-            games=rollout_games,
-            max_transitions=profile.max_transitions_per_update,
-            workers=args.workers,
+        collect = collect_hybrid_acquisition_rollout if profile.decision_family == "acquisition" else collect_rollout
+        rollout = collect(
+            model, profile, start_game_index=games_seen, games=rollout_games,
+            max_transitions=profile.max_transitions_per_update, workers=args.workers,
         )
         if rollout.games <= 0:
             raise RuntimeError("Rollout collected no games")
@@ -293,7 +305,7 @@ def main() -> int:
             "ppo": asdict(update),
         }
         if games_seen >= next_evaluation_games:
-            evaluation = evaluate_greedy_model(model, profile)
+            evaluation = evaluate(model, profile)
             item["evaluation"] = evaluation
             latest_evaluation = evaluation
             next_evaluation_games += profile.evaluation_interval_games

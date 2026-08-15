@@ -14,6 +14,7 @@ from shards_ai.ai import (
     MacroNeuralPlayer,
     NeuralModelConfig,
     RandomPlayer,
+    build_hybrid_player,
     build_neural_scorer,
     build_neural_player,
     load_active_training_profile,
@@ -55,6 +56,7 @@ def _play(
     opponent: str,
     heuristic_profiles,
     neural_scorers,
+    hybrid_profiles,
     max_actions: int,
     max_turns: int | None,
     candidate_is_macro: bool,
@@ -79,6 +81,13 @@ def _play(
             game,
             root_rng.derive("opponent"),
             scorer=neural_scorers[opponent.removeprefix("neural:")],
+        )
+    elif opponent.startswith("hybrid:"):
+        other = build_hybrid_player(
+            opponent_id,
+            game,
+            root_rng.derive("opponent"),
+            profile=hybrid_profiles[opponent.removeprefix("hybrid:")],
         )
     else:
         profile = heuristic_profiles[opponent]
@@ -117,8 +126,8 @@ def main() -> int:
     parser.add_argument("--candidate-checkpoint", type=Path, required=True)
     parser.add_argument("--profile-dir", type=Path, default=Path("configs/neural_training_profiles"))
     parser.add_argument("--active-profile", type=Path, default=Path("configs/neural_training_profiles/active.yaml"))
-    parser.add_argument("--profile-v007", type=Path, default=Path("configs/heuristic_profiles/v007.yaml"))
     parser.add_argument("--profile-v008", type=Path, default=Path("configs/heuristic_profiles/v008.yaml"))
+    parser.add_argument("--profile-hybrid-v003", type=Path, default=Path("configs/hybrid_profiles/hybrid-v003.yaml"))
     parser.add_argument("--games", type=int, default=100)
     parser.add_argument("--seed", type=int, default=90000)
     parser.add_argument("--max-actions", type=int, default=GameRunner.DEFAULT_MAX_ACTIONS)
@@ -131,7 +140,7 @@ def main() -> int:
 
     candidate_profile = load_training_profile(args.candidate_profile)
     active_profile = load_active_training_profile(args.active_profile)
-    opponents, heuristic_profiles, neural_profiles = _panel(args, candidate_profile.profile_id)
+    opponents, heuristic_profiles, neural_profiles, hybrid_profiles = _panel(args, candidate_profile.profile_id)
     candidate_scorer, candidate_architecture = _load_scorer(args.candidate_checkpoint)
     reference_checkpoint = active_profile.resolve_path(active_profile.output)
     reference_scorer, reference_architecture = _load_scorer(reference_checkpoint)
@@ -148,11 +157,11 @@ def main() -> int:
     by_opponent = {}
     for opponent in opponents:
         candidate_records = [
-            _play(args.seed + index, candidate_scorer, opponent, heuristic_profiles, neural_scorers, args.max_actions, args.max_turns, True)
+            _play(args.seed + index, candidate_scorer, opponent, heuristic_profiles, neural_scorers, hybrid_profiles, args.max_actions, args.max_turns, True)
             for index in range(args.games)
         ]
         reference_records = [
-            _play(args.seed + index, reference_scorer, opponent, heuristic_profiles, neural_scorers, args.max_actions, args.max_turns, False)
+            _play(args.seed + index, reference_scorer, opponent, heuristic_profiles, neural_scorers, hybrid_profiles, args.max_actions, args.max_turns, False)
             for index in range(args.games)
         ]
         candidate_summary = _aggregate(candidate_records)

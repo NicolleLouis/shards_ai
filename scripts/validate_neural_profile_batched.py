@@ -86,7 +86,7 @@ def validate_batched(args: argparse.Namespace) -> dict[str, object]:
     if not reference_checkpoint.exists():
         raise FileNotFoundError(f"Active reference checkpoint not found: {reference_checkpoint}")
 
-    opponents, heuristic_profiles, neural_profiles = _panel(args, candidate_profile.profile_id)
+    opponents, heuristic_profiles, neural_profiles, hybrid_profiles = _panel(args, candidate_profile.profile_id)
     config = _config(args, candidate_profile.profile_id, active_profile.profile_id, opponents)
     state = _load_state(args.progress_output, config, opponents)
     candidate_scorer = NeuralPlayer.load_scorer(candidate_checkpoint)
@@ -94,6 +94,14 @@ def validate_batched(args: argparse.Namespace) -> dict[str, object]:
     neural_scorers = {
         profile_id: NeuralPlayer.load_scorer(checkpoint)
         for profile_id, (_path, _profile, checkpoint) in neural_profiles.items()
+    }
+    scorers_by_checkpoint = {}
+    for profile in hybrid_profiles.values():
+        checkpoint = profile.acquisition_checkpoint.resolve()
+        scorers_by_checkpoint.setdefault(str(checkpoint), NeuralPlayer.load_scorer(checkpoint))
+    hybrid_scorers = {
+        profile_id: scorers_by_checkpoint[str(profile.acquisition_checkpoint.resolve())]
+        for profile_id, profile in hybrid_profiles.items()
     }
 
     batches = batch_ranges(args.games, args.batch_games)
@@ -106,12 +114,12 @@ def validate_batched(args: argparse.Namespace) -> dict[str, object]:
             for index in range(start, end):
                 seed = args.seed + index
                 records["candidate_records"].append(
-                    _play(seed, candidate_scorer, opponent, heuristic_profiles, neural_scorers,
-                          args.max_actions, args.max_turns)
+                    _play(seed, candidate_scorer, opponent, heuristic_profiles, neural_scorers, hybrid_profiles,
+                          args.max_actions, args.max_turns, hybrid_scorers)
                 )
                 records["reference_records"].append(
-                    _play(seed, reference_scorer, opponent, heuristic_profiles, neural_scorers,
-                          args.max_actions, args.max_turns)
+                    _play(seed, reference_scorer, opponent, heuristic_profiles, neural_scorers, hybrid_profiles,
+                          args.max_actions, args.max_turns, hybrid_scorers)
                 )
             state["completed_games"][opponent] = end
         _atomic_write(args.progress_output, state)
@@ -159,8 +167,12 @@ def main() -> int:
     parser.add_argument("--checkpoint-dir", type=Path, default=Path("configs/neural_profiles"))
     parser.add_argument("--active-profile", type=Path, default=Path("configs/neural_training_profiles/active.yaml"))
     parser.add_argument("--active-neural-profile", type=Path, default=Path("configs/neural_profiles/active.yaml"))
-    parser.add_argument("--profile-v007", type=Path, default=Path("configs/heuristic_profiles/v007.yaml"))
     parser.add_argument("--profile-v008", type=Path, default=Path("configs/heuristic_profiles/v008.yaml"))
+    parser.add_argument("--profile-hybrid-v001", type=Path, default=Path("configs/hybrid_profiles/hybrid-v001.yaml"))
+    parser.add_argument("--profile-hybrid-v003", type=Path, default=Path("configs/hybrid_profiles/hybrid-v003.yaml"))
+    parser.add_argument("--profile-hybrid-v004", type=Path, default=Path("configs/hybrid_profiles/hybrid-v004.yaml"))
+    parser.add_argument("--profile-hybrid-v005", type=Path, default=Path("configs/hybrid_profiles/hybrid-v005.yaml"))
+    parser.add_argument("--profile-hybrid-v006", type=Path, default=Path("configs/hybrid_profiles/hybrid-v006.yaml"))
     parser.add_argument("--games", type=int, default=100)
     parser.add_argument("--batch-games", type=int, default=20)
     parser.add_argument("--seed", type=int, default=90000)

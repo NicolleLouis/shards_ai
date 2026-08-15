@@ -34,17 +34,10 @@ def _record(opponent: str) -> dict[str, object]:
     }
 
 
-def test_panel_contains_heuristic_and_eight_configured_opponents() -> None:
+def test_panel_contains_heuristic_and_active_neural_opponents() -> None:
     assert OPPONENTS == (
         "random",
-        "v007",
         "v008",
-        "neural:v001",
-        "neural:v002",
-        "neural:v003",
-        "neural:v004",
-        "neural:v005",
-        "neural:v006",
     )
 
 
@@ -53,7 +46,7 @@ def test_panel_html_renders_each_opponent() -> None:
         "config": {
             "checkpoint": "configs/neural_profiles/v006.pt",
             "games_per_opponent": 1,
-            "total_games": 8,
+            "total_games": 4,
             "seed": 104,
             "torch_threads": 1,
         },

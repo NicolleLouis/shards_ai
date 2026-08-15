@@ -251,7 +251,7 @@ class Campaign:
         settings_path = self.repo / "configs" / "meta_improvement.yaml"
         settings = yaml.safe_load(settings_path.read_text(encoding="utf-8")) if settings_path.exists() else {
             "seed": 104,
-            "opponents": ["random", "v007", "v008"],
+            "opponents": ["hybrid:v006", "hybrid:v004", "hybrid:v005", "v008", "hybrid:v001", "hybrid:v003"],
             "baseline_profile": "v008",
             "acceptance_rule": "weighted_mean_opponent_gain",
         }
@@ -627,10 +627,10 @@ class Campaign:
                 "performance.candidate and validation.results. For performance experiments, include "
                 "performance.baseline and performance.candidate. "
                 "For a quality experiment, validation.results must contain delta_win_rate for "
-                "v007, v008 and neural v001 through v006, measured against the active latest neural reference. "
+                "hybrid v006/v004/v005, v008, and hybrid v001/v003, measured against the active latest neural reference. "
                 "The v008 entry is a weighted heuristic signal, not a hard guard or the neural reference. "
-                "The final gate excludes Random, weights v007 at 1.5, v008 at 2, neural v001 and v002 at 0.5, "
-                "neural v003 and v004 at 0.25, and neural v005/v006 at 1; the active parent is loaded from active.yaml "
+                "The final gate excludes Random, retired neural v001-v009, heuristic v007 and hybrid v002, and weights hybrid v006/v004/v005/v008 at 1 and hybrid v001/v003 at 0.75; "
+                "the active parent is loaded from active.yaml "
                 f"and is currently {self.parent_profile}. "
                 f"For a candidate that keeps the active architecture, training must start from the latest active "
                 f"neural checkpoint, currently {self.parent_profile}; resetting Adam optimizer state is allowed. "

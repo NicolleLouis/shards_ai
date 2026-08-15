@@ -26,23 +26,8 @@ from shards_ai.game.actions import BuyCard, GainMastery, PassPlayPhase, PlayCard
 
 OPPONENTS = (
     "random",
-    "v007",
     "v008",
-    "neural:v001",
-    "neural:v002",
-    "neural:v003",
-    "neural:v004",
-    "neural:v005",
-    "neural:v006",
 )
-NEURAL_PROFILE_PATHS = {
-    "v001": Path("configs/neural_profiles/v001.pt"),
-    "v002": Path("configs/neural_profiles/v002.pt"),
-    "v003": Path("configs/neural_profiles/v003.pt"),
-    "v004": Path("configs/neural_profiles/v004.pt"),
-    "v005": Path("configs/neural_profiles/v005.pt"),
-    "v006": Path("configs/neural_profiles/v006.pt"),
-}
 
 
 def play_game(
@@ -199,14 +184,7 @@ body{{font-family:system-ui,sans-serif;background:#f5f7fb;color:#172033;margin:0
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkpoint", type=Path, default=Path("configs/neural_profiles/v006.pt"))
-    parser.add_argument("--profile-v007", type=Path, default=Path("configs/heuristic_profiles/v007.yaml"))
     parser.add_argument("--profile-v008", type=Path, default=Path("configs/heuristic_profiles/v008.yaml"))
-    parser.add_argument("--profile-v001-checkpoint", type=Path, default=NEURAL_PROFILE_PATHS["v001"])
-    parser.add_argument("--profile-v002-checkpoint", type=Path, default=NEURAL_PROFILE_PATHS["v002"])
-    parser.add_argument("--profile-v003-checkpoint", type=Path, default=NEURAL_PROFILE_PATHS["v003"])
-    parser.add_argument("--profile-v004-checkpoint", type=Path, default=NEURAL_PROFILE_PATHS["v004"])
-    parser.add_argument("--profile-v005-checkpoint", type=Path, default=NEURAL_PROFILE_PATHS["v005"])
-    parser.add_argument("--profile-v006-checkpoint", type=Path, default=NEURAL_PROFILE_PATHS["v006"])
     parser.add_argument("--games", type=int, default=200, help="Number of games per opponent.")
     parser.add_argument("--seed", type=int, default=104)
     parser.add_argument("--max-actions", type=int, default=GameRunner.DEFAULT_MAX_ACTIONS)
@@ -218,13 +196,6 @@ def main() -> None:
 
     paths = {
         "checkpoint": args.checkpoint,
-        "v001": args.profile_v001_checkpoint,
-        "v002": args.profile_v002_checkpoint,
-        "v003": args.profile_v003_checkpoint,
-        "v004": args.profile_v004_checkpoint,
-        "v005": args.profile_v005_checkpoint,
-        "v006": args.profile_v006_checkpoint,
-        "v007": args.profile_v007,
         "v008": args.profile_v008,
     }
     if args.games <= 0:
@@ -233,13 +204,10 @@ def main() -> None:
         if not path.exists():
             parser.error(f"{label} file not found: {path}")
 
-    profiles = {label: load_profile(paths[label]) for label in ("v007", "v008")}
+    profiles = {"v008": load_profile(paths["v008"])}
     torch.set_num_threads(args.torch_threads)
     scorer = NeuralPlayer.load_scorer(args.checkpoint)
-    neural_scorers = {
-        profile_id: NeuralPlayer.load_scorer(paths[profile_id])
-        for profile_id in ("v001", "v002", "v003", "v004", "v005", "v006")
-    }
+    neural_scorers = {}
     records: list[dict[str, object]] = []
     for opponent in OPPONENTS:
         for index in range(args.games):
@@ -262,7 +230,7 @@ def main() -> None:
             "seed": args.seed,
             "torch_threads": args.torch_threads,
             "opponents": list(OPPONENTS),
-            "neural_opponent_checkpoints": {profile_id: str(neural_scorers_path) for profile_id, neural_scorers_path in paths.items() if profile_id in {"v001", "v002", "v003", "v004", "v005", "v006"}},
+            "neural_opponent_checkpoints": {"v006": str(paths["v006"])},
         },
         "summary_by_opponent": {
             opponent: _summary([record for record in records if record["opponent"] == opponent])

@@ -1,9 +1,12 @@
 schema_version: 1
 seed: 104
 opponents:
-  - random
-  - v007
+  - hybrid:v006
+  - hybrid:v004
+  - hybrid:v005
   - v008
+  - hybrid:v001
+  - hybrid:v003
 baseline_profile: v008
 acceptance_rule: weighted_mean_opponent_gain
 performance_regression_threshold: 0.05

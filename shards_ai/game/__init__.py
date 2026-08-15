@@ -14,6 +14,7 @@ from .actions import (
     SkipBanish,
     RecruitFreeCard,
     ChoosePendingDecision,
+    EndMainPhase,
 )
 from .cards import (
     CARD_CATALOG,
@@ -84,6 +85,7 @@ __all__ = [
     "SkipBanish",
     "RecruitFreeCard",
     "ChoosePendingDecision",
+    "EndMainPhase",
     "V0_CARD_DEFINITION",
     "build_central_deck",
     "build_starter_deck",

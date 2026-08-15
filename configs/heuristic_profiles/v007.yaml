@@ -1,6 +1,6 @@
 schema_version: 1
 profile_id: v007
-parent_profile_id: v006
+parent_profile_id: null
 weights:
   cost_paid: 0.0
   gems_produced: 1.0
@@ -46,7 +46,7 @@ constraint_weights:
 metadata:
   optimizer: hybrid_racing
   mixed_phase_started: true
-  reference_profile_id: v006
+  reference_profile_id: null
   root_seed: 87
   batches: 5
   active_fields:

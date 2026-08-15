@@ -16,8 +16,8 @@ from shards_ai.ai.heuristic_profiles import load_profile
 from shards_ai.game import Game, GameRandom, GameRunner, GameStatus, PlayerId
 
 
-OPPONENTS = ("heuristic:v007", "heuristic:v008", "neural:v006")
-WEIGHTS = {"heuristic:v007": 1.5, "heuristic:v008": 2.0, "neural:v006": 1.0}
+OPPONENTS = ("heuristic:v008",)
+WEIGHTS = {"heuristic:v008": 1.0}
 
 
 def _make_opponent(label, player_id, game, rng, heuristic_profiles, neural_scorer):
@@ -169,8 +169,8 @@ def main():
         print(f"rendered={args.html_output}")
         return
     torch.set_num_threads(args.torch_threads)
-    profiles = {"v007": load_profile("configs/heuristic_profiles/v007.yaml"), "v008": load_profile("configs/heuristic_profiles/v008.yaml")}
-    neural_scorer = NeuralPlayer.load_scorer("configs/neural_profiles/v006.pt")
+    profiles = {"v008": load_profile("configs/heuristic_profiles/v008.yaml")}
+    neural_scorer = None
     records = []
     for index, opponent in enumerate(OPPONENTS):
         for offset in range(args.games):

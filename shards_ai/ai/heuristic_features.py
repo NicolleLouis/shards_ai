@@ -15,6 +15,7 @@ from shards_ai.game.actions import (
     BanishCard,
     BuyCard,
     ChoosePendingDecision,
+    EndMainPhase,
     GainMastery,
     PassPlayPhase,
     PlayCard,
@@ -235,7 +236,7 @@ def features_for_action(
     if isinstance(action, AssignPower):
         return _attack_features(observation, player, opponent, action)
 
-    if isinstance(action, (PassPlayPhase, StopBuying)):
+    if isinstance(action, (PassPlayPhase, StopBuying, EndMainPhase)):
         return ActionFeatures(phase_progress=1.0, action_penalty=1.0)
 
     raise InvalidActionError(f"Unsupported heuristic action: {action!r}")

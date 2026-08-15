@@ -974,6 +974,18 @@ def macro_representations_v4(
     return tuple(enriched)
 
 
+def atomic_candidates_for_actions(
+    game: Game,
+    actions: Sequence[Action],
+) -> tuple[PlayTurnCandidate, ...]:
+    """Build canonical atomic candidates for a caller-owned legal action subset."""
+
+    return tuple(
+        _atomic_candidate_for_action(game, action, physical_variant_count=count, canonical_key=key)
+        for action, count, key in _representative_actions(game, actions)
+    )
+
+
 __all__ = [
     "DependencyDescriptor",
     "MacroActionRepresentation",
@@ -985,6 +997,7 @@ __all__ = [
     "PlayTurnOutcomeSummary",
     "PlayTurnResolution",
     "PlayTurnSolver",
+    "atomic_candidates_for_actions",
     "dependency_for_action",
     "macro_representations",
     "macro_representations_v2",

@@ -115,30 +115,34 @@ def test_quality_panel_includes_fixed_neural_references_without_random():
 
     from scripts.validate_neural_profile import _panel
 
-    opponents, _heuristics, neural_profiles = _panel(
+    opponents, _heuristics, neural_profiles, hybrid_profiles = _panel(
         Namespace(
             profile_dir=Path("configs/neural_training_profiles"),
-            profile_v007=Path("configs/heuristic_profiles/v007.yaml"),
             profile_v008=Path("configs/heuristic_profiles/v008.yaml"),
+            profile_hybrid_v001=Path("configs/hybrid_profiles/hybrid-v001.yaml"),
+            profile_hybrid_v003=Path("configs/hybrid_profiles/hybrid-v003.yaml"),
+            profile_hybrid_v004=Path("configs/hybrid_profiles/hybrid-v004.yaml"),
+            profile_hybrid_v005=Path("configs/hybrid_profiles/hybrid-v005.yaml"),
+            profile_hybrid_v006=Path("configs/hybrid_profiles/hybrid-v006.yaml"),
         ),
         "exp-candidate",
     )
 
-    assert opponents == ["v007", "v008", "neural:v001", "neural:v002", "neural:v004", "neural:v005", "neural:v006"]
-    assert set(neural_profiles) == {"v001", "v002", "v004", "v005", "v006"}
+    assert opponents == ["hybrid:v006", "hybrid:v004", "hybrid:v005", "v008", "hybrid:v001", "hybrid:v003"]
+    assert set(neural_profiles) == set()
+    assert set(hybrid_profiles) == {"v001", "v003", "v004", "v005", "v006"}
 
 
 def test_validation_rule_accepts_positive_mean_with_secondary_regressions():
     from scripts.validate_neural_profile import acceptance_decision
 
     assert acceptance_decision({
-        "v007": {"delta_win_rate": -0.01},
+        "hybrid:v006": {"delta_win_rate": 0.01},
+        "hybrid:v004": {"delta_win_rate": 0.01},
+        "hybrid:v005": {"delta_win_rate": 0.01},
         "v008": {"delta_win_rate": 0.06},
-        "neural:v001": {"delta_win_rate": 0.0},
-        "neural:v002": {"delta_win_rate": 0.0},
-        "neural:v004": {"delta_win_rate": 0.0},
-        "neural:v005": {"delta_win_rate": 0.0},
-        "neural:v006": {"delta_win_rate": 0.0},
+        "hybrid:v001": {"delta_win_rate": 0.01},
+        "hybrid:v003": {"delta_win_rate": 0.01},
     })
 
 
@@ -147,13 +151,12 @@ def test_validation_rule_requires_complete_panel_and_positive_mean_progress():
 
     assert not acceptance_decision({"v007": {"delta_win_rate": 0.0}})
     assert acceptance_decision({
-        "v007": {"delta_win_rate": 0.0},
+        "hybrid:v006": {"delta_win_rate": 0.0},
+        "hybrid:v004": {"delta_win_rate": 0.0},
+        "hybrid:v005": {"delta_win_rate": 0.0},
         "v008": {"delta_win_rate": 0.0},
-        "neural:v001": {"delta_win_rate": 0.0},
-        "neural:v002": {"delta_win_rate": 0.0},
-        "neural:v004": {"delta_win_rate": 0.0},
-        "neural:v005": {"delta_win_rate": 0.01},
-        "neural:v006": {"delta_win_rate": 0.0},
+        "hybrid:v001": {"delta_win_rate": 0.0},
+        "hybrid:v003": {"delta_win_rate": 0.01},
     })
 
 
@@ -161,22 +164,20 @@ def test_validation_rule_ignores_random_when_weighted_mean_is_positive():
     from scripts.validate_neural_profile import acceptance_decision
 
     assert acceptance_decision({
-        "v007": {"delta_win_rate": 0.03},
+        "hybrid:v006": {"delta_win_rate": 0.01},
+        "hybrid:v004": {"delta_win_rate": 0.01},
+        "hybrid:v005": {"delta_win_rate": 0.01},
         "v008": {"delta_win_rate": 0.03},
-        "neural:v001": {"delta_win_rate": 0.0},
-        "neural:v002": {"delta_win_rate": 0.0},
-        "neural:v004": {"delta_win_rate": 0.0},
-        "neural:v005": {"delta_win_rate": 0.0},
-        "neural:v006": {"delta_win_rate": 0.0},
+        "hybrid:v001": {"delta_win_rate": 0.01},
+        "hybrid:v003": {"delta_win_rate": 0.01},
     })
     assert acceptance_decision({
-        "v007": {"delta_win_rate": 0.10},
+        "hybrid:v006": {"delta_win_rate": 0.01},
+        "hybrid:v004": {"delta_win_rate": 0.01},
+        "hybrid:v005": {"delta_win_rate": 0.01},
         "v008": {"delta_win_rate": -0.01},
-        "neural:v001": {"delta_win_rate": 0.0},
-        "neural:v002": {"delta_win_rate": 0.0},
-        "neural:v004": {"delta_win_rate": 0.0},
-        "neural:v005": {"delta_win_rate": 0.0},
-        "neural:v006": {"delta_win_rate": 0.0},
+        "hybrid:v001": {"delta_win_rate": 0.01},
+        "hybrid:v003": {"delta_win_rate": 0.05},
     })
 
 
@@ -184,45 +185,42 @@ def test_validation_rule_allows_v008_regression_when_weighted_mean_is_positive()
     from scripts.validate_neural_profile import acceptance_metrics
 
     metrics = acceptance_metrics({
-        "v007": {"delta_win_rate": 0.05},
+        "hybrid:v006": {"delta_win_rate": 0.01},
+        "hybrid:v004": {"delta_win_rate": 0.01},
+        "hybrid:v005": {"delta_win_rate": 0.01},
         "v008": {"delta_win_rate": -0.04},
-        "neural:v001": {"delta_win_rate": 0.01},
-        "neural:v002": {"delta_win_rate": 0.01},
-        "neural:v004": {"delta_win_rate": 0.01},
-        "neural:v005": {"delta_win_rate": 0.01},
-        "neural:v006": {"delta_win_rate": 0.01},
+        "hybrid:v001": {"delta_win_rate": 0.01},
+        "hybrid:v003": {"delta_win_rate": 0.05},
     })
 
     assert metrics["accepted"]
     assert metrics["mean_delta_win_rate"] > 0.0
 
 
-def test_validation_rule_uses_configured_opponent_weights_and_five_neural_references():
+def test_validation_rule_uses_configured_opponent_weights_and_active_references():
     from scripts.validate_neural_profile import acceptance_metrics
 
     metrics = acceptance_metrics(
         {
-            "v007": {"delta_win_rate": -0.02},
+            "hybrid:v006": {"delta_win_rate": 0.01},
+            "hybrid:v004": {"delta_win_rate": 0.02},
+            "hybrid:v005": {"delta_win_rate": 0.03},
             "v008": {"delta_win_rate": 0.07},
-            "neural:v001": {"delta_win_rate": 0.00},
-            "neural:v002": {"delta_win_rate": 0.03},
-            "neural:v004": {"delta_win_rate": 0.09},
-            "neural:v005": {"delta_win_rate": 0.12},
-            "neural:v006": {"delta_win_rate": 0.00},
+            "hybrid:v001": {"delta_win_rate": 0.04},
+            "hybrid:v003": {"delta_win_rate": 0.05},
         },
         {"buy": {"delta": 0.04, "weight": 1.0}, "play": {"delta": 0.03, "weight": 1.0}},
     )
 
     assert metrics["accepted"]
-    assert metrics["mean_delta_win_rate"] == pytest.approx(0.0461538462)
+    assert metrics["mean_delta_win_rate"] == pytest.approx(0.0359090909)
     assert metrics["opponent_weights"] == {
-        "v007": 1.0,
-        "v008": 2.0,
-        "neural:v001": 0.5,
-        "neural:v002": 0.5,
-        "neural:v004": 0.5,
-        "neural:v005": 1.0,
-        "neural:v006": 1.0,
+        "hybrid:v006": 1.0,
+        "hybrid:v004": 1.0,
+        "hybrid:v005": 1.0,
+        "v008": 1.0,
+        "hybrid:v001": 0.75,
+        "hybrid:v003": 0.75,
     }
     assert "random" not in metrics["opponent_weights"]
 
@@ -231,10 +229,8 @@ def test_validation_rule_rejects_an_incomplete_neural_reference_panel():
     from scripts.validate_neural_profile import acceptance_metrics
 
     metrics = acceptance_metrics({
-        "v007": {"delta_win_rate": 0.0},
         "v008": {"delta_win_rate": 0.01},
-        "neural:v002": {"delta_win_rate": 0.10},
-        "neural:v004": {"delta_win_rate": 0.10},
+        "neural:v006": {"delta_win_rate": 0.10},
     })
 
     assert not metrics["accepted"]

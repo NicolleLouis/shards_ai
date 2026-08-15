@@ -1,0 +1,7 @@
+schema_version: 1
+policy_id: neural_v007
+family: acquisition
+version: v007
+checkpoint: configs/neural_profiles/v007.pt
+contract: macro_candidate_scorer
+parent_policy: neural_v006

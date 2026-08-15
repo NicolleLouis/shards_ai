@@ -1,6 +1,7 @@
 .PHONY: heuristic-benchmark-mix neural-macro-dataset neural-macro-train \
 	neural-benchmark-mix neural-benchmark-panel neural-validate neural-validate-batched \
-	neural-imitation-analysis neural-visited-state-analysis meta-improve
+	neural-imitation-analysis neural-visited-state-analysis neural-rl-train \
+	neural-validate-hybrid-deckbuilding meta-improve
 
 HEURISTIC_VERSION := v008
 HEURISTIC_PUBLISHED_PROFILE := configs/heuristic_profiles/$(HEURISTIC_VERSION).yaml
@@ -40,6 +41,15 @@ NEURAL_VISITED_GAMES ?= 200
 NEURAL_VISITED_SEED ?= 104
 NEURAL_VISITED_OUTPUT ?= artifacts/analysis/visited_neural_vs_v008.json
 NEURAL_VISITED_HTML_OUTPUT ?= artifacts/analysis/visited_neural_vs_v008.html
+NEURAL_RL_PROFILE ?= configs/neural_training_profiles/candidates/ppo-deckbuilding-hybrid-v003.yaml
+NEURAL_RL_TOTAL_GAMES ?= 100000
+NEURAL_RL_GAMES_PER_UPDATE ?= 128
+NEURAL_RL_OPTIMIZATION_EPOCHS ?= 4
+NEURAL_RL_MINIBATCH_SIZE ?= 2048
+NEURAL_HYBRID_VALIDATION_GAMES ?= 200
+NEURAL_HYBRID_VALIDATION_BATCH_GAMES ?= 20
+NEURAL_HYBRID_VALIDATION_SEED ?= 90000
+NEURAL_HYBRID_VALIDATION_OUTPUT ?= artifacts/neural_validation/hybrid_deckbuilding.json
 neural-benchmark-mix:
 	PYTHONPATH=. poetry run python benchmarks/benchmark_neural_mix.py \
 		--checkpoint $(NEURAL_CHECKPOINT) \
@@ -89,6 +99,26 @@ neural-visited-state-analysis:
 		--torch-threads $(NEURAL_TORCH_THREADS) \
 		--output $(NEURAL_VISITED_OUTPUT) \
 		--html-output $(NEURAL_VISITED_HTML_OUTPUT)
+
+neural-rl-train:
+	PYTHONPATH=. poetry run python scripts/train_neural_rl.py \
+		--profile $(NEURAL_RL_PROFILE) \
+		--output $(NEURAL_CHECKPOINT) \
+		--total-games $(NEURAL_RL_TOTAL_GAMES) \
+		--games-per-update $(NEURAL_RL_GAMES_PER_UPDATE) \
+		--optimization-epochs $(NEURAL_RL_OPTIMIZATION_EPOCHS) \
+		--minibatch-size $(NEURAL_RL_MINIBATCH_SIZE) \
+		--torch-threads $(NEURAL_TORCH_THREADS)
+
+neural-validate-hybrid-deckbuilding:
+	PYTHONPATH=. poetry run python scripts/validate_hybrid_deckbuilding_profile.py \
+		--candidate-profile $(NEURAL_RL_PROFILE) \
+		--candidate-checkpoint $(NEURAL_CHECKPOINT) \
+		--games $(NEURAL_HYBRID_VALIDATION_GAMES) \
+		--batch-games $(NEURAL_HYBRID_VALIDATION_BATCH_GAMES) \
+		--seed $(NEURAL_HYBRID_VALIDATION_SEED) \
+		--torch-threads $(NEURAL_TORCH_THREADS) \
+		--output $(NEURAL_HYBRID_VALIDATION_OUTPUT)
 
 NEURAL_CANDIDATE_PROFILE ?=
 NEURAL_VALIDATION_GAMES ?= 100

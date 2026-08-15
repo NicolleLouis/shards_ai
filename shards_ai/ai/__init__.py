@@ -109,7 +109,6 @@ from .play_turn_solver import (
 )
 from .composed_player import (
     HybridPlayer,
-    ComposedPlayer,
     DecisionDiagnostic,
     DeterministicBanishPolicy,
     HeuristicPlayPolicy,
@@ -118,6 +117,7 @@ from .composed_player import (
     build_hybrid_player,
 )
 from .algorithmic_play import AlgorithmicPlayPolicy, PlayCardClassification
+from .player_middleware import LegacyActionMiddleware, is_modern_player
 from .hybrid_profiles import DEFAULT_HYBRID_PROFILE_DIR, HybridProfile, load_hybrid_profile
 from .neural_training_profiles import (
     NeuralProfile,
@@ -254,7 +254,8 @@ __all__ = [
     "macro_representations_v4",
     "dependency_for_action",
     "HybridPlayer",
-    "ComposedPlayer",
+    "LegacyActionMiddleware",
+    "is_modern_player",
     "DecisionDiagnostic",
     "DeterministicBanishPolicy",
     "HeuristicPlayPolicy",

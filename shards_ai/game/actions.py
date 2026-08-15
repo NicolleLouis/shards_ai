@@ -54,6 +54,13 @@ class StopBuying(Action):
 
 
 @dataclass(frozen=True, slots=True)
+class EndMainPhase(Action):
+    """End the modern interleaved main phase and start the attack phase."""
+
+    pass
+
+
+@dataclass(frozen=True, slots=True)
 class AssignPower(Action):
     amount: int
     target: str = "opponent"

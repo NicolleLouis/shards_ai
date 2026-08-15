@@ -4,13 +4,13 @@ import pytest
 
 from shards_ai.ai import (
     AlgorithmicPlayPolicy,
-    ComposedPlayer,
     DecisionDiagnostic,
     DeterministicBanishPolicy,
     HybridPlayer,
+    RandomPlayer,
     load_hybrid_profile,
 )
-from shards_ai.game import CardInstance, Game, GameRandom, PlayerId
+from shards_ai.game import CardInstance, Game, GameRandom, GameRunner, PlayerId
 from shards_ai.game.actions import BanishCard, BuyCard, PassPlayPhase, PlayCard, SkipBanish
 from shards_ai.game.cards.definitions import BLASTER, CRYSTAL, INFINITY_SHARD
 from shards_ai.game.cards import CardDefinition, Effect, EffectStep, Operation
@@ -87,11 +87,11 @@ def test_banish_skips_when_no_preferred_target_exists() -> None:
         ([PassPlayPhase()], "play", "play_stub"),
     ],
 )
-def test_composed_player_routes_each_decision_family(
+def test_hybrid_player_routes_each_decision_family(
     actions, expected_family, expected_policy
 ) -> None:
     game = _game()
-    player = ComposedPlayer(
+    player = HybridPlayer(
         PlayerId.PLAYER_1,
         game,
         acquisition_policy=StubPolicy("neural_stub", actions[0]),
@@ -112,7 +112,7 @@ def test_composed_player_routes_each_decision_family(
 
 def test_banish_has_priority_over_acquisition_when_both_are_present() -> None:
     game = _game()
-    player = ComposedPlayer(
+    player = HybridPlayer(
         PlayerId.PLAYER_1,
         game,
         acquisition_policy=StubPolicy("neural_stub", BuyCard(0, "buy")),
@@ -130,9 +130,9 @@ def test_banish_has_priority_over_acquisition_when_both_are_present() -> None:
     assert player.last_decision.decision_family == "banish"
 
 
-def test_composed_player_rejects_an_illegal_policy_result() -> None:
+def test_hybrid_player_rejects_an_illegal_policy_result() -> None:
     game = _game()
-    player = ComposedPlayer(
+    player = HybridPlayer(
         PlayerId.PLAYER_1,
         game,
         acquisition_policy=StubPolicy("neural_stub", PassPlayPhase()),
@@ -157,7 +157,6 @@ def test_versioned_hybrid_profile_is_replayable_and_explicit() -> None:
         "configs/heuristic_profiles/v008.yaml"
     )
     assert len(profile.fingerprint) == 64
-    assert HybridPlayer is ComposedPlayer
 
 
 def test_algorithmic_hybrid_version_references_independent_component_versions() -> None:
@@ -172,6 +171,39 @@ def test_algorithmic_hybrid_version_references_independent_component_versions() 
     assert profile.play_policy_profile.as_posix().endswith(
         "configs/player_policies/play/v001.yaml"
     )
+
+
+def test_boundary_gain_mastery_hybrid_profile_is_explicit() -> None:
+    profile = load_hybrid_profile("hybrid-v003")
+
+    assert profile.parent_profile_id == "hybrid-v001"
+    assert profile.capability_profile_id == "boundary_gain_mastery_v1"
+    assert profile.acquisition_policy_id == "neural_v006"
+    assert profile.play_policy_id == "heuristic_v008"
+    assert profile.banish_policy_id == "deterministic_blaster_crystal"
+
+
+def test_hybrid_player_runs_behind_legacy_middleware() -> None:
+    from shards_ai.ai import build_hybrid_player
+
+    game = _game()
+    hybrid_id = game.active_player
+    hybrid = build_hybrid_player(
+        hybrid_id,
+        game,
+        GameRandom(8802),
+        profile="hybrid-v001",
+    )
+    opponent = RandomPlayer(hybrid_id.opponent, GameRandom(8803))
+
+    final_state = GameRunner(
+        game,
+        {hybrid_id: hybrid, hybrid_id.opponent: opponent},
+        max_actions=20,
+        max_turns=1,
+    ).run()
+
+    assert final_state.turn_number >= 1
 
 
 def test_versioned_hybrid_profile_rejects_unknown_policy(tmp_path) -> None:

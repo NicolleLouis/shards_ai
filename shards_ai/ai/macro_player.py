@@ -91,6 +91,7 @@ class MacroNeuralPlayer:
         self._last_macro_decision: MacroDecisionPayload | None = None
         self._last_atomic_decision: AtomicDecisionPayload | None = None
         self._last_scored_candidates: tuple[PlayTurnCandidate, ...] = ()
+        self.legacy_decision_mode = False
         self._last_candidate_scores: tuple[float, ...] = ()
 
     @property
@@ -128,12 +129,16 @@ class MacroNeuralPlayer:
             self._last_action_kind = "macro_replay"
             return action
 
-        if self.game.state.phase is not Phase.PLAY:
+        if observation.phase != Phase.PLAY.value:
             return self._choose_unified_atomic(observation, actions)
 
         self._last_macro_decision = None
         self._last_atomic_decision = None
-        resolution = self.solver.resolve(self.game)
+        solver_game = self.game
+        if self.legacy_decision_mode:
+            solver_game = self.game.clone()
+            solver_game.modern_mode = False
+        resolution = self.solver.resolve(solver_game)
         self._pending_trace.extend(resolution.automatic_prefix)
         if resolution.budget_boundary_reason is not None:
             if self._pending_trace:

@@ -22,6 +22,11 @@ Le joueur réellement actif pour le neural est déterminé par les deux pointeur
 `configs/neural_profiles/active.yaml` et `configs/neural_training_profiles/active.yaml`. Ils
 pointent actuellement vers `v006`. Le profil heuristique par défaut du constructeur est `v008`.
 
+Lorsqu'un profil historique est exécuté via `GameRunner`, il passe par
+`LegacyActionMiddleware`. Cette couche conserve la compatibilité de la vue `PLAY/BUY` pour Random,
+Heuristic, Neural et MacroNeural, sans modifier les checkpoints ; les nouveaux joueurs doivent
+déclarer explicitement `full_main_v1` pour utiliser les décisions intercalables.
+
 ## Profils heuristiques
 
 Tous les profils heuristiques utilisent la même implémentation `HeuristicPlayer`. Une action légale

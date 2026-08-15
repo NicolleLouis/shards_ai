@@ -6,6 +6,11 @@ Le socle d'imitation supervisée et son fine-tuning PPO sont disponibles. Ils ut
 reçoivent uniquement `NeuralObservation`, l'observation masquée construite par le moteur, ainsi
 que les représentations des actions légales produites par `representation_for_neural_action`.
 
+Dans `GameRunner`, les joueurs neural historiques sont également enveloppés par
+`LegacyActionMiddleware`. L'observation et les actions conservent alors le contrat historique
+`PLAY/BUY`, ce qui permet de réutiliser les anciens checkpoints. Un joueur moderne doit déclarer
+explicitement le profil de capacité `full_main_v1` pour recevoir l'espace intercalable complet.
+
 Les entraînements sont décrits par des profils YAML versionnés sous
 `configs/neural_training_profiles/`. `v001.yaml` indique le dataset, les seeds, les hyperparamètres,
 le split et la configuration du modèle. `scripts/train_neural_imitation.py --profile <profile.yaml>`
@@ -63,8 +68,9 @@ V006 conserve le contrat macro/atomique et l'architecture de V005. Il a été in
 adversaire a produit un gain pondéré de `+1,125 point` contre V005 ; le candidat a ensuite été
 promu dans `configs/neural_profiles/v006.pt`.
 
-Le panel de qualité comprend V007, V008 et Neural V001 à V006. Ses poids sont respectivement
-`1,5`, `2`, `0,5`, `0,5`, `0,25`, `0,25`, `1`, `1`. Random reste diagnostique et hors gate.
+Le panel de qualité comprend Hybrid V006/V004/V005, Heuristic V008, puis Hybrid V001/V003.
+Les poids sont respectivement `1`, `1`, `1`, `1`, `0,75`, `0,75`. Les profils neural V001 à V009,
+Heuristic V007, Hybrid V002, les autres hybrides et Random restent diagnostiques et hors gate.
 
 ## Entraînement
 
@@ -154,10 +160,10 @@ mutable reste `artifacts/neural_training/checkpoint.pt`; les checkpoints stables
 actuellement `v006` et son architecture `structured_semantic_v5_macro_tactical_action_v1`.
 
 `scripts/validate_neural_profile.py` compare un candidat au dernier profil neural actif sur les mêmes seeds,
-contre `v007`, `v008` et les profils neural v001, v002, v004, v005 et v006 dont les
-checkpoints existent. Il imprime les résultats par adversaire avec deux décimales et les comptes
-victoires/parties. La gate pondère v007 à `1`, v008 à `2`, v001/v002/v004 à `0,5` et v005/v006
-à `1` ; Neural V003 et Random sont exclus de la gate.
+contre `hybrid-v006`, `hybrid-v004`, `hybrid-v005`, `v008`, `hybrid-v001` et `hybrid-v003`.
+Il imprime les résultats par adversaire avec deux décimales et les comptes victoires/parties.
+La gate pondère Hybrid V006/V004/V005 et Heuristic V008 à `1`, puis Hybrid V001/V003 à `0,75` ;
+les profils neural V001 à V009, Heuristic V007, Hybrid V002, les autres hybrides et Random sont exclus.
 Le défaut Makefile est de 100 parties par adversaire ; un panel d'au moins 200
 parties est recommandé pour une promotion finale. Le script propose de ne promouvoir le candidat
 que par rapport au profil neural actif courant (`v006` actuellement) ; `v008` reste l'adversaire
@@ -168,6 +174,9 @@ disponible dans les benchmarks diagnostiques. Chaque adversaire compte une fois,
 du nombre de parties jouées ; les résultats sont d'abord agrégés par adversaire. Les résultats de
 catégories éventuelles sont conservés mais ne modifient pas cette gate. Cette validation
 peut être exécutée hors de Codex ; le résultat doit alors être conservé ou fourni avant promotion.
+La variante batch charge une seule fois chaque checkpoint d'acquisition des profils hybrides et
+réutilise le scorer entre les parties ; cela ne change ni les seeds, ni les actions légales, ni le
+protocole de gate.
 Une promotion crée le prochain
 profil versionné et met à jour `active.yaml` ; un rejet ne modifie aucun profil.
 
@@ -301,6 +310,25 @@ chaque politique renvoie une action qui est ensuite validée par le moteur.
 `last_decision` expose l'identifiant de politique, la famille et le type de
 l'action choisie. Le PPO multi-tête partagé reste une architecture future ; il
 n'est pas activé par cette composition.
+Le benchmark des parties Hybrid réutilise le scorer d'acquisition déjà chargé
+pour la campagne ; la construction d'un joueur par partie ne recharge donc pas
+le checkpoint V006 et conserve les mêmes décisions déterministes.
+
+Lorsqu'il est lancé par `GameRunner`, `HybridPlayer`/`ComposedPlayer` passe lui
+aussi par `LegacyActionMiddleware`. Le routeur conserve donc ses familles
+acquisition, play et banishment dans la vue historique ; la sous-politique neural
+d'acquisition reçoit le `view_mode` virtuel afin que son `MacroNeuralPlayer` ne
+génère pas de trace PLAY pendant une décision BUY.
+
+Le profil candidat `ppo-deckbuilding-hybrid-v003` ajoute un entraînement PPO en
+parties complètes dans cette composition. `PPOTrainingAcquisitionPolicy` ne produit
+des transitions que pour les décisions acquisition ; PLAY V008 et banishment restent
+des politiques fixes et ne produisent aucun payload PPO. La reward est exclusivement
+terminale (`+1/-1/0`) et le profil utilise `learning_rate=0.0005`, `gamma=1` et
+`gae_lambda=1`. La collecte et l'évaluation sont exposées par
+`make neural-rl-train` et `scripts/validate_hybrid_deckbuilding_profile.py`.
+La validation spécifique Hybrid applique le pool officiel sans Random, avec 200
+parties par adversaire ; elle ne promeut pas automatiquement le checkpoint.
 
 `AlgorithmicPlayPolicy` est la version `algorithmic_play_v001`. À chaque
 décision PLAY, elle recalcule les contraintes visibles et classe les cartes dans

@@ -7,6 +7,7 @@ from .actions import (
     BanishCard,
     BuyCard,
     ChoosePendingDecision,
+    EndMainPhase,
     GainMastery,
     PassPlayPhase,
     PlayCard,
@@ -40,9 +41,10 @@ class Game:
     MASTERY_COST = 1
     MASTERY_GAIN = 1
 
-    def __init__(self, state: GameState, rng: GameRandom) -> None:
+    def __init__(self, state: GameState, rng: GameRandom, *, modern_mode: bool = False) -> None:
         self.state = state
         self._rng = rng
+        self.modern_mode = modern_mode
 
     @classmethod
     def new(
@@ -197,7 +199,13 @@ class Game:
         # disproportionately expensive for the bounded PLAY solver, which clones the
         # game once per explored branch.  The RNG remains a private mutable stream and
         # must retain its exact state in the clone.
-        return Game(state=self._detached_state(), rng=self._rng.clone())
+        return Game(state=self._detached_state(), rng=self._rng.clone(), modern_mode=self.modern_mode)
+
+    def enable_modern_mode(self) -> None:
+        """Enable the interleaved main phase without changing the legacy state contract."""
+        if self.state.phase is Phase.BUY:
+            self.state.phase = Phase.PLAY
+        self.modern_mode = True
 
     def legal_actions(self) -> list[Action]:
         if self.state.status is not GameStatus.RUNNING:
@@ -216,6 +224,30 @@ class Game:
                 *[BanishCard(card.instance_id) for card in self._banishable_cards(self.active)],
                 SkipBanish(),
             ]
+        if self.modern_mode and self.state.phase is Phase.PLAY:
+            hand_actions = [PlayCard(card.instance_id) for card in self.active.hand]
+            champion_actions = [
+                ActivateChampion(card.instance_id)
+                for card in self.active.champions
+                if card.definition.champion_ability is not None
+                and card.instance_id not in self.active.activated_champion_ids
+            ]
+            mastery_actions = []
+            if self._can_gain_mastery():
+                mastery_actions.append(GainMastery())
+            buy_actions = [
+                BuyCard(slot, card.instance_id)
+                for slot, card in enumerate(self.state.river)
+                if card is not None and card.definition.cost <= self.active.gems
+            ]
+            recruit_actions = [
+                RecruitMercenary(slot, card.instance_id)
+                for slot, card in enumerate(self.state.river)
+                if card is not None
+                and card.definition.is_mercenary
+                and card.definition.cost <= self.active.gems
+            ]
+            return [*hand_actions, *champion_actions, *mastery_actions, *buy_actions, *recruit_actions, EndMainPhase()]
         if self.state.phase is Phase.PLAY:
             hand_actions = [PlayCard(card.instance_id) for card in self.active.hand]
             champion_actions = [
@@ -281,6 +313,8 @@ class Game:
             self._recruit_mercenary(action)
         elif action_type is StopBuying:
             self._stop_buying()
+        elif action_type is EndMainPhase:
+            self._end_main_phase()
         elif action_type is AssignPower:
             self._assign_power(action)
         elif isinstance(action, PlayCard):
@@ -301,6 +335,8 @@ class Game:
             self._recruit_mercenary(action)
         elif isinstance(action, StopBuying):
             self._stop_buying()
+        elif isinstance(action, EndMainPhase):
+            self._end_main_phase()
         elif isinstance(action, AssignPower):
             self._assign_power(action)
         else:
@@ -754,7 +790,7 @@ class Game:
         self.state.phase = Phase.BUY
 
     def _buy_card(self, action: BuyCard) -> None:
-        if self.state.phase is not Phase.BUY:
+        if self.state.phase is not Phase.BUY and not (self.modern_mode and self.state.phase is Phase.PLAY):
             raise InvalidActionError(
                 f"Action requires phase {Phase.BUY.value}, got {self.state.phase.value}"
             )
@@ -782,7 +818,7 @@ class Game:
         )
 
     def _recruit_mercenary(self, action: RecruitMercenary) -> None:
-        if self.state.phase is not Phase.BUY:
+        if self.state.phase is not Phase.BUY and not (self.modern_mode and self.state.phase is Phase.PLAY):
             raise InvalidActionError(
                 f"Action requires phase {Phase.BUY.value}, got {self.state.phase.value}"
             )
@@ -829,6 +865,12 @@ class Game:
             raise InvalidActionError(
                 f"Action requires phase {Phase.BUY.value}, got {self.state.phase.value}"
             )
+        self.active.gems = 0
+        self.state.phase = Phase.ATTACK
+
+    def _end_main_phase(self) -> None:
+        if not self.modern_mode or self.state.phase is not Phase.PLAY:
+            raise InvalidActionError("EndMainPhase requires the modern main phase")
         self.active.gems = 0
         self.state.phase = Phase.ATTACK
 

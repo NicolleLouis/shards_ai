@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from typing import Protocol
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from shards_ai.game import Game
@@ -28,6 +29,14 @@ from .algorithmic_play import AlgorithmicPlayPolicy
 
 
 ACQUISITION_ACTION_TYPES = (BuyCard, RecruitMercenary, RecruitFreeCard, StopBuying)
+
+
+class AcquisitionPolicy(Protocol):
+    policy_id: str
+
+    def choose_action(
+        self, observation: GameState, legal_actions: Sequence[Action]
+    ) -> tuple[Action, str]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,9 +133,11 @@ class NeuralAcquisitionPolicy:
 
     policy_id = "neural_v006"
 
-    def __init__(self, player: MacroNeuralPlayer, game: Game) -> None:
+    def __init__(self, player: MacroNeuralPlayer, game: Game, *, policy_id: str = "neural_v006") -> None:
         self._player = player
         self._game = game
+        self.policy_id = policy_id
+        self.legacy_view_mode = None
         self.last_chosen_score: float | None = None
         self.last_ranked_alternatives: tuple[dict[str, object], ...] = ()
 
@@ -144,6 +155,11 @@ class NeuralAcquisitionPolicy:
         legal_actions: Sequence[Action],
     ) -> tuple[Action, str]:
         neural_observation = self._game.neural_observation_for(self._player.player_id)
+        if self.legacy_view_mode is not None:
+            neural_observation = replace(
+                neural_observation,
+                phase=self.legacy_view_mode.value,
+            )
         action = self._player.choose_action(neural_observation, legal_actions)
         candidates = self._player.last_scored_candidates
         scores = self._player.last_candidate_scores
@@ -175,15 +191,18 @@ class HybridPlayer:
         player_id: PlayerId,
         game: Game,
         *,
-        acquisition_policy: NeuralAcquisitionPolicy,
+        acquisition_policy: AcquisitionPolicy,
         play_policy: HeuristicPlayPolicy | AlgorithmicPlayPolicy,
         banish_policy: DeterministicBanishPolicy | None = None,
+        capability_profile_id: str = "legacy_play_buy_v1",
     ) -> None:
         self.player_id = player_id
         self.game = game
         self.acquisition_policy = acquisition_policy
         self.play_policy = play_policy
         self.banish_policy = banish_policy or DeterministicBanishPolicy()
+        self.legacy_capability_profile_id = capability_profile_id
+        self.legacy_view_mode = None
         self.last_decision: DecisionDiagnostic | None = None
 
     @property
@@ -203,7 +222,7 @@ class HybridPlayer:
         if not actions:
             raise InvalidActionError("Cannot choose an action from an empty action list")
         if not isinstance(observation, GameState):
-            raise TypeError("ComposedPlayer requires a GameState")
+            raise TypeError("HybridPlayer requires a GameState")
 
         if any(isinstance(action, (BanishCard, SkipBanish)) for action in actions):
             policy = self.banish_policy
@@ -237,24 +256,31 @@ def build_composed_player(
     rng,
     *,
     acquisition_checkpoint: str | Path = "configs/neural_profiles/v006.pt",
+    acquisition_policy_id: str = "neural_v006",
     play_profile: str | Path = "configs/heuristic_profiles/v008.yaml",
     play_policy_id: str = "heuristic_v008",
     banish_policy_id: str = "deterministic_blaster_crystal",
+    capability_profile_id: str = "legacy_play_buy_v1",
+    acquisition_policy: AcquisitionPolicy | None = None,
+    acquisition_scorer=None,
 ) -> HybridPlayer:
     """Build the initial V006 acquisition / V008 play composition."""
 
     from .player_factory import build_neural_player
 
-    acquisition_player = build_neural_player(
-        player_id,
-        game,
-        rng,
-        checkpoint_path=acquisition_checkpoint,
-    )
-    if not isinstance(acquisition_player, MacroNeuralPlayer):
-        raise ValueError(
-            "The acquisition checkpoint must use the V006 macro scorer contract"
+    acquisition_player = None
+    if acquisition_policy is None:
+        acquisition_player = build_neural_player(
+            player_id,
+            game,
+            rng,
+            checkpoint_path=acquisition_checkpoint,
+            scorer=acquisition_scorer,
         )
+        if not isinstance(acquisition_player, MacroNeuralPlayer):
+            raise ValueError(
+                "The acquisition checkpoint must use the V006 macro scorer contract"
+            )
     if play_policy_id == "heuristic_v008":
         play_policy = HeuristicPlayPolicy(player_id, load_profile(play_profile))
     elif play_policy_id == "algorithmic_play_v001":
@@ -269,9 +295,12 @@ def build_composed_player(
     return HybridPlayer(
         player_id,
         game,
-        acquisition_policy=NeuralAcquisitionPolicy(acquisition_player, game),
+        acquisition_policy=acquisition_policy or NeuralAcquisitionPolicy(
+            acquisition_player, game, policy_id=acquisition_policy_id,
+        ),
         play_policy=play_policy,
         banish_policy=DeterministicBanishPolicy(banish_policy_id),
+        capability_profile_id=capability_profile_id,
     )
 
 
@@ -281,11 +310,13 @@ def build_hybrid_player(
     rng,
     *,
     profile: str | Path | HybridProfile = "hybrid-v001",
+    acquisition_policy: AcquisitionPolicy | None = None,
+    acquisition_scorer=None,
 ) -> HybridPlayer:
     """Build one exact, replayable hybrid profile."""
 
     selected = profile if isinstance(profile, HybridProfile) else load_hybrid_profile(profile)
-    if selected.acquisition_policy_id != "neural_v006":
+    if selected.acquisition_policy_id not in {"neural_v006", "neural_v007", "neural_v008", "neural_v009"}:
         raise ValueError(
             f"Unsupported acquisition policy for current HybridPlayer: "
             f"{selected.acquisition_policy_id!r}"
@@ -305,9 +336,13 @@ def build_hybrid_player(
         game,
         rng,
         acquisition_checkpoint=selected.acquisition_checkpoint,
+        acquisition_policy_id=selected.acquisition_policy_id,
         play_profile=selected.play_profile,
         play_policy_id=selected.play_policy_id,
         banish_policy_id=selected.banish_policy_id,
+        capability_profile_id=selected.capability_profile_id,
+        acquisition_policy=acquisition_policy,
+        acquisition_scorer=acquisition_scorer,
     )
 
 
@@ -317,11 +352,7 @@ __all__ = [
     "DeterministicBanishPolicy",
     "HeuristicPlayPolicy",
     "NeuralAcquisitionPolicy",
+    "AcquisitionPolicy",
     "build_composed_player",
     "build_hybrid_player",
 ]
-
-
-# Compatibility aliases for the initial implementation name. New code should
-# use HybridPlayer and build_hybrid_player/profile-based construction.
-ComposedPlayer = HybridPlayer

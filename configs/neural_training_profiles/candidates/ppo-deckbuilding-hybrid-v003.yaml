@@ -1,0 +1,48 @@
+schema_version: 1
+profile_id: ppo-deckbuilding-hybrid-v003
+parent_profile_id: v006
+method: ppo
+dataset: null
+output: artifacts/neural_training/checkpoint.pt
+initial_checkpoint: configs/neural_profiles/v006.pt
+composition_profile: configs/hybrid_profiles/hybrid-v003.yaml
+decision_family: acquisition
+seed: 51300
+learning_rate: 0.0005
+total_games: 100000
+games_per_update: 128
+optimization_epochs: 4
+minibatch_size: 2048
+gamma: 1.0
+gae_lambda: 1.0
+clip_epsilon: 0.2
+value_loss_coefficient: 0.5
+entropy_coefficient: 0.001
+reference_kl_coefficient: 0.02
+evaluation_interval_games: 700
+evaluation_games: 200
+evaluation_seed: 90000
+max_transitions_per_update: 20000
+max_actions: 10000
+max_turns: 200
+opponents:
+  hybrid:v006: 1.0
+  hybrid:v004: 1.0
+  hybrid:v005: 1.0
+  v008: 1.0
+  hybrid:v001: 0.75
+  hybrid:v003: 0.75
+reward_shaping: {}
+model:
+  card_fusion_id_scale: 0.5
+  card_fusion_semantic_scale: 1.5
+  card_fusion_normalization: l2
+  card_fusion_normalization_epsilon: 1.0e-8
+  observation_feature_set: deck_state_v1
+metadata:
+  objective: ppo_deckbuilding_only_full_game_terminal_outcome
+  architecture: structured_semantic_v5_macro_tactical_action_v1
+  candidate_schema_version: 4
+  reward_contract: terminal_win_loss_only
+  fixed_play_policy: heuristic_v008
+  fixed_banish_policy: deterministic_blaster_crystal

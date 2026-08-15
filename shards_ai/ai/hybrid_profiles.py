@@ -31,6 +31,14 @@ class HybridProfile:
     parent_profile_id: str | None = None
     metadata: Mapping[str, Any] = None  # type: ignore[assignment]
 
+    @property
+    def capability_profile_id(self) -> str:
+        """Return the middleware capability selected by this profile."""
+        value = (self.metadata or {}).get("capability_profile_id", "legacy_play_buy_v1")
+        if not isinstance(value, str) or not value:
+            raise ValueError("Hybrid profile capability_profile_id must be a non-empty string")
+        return value
+
     def resolved_document(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,

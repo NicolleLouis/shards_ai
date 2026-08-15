@@ -1,0 +1,20 @@
+schema_version: 1
+profile_id: hybrid-v004
+parent_profile_id: hybrid-v003
+policies:
+  acquisition:
+    policy_id: neural_v007
+    checkpoint: configs/neural_profiles/v007.pt
+    profile: configs/player_policies/acquisition/v007.yaml
+  play:
+    policy_id: heuristic_v008
+    profile: configs/heuristic_profiles/v008.yaml
+  banish:
+    policy_id: deterministic_blaster_crystal
+    profile: configs/player_policies/banish/v001.yaml
+metadata:
+  objective: promoted_ppo_deckbuilding_with_fixed_play_banish
+  capability_profile_id: boundary_gain_mastery_v1
+  composition: acquisition_v007_play_v008_banish_v001
+  promotion_source: ppo-deckbuilding-hybrid-v003-latest-update16
+  gate: official_quality_gate_200_games_per_opponent

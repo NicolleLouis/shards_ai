@@ -43,7 +43,7 @@ reproduire une campagne :
 poetry run python scripts/analyze_games.py --duration-seconds 30 --seed 42
 ```
 
-Le benchmark de `HeuristicPlayer` v008 contre un mélange équilibré de Random et Heuristic v007
+Le benchmark de `HeuristicPlayer` v008 contre Random
 écrit son rapport dans `artifacts/analysis/heuristic_v008_mix_1000/report.html` :
 
 ```bash
@@ -68,9 +68,9 @@ cibles neural restantes du `Makefile` : benchmark et validation. Les checkpoints
 `configs/neural_profiles/` sont stables, ne sont plus entraînés et sont les seules versions
 conservées durablement. Les artefacts générés restent hors Git.
 
-La gate de qualité compare chaque candidat à v007, v008 et aux profils neural v001, v002, v004,
-v005 et v006. Les poids sont v007 `1`, v008 `2`, v001/v002/v004 `0,5` et v005/v006 `1`.
-Neural V003 et Random restent diagnostiques et sont exclus de la gate ; la décision repose
+La gate de qualité compare chaque candidat à Hybrid V006/V004/V005 et Heuristic V008 avec un poids `1`,
+puis Hybrid V001/V003 avec un poids `0,75`. Neural V001 à V009, Heuristic V007, Hybrid V002,
+les autres hybrides et Random restent diagnostiques et sont exclus de la gate ; la décision repose
 uniquement sur une moyenne pondérée strictement positive, sans garde dure de non-régression v008.
 
 Pour expérimenter une nouvelle recette, créer un profil candidat temporaire avec
@@ -90,7 +90,7 @@ conservée dans un nouveau profil YAML. L'ancien pipeline d'imitation reste disp
 Un checkpoint promu contient les poids, l'état de l'optimiseur, les métriques et les métadonnées du
 profil. Il est chargé directement par un `NeuralPlayer` et ne sert plus de sortie d'entraînement.
 
-Pour valider un candidat contre Random, v007, v008 et les derniers checkpoints neural disponibles :
+Pour valider un candidat contre v008 et Hybrid V003 :
 
 ```bash
 PYTHONPATH=. poetry run python scripts/validate_neural_profile.py \
@@ -114,8 +114,8 @@ ne sont pas modifiés.
 Le mode `--no-promote` permet de produire uniquement le rapport.
 
 Pour comparer un profil à un panel complet, `make neural-benchmark-panel` joue contre Random,
-Heuristic v007, Heuristic v008 et les checkpoints neural v001 à v006. Le défaut est de
-200 parties par adversaire, soit 1 400 parties, avec `configs/neural_profiles/v004.pt` comme profil
+Heuristic v008. Le défaut est de 200 parties par adversaire, soit 400 parties, avec
+`configs/neural_profiles/v006.pt` comme profil
 testé. Le JSON détaillé et le rapport HTML sont écrits dans `artifacts/neural_benchmark/`.
 Les variables `NEURAL_PANEL_CHECKPOINT`, `NEURAL_PANEL_GAMES`, `NEURAL_PANEL_SEED`,
 `NEURAL_PANEL_OUTPUT` et `NEURAL_PANEL_HTML_OUTPUT` permettent de modifier la campagne.
@@ -159,9 +159,8 @@ adversaire ; les décisions v007 ne sont pas ajoutées aux labels.
 
 ## Optimisation des coefficients heuristiques
 
-Le profil manuel initial est conservé dans `configs/heuristic_profiles/v001.yaml`. Le profil
-heuristique actif par défaut est `configs/heuristic_profiles/v008.yaml`. Une campagne courte de
-60 secondes peut être lancée ainsi :
+Le profil heuristique actif par défaut est `configs/heuristic_profiles/v008.yaml`. Une campagne
+courte de 60 secondes peut être lancée ainsi :
 
 ```bash
 PYTHONPATH=. poetry run python scripts/optimize_heuristic.py \
@@ -170,22 +169,23 @@ PYTHONPATH=. poetry run python scripts/optimize_heuristic.py \
 ```
 
 La commande écrit un historique JSON et un profil YAML candidat dans
-`artifacts/heuristic_optimization/<run-id>/`. Pour publier explicitement le profil obtenu :
+`artifacts/heuristic_optimization/<run-id>/`. Pour publier explicitement le profil obtenu depuis
+la référence v007 :
 
 ```bash
 PYTHONPATH=. poetry run python scripts/optimize_heuristic.py \
   --duration-seconds 21600 \
   --seed 42 \
-  --publish-profile configs/heuristic_profiles/v002.yaml
+  --profile configs/heuristic_profiles/v007.yaml \
+  --publish-profile /tmp/heuristic_candidate.yaml
 ```
 
-La campagne utilise une recherche hybride par mutations et racing. Pour l’objectif recommandé
-consistant à battre `v002`, elle peut démarrer directement dans un mélange 50/50 entre
-`RandomPlayer` et le profil heuristique précédent :
+La campagne utilise une recherche hybride par mutations et racing. Pour démarrer dans un mélange
+50/50 entre `RandomPlayer` et la référence heuristique précédente :
 
 ```bash
 PYTHONPATH=. poetry run python scripts/optimize_heuristic.py \
-  --profile configs/heuristic_profiles/v002.yaml \
+  --profile configs/heuristic_profiles/v007.yaml \
   --duration-seconds 60 \
   --start-mixed \
   --seed 42

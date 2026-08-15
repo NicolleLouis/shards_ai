@@ -10,6 +10,7 @@ from shards_ai.game.actions import (
     BanishCard,
     BuyCard,
     ChoosePendingDecision,
+    EndMainPhase,
     GainMastery,
     PassPlayPhase,
     PlayCard,
@@ -96,6 +97,8 @@ def representation_for_action(action: Action, state: GameState) -> ActionReprese
         )
     if isinstance(action, StopBuying):
         return ActionRepresentation(action_type="stop_buying", phase=phase)
+    if isinstance(action, EndMainPhase):
+        return ActionRepresentation(action_type="stop_buying", phase=phase)
     if isinstance(action, AssignPower):
         card = None
         card_instance_id = None
@@ -159,6 +162,8 @@ def representation_for_neural_action(
         card = _neural_river_card(observation, action.river_slot, action.card_instance_id)
         return _neural_card_action("recruit_mercenary", phase, card, card_instance_id=action.card_instance_id, river_slot=action.river_slot)
     if isinstance(action, StopBuying):
+        return ActionRepresentation("stop_buying", phase)
+    if isinstance(action, EndMainPhase):
         return ActionRepresentation("stop_buying", phase)
     if isinstance(action, AssignPower):
         card = None if action.target == "opponent" else _find_observation_card(opponent.champions, action.target)
